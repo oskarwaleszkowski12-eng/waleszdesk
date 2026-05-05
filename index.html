@@ -1701,19 +1701,12 @@ async function fetchLivePnl() {
     const ctrl3 = new AbortController(); setTimeout(() => ctrl3.abort(), 5000);
     const r = await fetch('/api/positions', { signal: ctrl3.signal });
     const d = await r.json();
-    console.log('[PNL] HTTP status:', r.status);
-    console.log('[PNL] raw response:', JSON.stringify(d));
     if (!d.ok) {
-      console.warn('[PNL] d.ok is falsy, error:', d.error);
       if (sub) sub.textContent = 'API error';
       return;
     }
 
-    console.log('[PNL] positions count:', d.positions.length);
-    d.positions.forEach(p => console.log('[PNL] position:', p.symbol, 'unrealisedPnl raw:', p.unrealisedPnl, 'parsed:', parseFloat(p.unrealisedPnl)));
-
     const unrealised = (d.positions || []).reduce((sum, p) => sum + parseFloat(p.unrealisedPnl || 0), 0);
-    console.log('[PNL] total unrealised:', unrealised);
     const fmt = v => (v >= 0 ? '+' : '') + '$' + Math.abs(v).toFixed(2);
     const cls = v => 'stat-val ' + (v >= 0 ? 'pos' : 'neg');
 
@@ -1721,21 +1714,9 @@ async function fetchLivePnl() {
       totalEl.textContent = fmt(unrealised);
       totalEl.className   = cls(unrealised);
       if (sub) sub.textContent = d.positions.length ? 'Live unrealised' : 'No open positions';
-      console.log('[PNL] s-pnl updated to:', totalEl.textContent);
-    } else {
-      console.error('[PNL] s-pnl element NOT FOUND in DOM');
-    }
-
-    const todayEl = document.getElementById('s-today');
-    if (todayEl) {
-      todayEl.textContent = fmt(unrealised);
-      todayEl.className   = cls(unrealised);
-      const todaySub = document.getElementById('s-todaytrades');
-      if (todaySub) todaySub.textContent = 'Unrealised P&L';
     }
 
   } catch(e) {
-    console.error('[PNL] fetch threw:', e.name, e.message);
     if (sub) sub.textContent = 'Offline';
   }
 }
@@ -1744,6 +1725,23 @@ function startPnlRefresh() {
   fetchLivePnl();
   if (pnlInterval) clearInterval(pnlInterval);
   pnlInterval = setInterval(fetchLivePnl, 10000);
+}
+
+async function fetchTodayPnl() {
+  const el  = document.getElementById('s-today');
+  const sub = document.getElementById('s-todaytrades');
+  try {
+    const ctrl = new AbortController(); setTimeout(() => ctrl.abort(), 5000);
+    const r = await fetch('/api/pnl/today', { signal: ctrl.signal });
+    const d = await r.json();
+    if (!d.ok) { if (sub) sub.textContent = 'API error'; return; }
+    const fmt = v => (v >= 0 ? '+' : '') + '$' + Math.abs(v).toFixed(2);
+    const cls = v => 'stat-val ' + (v >= 0 ? 'pos' : 'neg');
+    if (el) { el.textContent = fmt(d.pnl); el.className = cls(d.pnl); }
+    if (sub) sub.textContent = 'Realised today';
+  } catch(e) {
+    if (sub) sub.textContent = 'Offline';
+  }
 }
 
 // ── LIVE DASHBOARD ────────────────────────────────────
@@ -1756,6 +1754,7 @@ const TICKER_SYMBOLS = ['BTCUSDT','ETHUSDT','SOLUSDT','XRPUSDT','BNBUSDT','DOGEU
 
 function startLiveDashboard() {
   fetchLivePnl();
+  fetchTodayPnl();
   fetchBalance(true);
   startTickerWs();
   initLiveEquityChart();
@@ -1764,6 +1763,7 @@ function startLiveDashboard() {
     fetchBalance(true);
     updateStats();
   }, 10000);
+  setInterval(fetchTodayPnl, 60000);
 }
 
 function initLiveEquityChart() {

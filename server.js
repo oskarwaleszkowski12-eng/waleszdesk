@@ -150,6 +150,22 @@ app.get('/api/pnl', async (req, res) => {
   }
 });
 
+app.get('/api/pnl/today', async (req, res) => {
+  try {
+    const startOfDay = new Date();
+    startOfDay.setUTCHours(0, 0, 0, 0);
+    const data = await bybitGet('/v5/position/closed-pnl', {
+      category: 'linear',
+      startTime: startOfDay.getTime().toString(),
+    });
+    if (data.retCode !== 0) return res.status(400).json({ ok: false, error: data.retMsg });
+    const total = (data.result?.list || []).reduce((sum, p) => sum + parseFloat(p.closedPnl || 0), 0);
+    res.json({ ok: true, pnl: parseFloat(total.toFixed(4)) });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 app.post('/api/order', async (req, res) => {
   try {
     const { symbol, side, orderType, qty, price, stopLoss, takeProfit, leverage } = req.body;
