@@ -15,7 +15,7 @@ app.use(cors({ origin: '*' }));
 app.use(express.static(path.join(__dirname)));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT;
 
 const CONFIG = {
   apiKey:    process.env.BYBIT_API_KEY   ,
@@ -178,17 +178,6 @@ app.get('/api/orders', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log('');
-  console.log('╔══════════════════════════════════════╗');
-  console.log('║      WaleszDesk Backend v1.3         ║');
-  console.log('╠══════════════════════════════════════╣');
-  console.log(`║  Adres:   http://localhost:${PORT}       ║`);
-  console.log(`║  Testnet: ${CONFIG.testnet ? 'TAK                  ' : 'NIE (live trading)   '}║`);
-  console.log(`║  Klucze:  ${CONFIG.apiKey !== 'default' ? 'skonfigurowane ✓     ' : 'BRAK!                '}║`);
-  console.log('╚══════════════════════════════════════╝');
-  console.log('');
-});
 
 // ─── PNL ENDPOINT ────────────────────────────────────────────────
 app.get('/api/pnl', async (req, res) => {
@@ -243,4 +232,9 @@ app.get('/api/pnl', async (req, res) => {
     console.error('PnL error:', err.message);
     res.status(500).json({ ok: false, error: err.message });
   }
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`WaleszDesk listening on 0.0.0.0:${PORT}`);
+  console.log(`Testnet: ${CONFIG.testnet}, Keys configured: ${!!CONFIG.apiKey}`);
 });
