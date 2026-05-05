@@ -1109,7 +1109,7 @@ async function placeOrderAuto() {
 
   try {
     const body = { symbol: sym, side: dir === 'long' ? 'Buy' : 'Sell', orderType: otype, qty, price: entry, stopLoss: sl || undefined, takeProfit: tp || undefined, leverage: lev };
-    const r = await fetch('http://localhost:3001/order', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const r = await fetch('/api/order', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
     const data = await r.json();
     res.style.display = 'block';
     if (data.ok) {
@@ -1174,7 +1174,7 @@ async function checkBackend() {
   try {
     const controller = new AbortController();
     setTimeout(() => controller.abort(), 3000);
-    const r = await fetch('http://localhost:3001/balance', { signal: controller.signal });
+    const r = await fetch('/api/balance', { signal: controller.signal });
     const d = await r.json();
     backendOnline = !!(d && (d.ok || d.balance !== undefined));
   } catch { backendOnline = false; }
@@ -1206,7 +1206,7 @@ async function fetchBalance() {
   el.textContent = '...';
   try {
     const ctrl1 = new AbortController(); setTimeout(() => ctrl1.abort(), 5000);
-    const r = await fetch('http://localhost:3001/balance', { signal: ctrl1.signal });
+    const r = await fetch('/api/balance', { signal: ctrl1.signal });
     const d = await r.json();
     if (d.ok) {
       el.textContent = '$' + d.balance;
@@ -1615,7 +1615,7 @@ async function fetchPositions() {
   grid.style.display = 'none';
   try {
     const ctrl2 = new AbortController(); setTimeout(() => ctrl2.abort(), 5000);
-    const r = await fetch('http://localhost:3001/positions', { signal: ctrl2.signal });
+    const r = await fetch('/api/positions', { signal: ctrl2.signal });
     const d = await r.json();
     if (!d.ok) { empty.textContent = 'Error: ' + d.error; return; }
     if (!d.positions.length) { empty.textContent = 'No open positions'; return; }
@@ -1706,7 +1706,7 @@ async function fetchLivePnl() {
   try {
     // Use positions endpoint to get unrealised PnL
     const ctrl3 = new AbortController(); setTimeout(() => ctrl3.abort(), 4000);
-    const r = await fetch('http://localhost:3001/positions', { signal: ctrl3.signal });
+    const r = await fetch('/api/positions', { signal: ctrl3.signal });
     const d = await r.json();
     if (!d.ok) return;
 
@@ -1866,7 +1866,7 @@ const _origFetchBalance = fetchBalance;
 async function fetchBalance() {
   try {
     const ctrl1 = new AbortController(); setTimeout(() => ctrl1.abort(), 5000);
-    const r = await fetch('http://localhost:3001/balance', { signal: ctrl1.signal });
+    const r = await fetch('/api/balance', { signal: ctrl1.signal });
     const d = await r.json();
     if (d.ok || d.balance) {
       backendOnline = true;
