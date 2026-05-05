@@ -1703,27 +1703,28 @@ let pnlInterval = null;
 async function fetchLivePnl() {
   try {
     const ctrl3 = new AbortController(); setTimeout(() => ctrl3.abort(), 5000);
-    const r = await fetch('/api/pnl', { signal: ctrl3.signal });
+    const r = await fetch('/api/positions', { signal: ctrl3.signal });
     const d = await r.json();
     if (!d.ok) return;
 
+    const unrealised = (d.positions || []).reduce((sum, p) => sum + parseFloat(p.unrealisedPnl || 0), 0);
     const fmt = v => (v >= 0 ? '+' : '') + '$' + Math.abs(v).toFixed(2);
     const cls = v => 'stat-val ' + (v >= 0 ? 'pos' : 'neg');
 
     const totalEl = document.getElementById('s-pnl');
     if (totalEl) {
-      totalEl.textContent = fmt(d.totalAllTime);
-      totalEl.className   = cls(d.totalAllTime);
+      totalEl.textContent = fmt(unrealised);
+      totalEl.className   = cls(unrealised);
       const sub = document.getElementById('s-pnl-sub');
-      if (sub) sub.textContent = 'Realised + open';
+      if (sub) sub.textContent = 'Unrealised P&L';
     }
 
     const todayEl = document.getElementById('s-today');
     if (todayEl) {
-      todayEl.textContent = fmt(d.totalToday);
-      todayEl.className   = cls(d.totalToday);
+      todayEl.textContent = fmt(unrealised);
+      todayEl.className   = cls(unrealised);
       const sub = document.getElementById('s-todaytrades');
-      if (sub) sub.textContent = 'Realised + unrealised';
+      if (sub) sub.textContent = 'Open positions';
     }
 
   } catch(e) {}
