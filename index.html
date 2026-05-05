@@ -1197,28 +1197,29 @@ function updateConnUI() {
 }
 
 
-async function fetchBalance() {
-  const el  = document.getElementById('s-balance');
-  const sub = document.getElementById('s-balance-sub');
+async function fetchBalance(silent = false) {
+  const el   = document.getElementById('s-balance');
+  const sub  = document.getElementById('s-balance-sub');
   const spin = document.getElementById('bal-spin');
-  spin.style.display = 'inline';
-  el.textContent = '...';
+  if (!silent) { if (spin) spin.style.display = 'inline'; if (el) el.textContent = '...'; }
   try {
     const ctrl1 = new AbortController(); setTimeout(() => ctrl1.abort(), 5000);
     const r = await fetch('/api/balance', { signal: ctrl1.signal });
     const d = await r.json();
     if (d.ok) {
-      el.textContent = '$' + d.balance;
-      sub.textContent = 'Available: $' + d.avail;
+      if (el)  el.textContent  = '$' + d.balance;
+      if (sub) sub.textContent = 'Available: $' + d.avail;
       const balEl = document.getElementById('balance');
       if (balEl) { balEl.value = d.balance; calc(); }
-      showToast('Balance updated: $' + d.balance, 'ok');
+      if (!silent) showToast('Balance updated: $' + d.balance, 'ok');
     } else {
-      el.textContent = 'Error';
-      sub.textContent = d.error;
+      if (el)  el.textContent  = 'Error';
+      if (sub) sub.textContent = d.error || 'Error';
     }
-  } catch { el.textContent = '—'; sub.textContent = 'Backend offline'; }
-  spin.style.display = 'none';
+  } catch {
+    if (!silent) { if (el) el.textContent = '—'; if (sub) sub.textContent = 'Backend offline'; }
+  }
+  if (spin) spin.style.display = 'none';
 }
 
 // ── BOTS ───────────────────────────────────────────────
@@ -1609,17 +1610,13 @@ async function fetchPositions() {
   const card = document.getElementById('positions-card');
   const grid = document.getElementById('positions-grid');
   const empty = document.getElementById('positions-empty');
-  empty.textContent = 'Loading...';
-  empty.style.display = '';
-  grid.style.display = 'none';
   try {
     const ctrl2 = new AbortController(); setTimeout(() => ctrl2.abort(), 5000);
     const r = await fetch('/api/positions', { signal: ctrl2.signal });
     const d = await r.json();
-    if (!d.ok) { empty.textContent = 'Error: ' + d.error; return; }
-    if (!d.positions.length) { empty.textContent = 'No open positions'; return; }
+    if (!d.ok) { grid.style.display = 'none'; empty.textContent = 'Error: ' + d.error; empty.style.display = ''; return; }
+    if (!d.positions.length) { grid.style.display = 'none'; empty.textContent = 'No open positions'; empty.style.display = ''; return; }
     empty.style.display = 'none';
-    grid.style.display = '';
     grid.innerHTML = d.positions.map(p => {
       const pnl = parseFloat(p.unrealisedPnl) || 0;
       const pnlColor = pnl >= 0 ? 'var(--green)' : 'var(--red)';
@@ -1703,31 +1700,28 @@ let pnlInterval = null;
 
 async function fetchLivePnl() {
   try {
-    // Use positions endpoint to get unrealised PnL
-    const ctrl3 = new AbortController(); setTimeout(() => ctrl3.abort(), 4000);
-    const r = await fetch('/api/positions', { signal: ctrl3.signal });
+    const ctrl3 = new AbortController(); setTimeout(() => ctrl3.abort(), 5000);
+    const r = await fetch('/api/pnl', { signal: ctrl3.signal });
     const d = await r.json();
     if (!d.ok) return;
 
-    // Sum unrealised PnL from all positions
-    const unrealised = (d.positions || []).reduce((sum, p) => sum + parseFloat(p.unrealisedPnl || 0), 0);
+    const fmt = v => (v >= 0 ? '+' : '') + '$' + Math.abs(v).toFixed(2);
+    const cls = v => 'stat-val ' + (v >= 0 ? 'pos' : 'neg');
 
-    // Update Today P&L with unrealised
+    const totalEl = document.getElementById('s-pnl');
+    if (totalEl) {
+      totalEl.textContent = fmt(d.totalAllTime);
+      totalEl.className   = cls(d.totalAllTime);
+      const sub = document.getElementById('s-pnl-sub');
+      if (sub) sub.textContent = 'Realised + open';
+    }
+
     const todayEl = document.getElementById('s-today');
     if (todayEl) {
-      todayEl.textContent = (unrealised >= 0 ? '+' : '') + '$' + Math.abs(unrealised).toFixed(2);
-      todayEl.className = 'stat-val ' + (unrealised >= 0 ? 'pos' : 'neg');
-    }
-    const todaySub = document.getElementById('s-todaytrades');
-    if (todaySub) todaySub.textContent = 'Unrealised P&L';
-
-    // Update Total P&L
-    const totalEl = document.getElementById('s-pnl');
-    if (totalEl && unrealised !== 0) {
-      totalEl.textContent = (unrealised >= 0 ? '+' : '') + '$' + Math.abs(unrealised).toFixed(2);
-      totalEl.className = 'stat-val ' + (unrealised >= 0 ? 'pos' : 'neg');
-      const sub = document.getElementById('s-pnl-sub');
-      if (sub) sub.textContent = 'Live unrealised';
+      todayEl.textContent = fmt(d.totalToday);
+      todayEl.className   = cls(d.totalToday);
+      const sub = document.getElementById('s-todaytrades');
+      if (sub) sub.textContent = 'Realised + unrealised';
     }
 
   } catch(e) {}
@@ -1749,12 +1743,12 @@ const TICKER_SYMBOLS = ['BTCUSDT','ETHUSDT','SOLUSDT','XRPUSDT','BNBUSDT','DOGEU
 
 function startLiveDashboard() {
   fetchLivePnl();
-  fetchBalance();
+  fetchBalance(true);
   startTickerWs();
   initLiveEquityChart();
   setInterval(() => {
     fetchLivePnl();
-    fetchBalance();
+    fetchBalance(true);
     updateStats();
   }, 10000);
 }
@@ -1861,25 +1855,6 @@ function updateTickerBar() {
   bar.innerHTML = items || '<div style="font-size:11px;color:var(--muted2);font-family:var(--font-mono);padding:6px 0;">Connecting to Bybit...</div>';
 }
 
-// Override fetchBalance to also update equity chart
-const _origFetchBalance = fetchBalance;
-async function fetchBalance() {
-  try {
-    const ctrl1 = new AbortController(); setTimeout(() => ctrl1.abort(), 5000);
-    const r = await fetch('/api/balance', { signal: ctrl1.signal });
-    const d = await r.json();
-    if (d.ok || d.balance) {
-      backendOnline = true;
-      updateConnUI();
-      const el  = document.getElementById('s-balance');
-      const sub = document.getElementById('s-balance-sub');
-      const spin = document.getElementById('bal-spin');
-      if (el) el.textContent = '$' + d.balance;
-      if (sub) sub.textContent = 'Available: $' + d.avail;
-      if (spin) spin.style.display = 'none';
-    }
-  } catch { }
-}
 
 function save() {
   localStorage.setItem('wd_bots',   JSON.stringify(state.bots));
