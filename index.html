@@ -1365,6 +1365,7 @@ function saveTrade() {
 function renderJournal() {
   const tbody = document.getElementById('journal-body');
   const empty = document.getElementById('journal-empty');
+  if (!tbody || !empty) return;
   if (!state.trades.length) { tbody.innerHTML = ''; empty.style.display = ''; return; }
   empty.style.display = 'none';
   let html = '';
