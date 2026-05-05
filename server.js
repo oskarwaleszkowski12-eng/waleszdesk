@@ -18,8 +18,8 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 const PORT = 3001;
 
 const CONFIG = {
-  apiKey:    process.env.BYBIT_API_KEY    || 'euTDVCQDzmfvN99sQz',
-  apiSecret: process.env.BYBIT_API_SECRET || 'YEZ9Iy8CeigBPLwMIQIAXKR7dgTQgqWfX6XK',
+  apiKey:    process.env.BYBIT_API_KEY   ,
+  apiSecret: process.env.BYBIT_API_SECRET,
   testnet:   process.env.BYBIT_TESTNET === 'true' || false,
 };
 
@@ -72,7 +72,7 @@ async function apiPost(path, params = {}) {
 // ─── ROUTES ──────────────────────────────────────────────────────
 
 app.get('/status', (req, res) => {
-  res.json({ ok: true, testnet: CONFIG.testnet, hasKeys: CONFIG.apiKey !== 'euTDVCQDzmfvN99sQz', server: 'WaleszDesk v1.3' });
+  res.json({ ok: true, testnet: CONFIG.testnet, hasKeys: CONFIG.apiKey !== 'default', server: 'WaleszDesk v1.3' });
 });
 
 app.get('/balance', async (req, res) => {
@@ -186,7 +186,7 @@ app.listen(PORT, () => {
   console.log('╠══════════════════════════════════════╣');
   console.log(`║  Adres:   http://localhost:${PORT}       ║`);
   console.log(`║  Testnet: ${CONFIG.testnet ? 'TAK                  ' : 'NIE (live trading)   '}║`);
-  console.log(`║  Klucze:  ${CONFIG.apiKey !== 'euTDVCQDzmfvN99sQz' ? 'skonfigurowane ✓     ' : 'BRAK!                '}║`);
+  console.log(`║  Klucze:  ${CONFIG.apiKey !== 'default' ? 'skonfigurowane ✓     ' : 'BRAK!                '}║`);
   console.log('╚══════════════════════════════════════╝');
   console.log('');
 });
