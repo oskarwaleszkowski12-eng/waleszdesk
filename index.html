@@ -1700,12 +1700,19 @@ async function fetchLivePnl() {
     const ctrl3 = new AbortController(); setTimeout(() => ctrl3.abort(), 5000);
     const r = await fetch('/api/positions', { signal: ctrl3.signal });
     const d = await r.json();
+    console.log('[PNL] HTTP status:', r.status);
+    console.log('[PNL] raw response:', JSON.stringify(d));
     if (!d.ok) {
+      console.warn('[PNL] d.ok is falsy, error:', d.error);
       if (sub) sub.textContent = 'API error';
       return;
     }
 
+    console.log('[PNL] positions count:', d.positions.length);
+    d.positions.forEach(p => console.log('[PNL] position:', p.symbol, 'unrealisedPnl raw:', p.unrealisedPnl, 'parsed:', parseFloat(p.unrealisedPnl)));
+
     const unrealised = (d.positions || []).reduce((sum, p) => sum + parseFloat(p.unrealisedPnl || 0), 0);
+    console.log('[PNL] total unrealised:', unrealised);
     const fmt = v => (v >= 0 ? '+' : '') + '$' + Math.abs(v).toFixed(2);
     const cls = v => 'stat-val ' + (v >= 0 ? 'pos' : 'neg');
 
@@ -1713,6 +1720,9 @@ async function fetchLivePnl() {
       totalEl.textContent = fmt(unrealised);
       totalEl.className   = cls(unrealised);
       if (sub) sub.textContent = d.positions.length ? 'Live unrealised' : 'No open positions';
+      console.log('[PNL] s-pnl updated to:', totalEl.textContent);
+    } else {
+      console.error('[PNL] s-pnl element NOT FOUND in DOM');
     }
 
     const todayEl = document.getElementById('s-today');
@@ -1724,6 +1734,7 @@ async function fetchLivePnl() {
     }
 
   } catch(e) {
+    console.error('[PNL] fetch threw:', e.name, e.message);
     if (sub) sub.textContent = 'Offline';
   }
 }
