@@ -1698,13 +1698,17 @@ async function fetchLivePnl() {
     const ctrl3 = new AbortController(); setTimeout(() => ctrl3.abort(), 5000);
     const r = await fetch('/api/positions', { signal: ctrl3.signal });
     const d = await r.json();
-    if (!d.ok) return;
+    console.log('[fetchLivePnl] response:', JSON.stringify(d).slice(0, 300));
+    if (!d.ok) { console.warn('[fetchLivePnl] d.ok is falsy, returning early'); return; }
 
     const unrealised = (d.positions || []).reduce((sum, p) => sum + parseFloat(p.unrealisedPnl || 0), 0);
+    console.log('[fetchLivePnl] positions count:', d.positions?.length, 'unrealised:', unrealised);
+
+    const totalEl = document.getElementById('s-pnl');
+    console.log('[fetchLivePnl] s-pnl element:', totalEl, 'will set to:', unrealised);
     const fmt = v => (v >= 0 ? '+' : '') + '$' + Math.abs(v).toFixed(2);
     const cls = v => 'stat-val ' + (v >= 0 ? 'pos' : 'neg');
 
-    const totalEl = document.getElementById('s-pnl');
     if (totalEl) {
       totalEl.textContent = fmt(unrealised);
       totalEl.className   = cls(unrealised);
@@ -1720,7 +1724,7 @@ async function fetchLivePnl() {
       if (sub) sub.textContent = 'Open positions';
     }
 
-  } catch(e) {}
+  } catch(e) { console.error('[fetchLivePnl] error:', e); }
 }
 
 function startPnlRefresh() {
