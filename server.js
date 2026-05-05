@@ -15,7 +15,7 @@ app.use(cors({ origin: '*' }));
 app.use(express.static(path.join(__dirname)));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 const CONFIG = {
   apiKey:    process.env.BYBIT_API_KEY   ,
@@ -71,11 +71,11 @@ async function apiPost(path, params = {}) {
 
 // ─── ROUTES ──────────────────────────────────────────────────────
 
-app.get('/status', (req, res) => {
-  res.json({ ok: true, testnet: CONFIG.testnet, hasKeys: CONFIG.apiKey !== 'default', server: 'WaleszDesk v1.3' });
+app.get('/api/status', (req, res) => {
+  res.json({ ok: true, testnet: CONFIG.testnet, hasKeys: !!CONFIG.apiKey, server: 'WaleszDesk v1.3' });
 });
 
-app.get('/balance', async (req, res) => {
+app.get('/api/balance', async (req, res) => {
   try {
     let result = null;
     for (const accountType of ['UNIFIED', 'CONTRACT', 'SPOT']) {
@@ -111,7 +111,7 @@ app.get('/balance', async (req, res) => {
   }
 });
 
-app.get('/positions', async (req, res) => {
+app.get('/api/positions', async (req, res) => {
   try {
     const data = await apiGet('/v5/position/list', { category: 'linear', settleCoin: 'USDT' });
     if (data.retCode !== 0) return res.status(400).json({ ok: false, error: data.retMsg });
@@ -126,7 +126,7 @@ app.get('/positions', async (req, res) => {
   }
 });
 
-app.post('/order', async (req, res) => {
+app.post('/api/order', async (req, res) => {
   try {
     const { symbol, side, orderType, qty, price, stopLoss, takeProfit, leverage } = req.body;
     if (!symbol || !side || !orderType || !qty)
@@ -168,7 +168,7 @@ app.post('/order', async (req, res) => {
   }
 });
 
-app.get('/orders', async (req, res) => {
+app.get('/api/orders', async (req, res) => {
   try {
     const data = await apiGet('/v5/order/history', { category: 'linear', limit: '20' });
     if (data.retCode !== 0) return res.status(400).json({ ok: false, error: data.retMsg });
@@ -178,7 +178,6 @@ app.get('/orders', async (req, res) => {
   }
 });
 
-app.get("/status",(q,r)=>r.json({ok:true,server:"WaleszDesk"}));
 app.listen(PORT, () => {
   console.log('');
   console.log('╔══════════════════════════════════════╗');
@@ -192,7 +191,7 @@ app.listen(PORT, () => {
 });
 
 // ─── PNL ENDPOINT ────────────────────────────────────────────────
-app.get('/pnl', async (req, res) => {
+app.get('/api/pnl', async (req, res) => {
   try {
     // Unrealised PnL from open positions
     const posData = await apiGet('/v5/position/list', { category: 'linear', settleCoin: 'USDT' });
