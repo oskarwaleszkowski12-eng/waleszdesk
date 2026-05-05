@@ -1,14 +1,74 @@
-const express = require('express');
-const cors    = require('cors');
-const crypto  = require('crypto');
-const axios   = require('axios');
-const path    = require('path');
+const express  = require('express');
+const cors     = require('cors');
+const crypto   = require('crypto');
+const axios    = require('axios');
+const path     = require('path');
+const { Pool } = require('pg');
 
 const app = express();
 app.use(express.json());
 app.use(cors({ origin: '*' }));
 app.use(express.static(path.join(__dirname)));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
+});
+
+async function initDb() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS trades (
+      id          SERIAL PRIMARY KEY,
+      symbol      VARCHAR(20)  NOT NULL,
+      side        VARCHAR(10)  NOT NULL,
+      entry_price DECIMAL(20,8),
+      exit_price  DECIMAL(20,8),
+      size        DECIMAL(20,8),
+      pnl         DECIMAL(20,8),
+      open_time   TIMESTAMPTZ,
+      close_time  TIMESTAMPTZ,
+      notes       TEXT         DEFAULT '',
+      checklist   JSONB        DEFAULT '{"trend":false,"entry":false,"sl":false,"reason":false}'
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS trades_symbol_close_time
+      ON trades(symbol, close_time);
+  `);
+  console.log('[DB] trades table ready');
+}
+
+// ── CLOSED-POSITION POLLING ────────────────────────────
+let lastPollTime = Date.now() - 24 * 60 * 60 * 1000; // last 24h on first run
+
+async function pollClosedTrades() {
+  try {
+    const data = await bybitGet('/v5/position/closed-pnl', {
+      category:  'linear',
+      startTime: lastPollTime.toString(),
+    });
+    lastPollTime = Date.now();
+    if (data.retCode !== 0) return;
+    for (const t of (data.result?.list || [])) {
+      await pool.query(
+        `INSERT INTO trades (symbol, side, entry_price, exit_price, size, pnl, open_time, close_time)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+         ON CONFLICT (symbol, close_time) DO NOTHING`,
+        [
+          t.symbol,
+          t.side,
+          parseFloat(t.avgEntryPrice) || null,
+          parseFloat(t.avgExitPrice)  || null,
+          parseFloat(t.qty)           || null,
+          parseFloat(t.closedPnl)     || null,
+          t.createdTime ? new Date(parseInt(t.createdTime)) : null,
+          t.updatedTime ? new Date(parseInt(t.updatedTime)) : null,
+        ]
+      );
+    }
+  } catch (e) {
+    console.error('[poll] closed trades error:', e.message);
+  }
+}
 
 const PORT      = process.env.PORT || 3001;
 const API_KEY   = process.env.BYBIT_API_KEY;
@@ -191,5 +251,41 @@ app.post('/api/order', async (req, res) => {
     res.status(500).json({ ok: false, error: err.message });
   }
 });
+
+// ── JOURNAL ───────────────────────────────────────────
+app.get('/api/journal', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM trades ORDER BY close_time DESC NULLS LAST'
+    );
+    res.json({ ok: true, trades: rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.patch('/api/journal/:id', async (req, res) => {
+  try {
+    const { notes, checklist } = req.body;
+    const { rows } = await pool.query(
+      `UPDATE trades SET
+         notes     = COALESCE($1, notes),
+         checklist = COALESCE($2, checklist)
+       WHERE id = $3 RETURNING *`,
+      [notes ?? null, checklist ? JSON.stringify(checklist) : null, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ ok: false, error: 'Trade not found' });
+    res.json({ ok: true, trade: rows[0] });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+initDb()
+  .then(() => {
+    pollClosedTrades();
+    setInterval(pollClosedTrades, 60_000);
+  })
+  .catch(err => console.error('[DB] init failed:', err.message));
 
 app.listen(PORT, '0.0.0.0', () => console.log(`WaleszDesk running on 0.0.0.0:${PORT}`));
