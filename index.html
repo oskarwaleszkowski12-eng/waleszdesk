@@ -730,6 +730,42 @@ tr:hover td { background: rgba(255,255,255,.015); }
     </div>
   </div>
 
+  <!-- JOURNAL -->
+  <div class="panel" id="panel-journal">
+    <div class="section-head">
+      <div class="section-title">Trading Journal</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span id="journal-count" style="font-size:11px;color:var(--muted2);font-family:var(--font-mono);"></span>
+        <button class="btn sm" onclick="fetchJournalDB()">↻ Refresh</button>
+      </div>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden;">
+      <div class="journal-wrap">
+        <table id="journal-db-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Symbol</th>
+              <th>Side</th>
+              <th style="text-align:right">Entry</th>
+              <th style="text-align:right">Exit</th>
+              <th style="text-align:right">Size</th>
+              <th style="text-align:right">P&amp;L</th>
+              <th style="text-align:center">Checklist</th>
+            </tr>
+          </thead>
+          <tbody id="journal-db-body"></tbody>
+        </table>
+      </div>
+      <div id="journal-db-empty" style="display:none;padding:48px;text-align:center;color:var(--muted2);font-size:13px;">
+        No closed trades yet — positions closed on Bybit appear here automatically.
+      </div>
+      <div id="journal-db-loading" style="padding:48px;text-align:center;color:var(--muted2);font-size:13px;">
+        Loading...
+      </div>
+    </div>
+  </div>
+
   <!-- POSITIONS -->
   <div class="panel" id="panel-positions">
     <div class="section-head">
@@ -867,7 +903,8 @@ function showPanel(id, el) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   const panelEl = document.getElementById('panel-' + id); if(panelEl) panelEl.classList.add('active');
   if (el) el.classList.add('active');
-  if (id === 'pnl') setTimeout(renderCharts, 50);
+  if (id === 'pnl')     setTimeout(renderCharts, 50);
+  if (id === 'journal') fetchJournalDB();
   if (id === 'positions') startPositionsRefresh();
   else stopPositionsRefresh();
 }
@@ -1450,6 +1487,162 @@ function exportCSV() {
   a.href = 'data:text/csv,' + encodeURIComponent([h.join(','),...rows].join('\n'));
   a.download = 'waleszdesk_journal.csv'; a.click();
   showToast('CSV exported!', 'ok');
+}
+
+// ── JOURNAL DB ─────────────────────────────────────────
+const CL_KEYS = [
+  { key: 'trend',  label: 'Sprawdziłem trend' },
+  { key: 'entry',  label: 'Entry zgodny z planem' },
+  { key: 'sl',     label: 'Przestrzegałem SL' },
+  { key: 'reason', label: 'Zapisałem powód wejścia' },
+];
+
+async function fetchJournalDB() {
+  const loading = document.getElementById('journal-db-loading');
+  const empty   = document.getElementById('journal-db-empty');
+  const tbody   = document.getElementById('journal-db-body');
+  if (loading) loading.style.display = '';
+  if (empty)   empty.style.display   = 'none';
+  try {
+    const r = await fetch('/api/journal');
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    if (loading) loading.style.display = 'none';
+    renderJournalDB(d.trades);
+  } catch (e) {
+    if (loading) loading.style.display = 'none';
+    if (empty) { empty.textContent = 'Error: ' + e.message; empty.style.display = ''; }
+  }
+}
+
+function renderJournalDB(trades) {
+  const tbody = document.getElementById('journal-db-body');
+  const empty = document.getElementById('journal-db-empty');
+  const count = document.getElementById('journal-count');
+  if (!tbody) return;
+
+  if (!trades.length) {
+    tbody.innerHTML = '';
+    if (empty) { empty.textContent = 'No closed trades yet — positions closed on Bybit appear here automatically.'; empty.style.display = ''; }
+    if (count) count.textContent = '';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  if (count) count.textContent = trades.length + ' trade' + (trades.length !== 1 ? 's' : '');
+
+  const fmt  = v => v == null ? '—' : (parseFloat(v) >= 0 ? '+' : '') + '$' + Math.abs(parseFloat(v)).toFixed(2);
+  const fmtP = v => v == null ? '—' : parseFloat(v).toFixed(2);
+  const fmtD = v => v ? new Date(v).toLocaleString('pl-PL', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
+
+  tbody.innerHTML = trades.map(t => {
+    const pnl    = parseFloat(t.pnl) || 0;
+    const pnlCol = pnl >= 0 ? 'var(--green)' : 'var(--red)';
+    const cl     = t.checklist || {};
+    const done   = CL_KEYS.filter(c => cl[c.key]).length;
+    const sideC  = (t.side || '').toLowerCase() === 'buy' ? 'side-long' : 'side-short';
+    const sideL  = (t.side || '').toLowerCase() === 'buy' ? 'LONG' : 'SHORT';
+
+    const checklistHtml = CL_KEYS.map(c =>
+      `<div class="check-item${cl[c.key] ? ' checked' : ''}" onclick="toggleJournalCheck(${t.id},'${c.key}',this)">` +
+        `<div class="check-box">${cl[c.key] ? '&#10003;' : ''}</div>` +
+        `<div class="check-label">${c.label}</div>` +
+      `</div>`
+    ).join('');
+
+    return `
+      <tr onclick="toggleJournalExpand(${t.id})" style="cursor:pointer;">
+        <td style="font-family:var(--font-mono);font-size:11px;color:var(--muted2)">${fmtD(t.close_time)}</td>
+        <td style="font-weight:700;letter-spacing:.03em">${t.symbol}</td>
+        <td><span class="side-b ${sideC}">${sideL}</span></td>
+        <td style="font-family:var(--font-mono);text-align:right">${fmtP(t.entry_price)}</td>
+        <td style="font-family:var(--font-mono);text-align:right">${fmtP(t.exit_price)}</td>
+        <td style="font-family:var(--font-mono);text-align:right">${fmtP(t.size)}</td>
+        <td style="font-family:var(--font-mono);font-weight:700;text-align:right;color:${pnlCol}">${fmt(t.pnl)}</td>
+        <td style="text-align:center">
+          <span style="font-size:11px;font-family:var(--font-mono);color:${done===CL_KEYS.length?'var(--green)':'var(--muted2)'}">${done}/${CL_KEYS.length}</span>
+        </td>
+      </tr>
+      <tr id="jexp-${t.id}" style="display:none">
+        <td colspan="8" style="padding:0;">
+          <div class="expand-panel">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+              <div>
+                <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:10px;">Checklist</div>
+                ${checklistHtml}
+              </div>
+              <div onclick="event.stopPropagation()">
+                <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:10px;">Notatki</div>
+                <textarea id="jnotes-${t.id}" rows="5" placeholder="Powód wejścia, błędy, wnioski..."
+                  style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:10px;font-size:12px;outline:none;resize:vertical;font-family:var(--font-display);line-height:1.6"
+                >${t.notes || ''}</textarea>
+                <button class="btn accent sm" onclick="saveJournalNotes(${t.id})" style="margin-top:8px;">Save notes</button>
+              </div>
+            </div>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function toggleJournalExpand(id) {
+  const row = document.getElementById('jexp-' + id);
+  if (!row) return;
+  row.style.display = row.style.display === 'none' ? '' : 'none';
+}
+
+async function toggleJournalCheck(id, key, el) {
+  event.stopPropagation();
+  const isChecked = el.classList.contains('checked');
+  el.classList.toggle('checked');
+  el.querySelector('.check-box').innerHTML = !isChecked ? '&#10003;' : '';
+
+  // rebuild checklist from current DOM state
+  const expandRow = document.getElementById('jexp-' + id);
+  if (!expandRow) return;
+  const checklist = {};
+  CL_KEYS.forEach(c => { checklist[c.key] = false; });
+  expandRow.querySelectorAll('.check-item').forEach((item, i) => {
+    checklist[CL_KEYS[i].key] = item.classList.contains('checked');
+  });
+
+  // update counter badge in main row
+  const done = CL_KEYS.filter(c => checklist[c.key]).length;
+  const mainRow = expandRow.previousElementSibling;
+  if (mainRow) {
+    const badge = mainRow.querySelector('td:last-child span');
+    if (badge) {
+      badge.textContent = done + '/' + CL_KEYS.length;
+      badge.style.color = done === CL_KEYS.length ? 'var(--green)' : 'var(--muted2)';
+    }
+  }
+
+  try {
+    await fetch('/api/journal/' + id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ checklist }),
+    });
+  } catch (e) { /* silently ignore — UI already updated */ }
+}
+
+async function saveJournalNotes(id) {
+  event.stopPropagation();
+  const ta = document.getElementById('jnotes-' + id);
+  if (!ta) return;
+  const btn = ta.nextElementSibling;
+  try {
+    btn.textContent = 'Saving...';
+    await fetch('/api/journal/' + id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes: ta.value }),
+    });
+    btn.textContent = 'Saved ✓';
+    setTimeout(() => { btn.textContent = 'Save notes'; }, 2000);
+  } catch (e) {
+    btn.textContent = 'Error';
+    setTimeout(() => { btn.textContent = 'Save notes'; }, 2000);
+  }
 }
 
 // ── STATS ──────────────────────────────────────────────
