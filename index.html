@@ -858,7 +858,6 @@ window.addEventListener('DOMContentLoaded', () => {
   loadApiUI();
   calc();
   checkBackend();
-  setInterval(checkBackend, 10000);
   startLiveDashboard();
 });
 
@@ -1207,6 +1206,8 @@ async function fetchBalance(silent = false) {
     const r = await fetch('/api/balance', { signal: ctrl1.signal });
     const d = await r.json();
     if (d.ok) {
+      backendOnline = true;
+      updateConnUI();
       if (el)  el.textContent  = '$' + d.balance;
       if (sub) sub.textContent = 'Available: $' + d.avail;
       const balEl = document.getElementById('balance');
@@ -1617,6 +1618,7 @@ async function fetchPositions() {
     if (!d.ok) { grid.style.display = 'none'; empty.textContent = 'Error: ' + d.error; empty.style.display = ''; return; }
     if (!d.positions.length) { grid.style.display = 'none'; empty.textContent = 'No open positions'; empty.style.display = ''; return; }
     empty.style.display = 'none';
+    grid.style.display = '';
     grid.innerHTML = d.positions.map(p => {
       const pnl = parseFloat(p.unrealisedPnl) || 0;
       const pnlColor = pnl >= 0 ? 'var(--green)' : 'var(--red)';
