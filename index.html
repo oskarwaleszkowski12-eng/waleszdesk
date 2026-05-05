@@ -1694,37 +1694,38 @@ function calcFees() {
 let pnlInterval = null;
 
 async function fetchLivePnl() {
+  const totalEl = document.getElementById('s-pnl');
+  const sub     = document.getElementById('s-pnl-sub');
   try {
     const ctrl3 = new AbortController(); setTimeout(() => ctrl3.abort(), 5000);
     const r = await fetch('/api/positions', { signal: ctrl3.signal });
     const d = await r.json();
-    console.log('[fetchLivePnl] response:', JSON.stringify(d).slice(0, 300));
-    if (!d.ok) { console.warn('[fetchLivePnl] d.ok is falsy, returning early'); return; }
+    if (!d.ok) {
+      if (sub) sub.textContent = 'API error';
+      return;
+    }
 
     const unrealised = (d.positions || []).reduce((sum, p) => sum + parseFloat(p.unrealisedPnl || 0), 0);
-    console.log('[fetchLivePnl] positions count:', d.positions?.length, 'unrealised:', unrealised);
-
-    const totalEl = document.getElementById('s-pnl');
-    console.log('[fetchLivePnl] s-pnl element:', totalEl, 'will set to:', unrealised);
     const fmt = v => (v >= 0 ? '+' : '') + '$' + Math.abs(v).toFixed(2);
     const cls = v => 'stat-val ' + (v >= 0 ? 'pos' : 'neg');
 
     if (totalEl) {
       totalEl.textContent = fmt(unrealised);
       totalEl.className   = cls(unrealised);
-      const sub = document.getElementById('s-pnl-sub');
-      if (sub) sub.textContent = 'Unrealised P&L';
+      if (sub) sub.textContent = d.positions.length ? 'Live unrealised' : 'No open positions';
     }
 
     const todayEl = document.getElementById('s-today');
     if (todayEl) {
       todayEl.textContent = fmt(unrealised);
       todayEl.className   = cls(unrealised);
-      const sub = document.getElementById('s-todaytrades');
-      if (sub) sub.textContent = 'Open positions';
+      const todaySub = document.getElementById('s-todaytrades');
+      if (todaySub) todaySub.textContent = 'Unrealised P&L';
     }
 
-  } catch(e) { console.error('[fetchLivePnl] error:', e); }
+  } catch(e) {
+    if (sub) sub.textContent = 'Offline';
+  }
 }
 
 function startPnlRefresh() {
