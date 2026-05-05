@@ -13,44 +13,58 @@ function sign(secret, payload) {
   return crypto.createHmac('sha256', secret).update(payload).digest('hex');
 }
 
+function bybitError(err) {
+  const data = err.response?.data;
+  if (data) return new Error(`Bybit ${err.response.status}: retCode=${data.retCode} retMsg=${data.retMsg}`);
+  return err;
+}
+
 async function apiGet(path, params = {}) {
   const { apiKey, apiSecret, testnet } = getConfig();
   const base = testnet ? 'https://api-testnet.bybit.com' : 'https://api.bybit.com';
   const ts  = Date.now().toString();
-  const rw  = '5000';
+  const rw  = '20000';
   const qs  = Object.keys(params).sort().map(k => `${k}=${params[k]}`).join('&');
   const sig = sign(apiSecret, ts + apiKey + rw + qs);
   const url = `${base}${path}${qs ? '?' + qs : ''}`;
-  const res = await axios.get(url, {
-    headers: {
-      'X-BAPI-API-KEY':     apiKey,
-      'X-BAPI-SIGN':        sig,
-      'X-BAPI-TIMESTAMP':   ts,
-      'X-BAPI-RECV-WINDOW': rw,
-      'X-BAPI-SIGN-TYPE':   '2',
-    }
-  });
-  return res.data;
+  try {
+    const res = await axios.get(url, {
+      headers: {
+        'X-BAPI-API-KEY':     apiKey,
+        'X-BAPI-SIGN':        sig,
+        'X-BAPI-TIMESTAMP':   ts,
+        'X-BAPI-RECV-WINDOW': rw,
+        'X-BAPI-SIGN-TYPE':   '2',
+      }
+    });
+    return res.data;
+  } catch (err) {
+    throw bybitError(err);
+  }
 }
 
 async function apiPost(path, params = {}) {
   const { apiKey, apiSecret, testnet } = getConfig();
   const base = testnet ? 'https://api-testnet.bybit.com' : 'https://api.bybit.com';
   const ts   = Date.now().toString();
-  const rw   = '5000';
+  const rw   = '20000';
   const body = JSON.stringify(params);
   const sig  = sign(apiSecret, ts + apiKey + rw + body);
   const url  = `${base}${path}`;
-  const res = await axios.post(url, params, {
-    headers: {
-      'X-BAPI-API-KEY':     apiKey,
-      'X-BAPI-SIGN':        sig,
-      'X-BAPI-TIMESTAMP':   ts,
-      'X-BAPI-RECV-WINDOW': rw,
-      'X-BAPI-SIGN-TYPE':   '2',
-    }
-  });
-  return res.data;
+  try {
+    const res = await axios.post(url, params, {
+      headers: {
+        'X-BAPI-API-KEY':     apiKey,
+        'X-BAPI-SIGN':        sig,
+        'X-BAPI-TIMESTAMP':   ts,
+        'X-BAPI-RECV-WINDOW': rw,
+        'X-BAPI-SIGN-TYPE':   '2',
+      }
+    });
+    return res.data;
+  } catch (err) {
+    throw bybitError(err);
+  }
 }
 
 module.exports = { getConfig, apiGet, apiPost };
