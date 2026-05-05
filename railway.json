@@ -4,6 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
+    "region": "asia-southeast1-eqsg3a",
     "startCommand": "node server.js",
     "healthcheckPath": "/api/status",
     "healthcheckTimeout": 30,
