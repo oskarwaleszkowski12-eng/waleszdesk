@@ -1,5 +1,6 @@
-const { CONFIG } = require('./_utils');
+const { getConfig } = require('./_utils');
 
 module.exports = (req, res) => {
-  res.json({ ok: true, testnet: CONFIG.testnet, hasKeys: !!CONFIG.apiKey, server: 'WaleszDesk v1.3' });
+  const { testnet, apiKey } = getConfig();
+  res.json({ ok: true, testnet, hasKeys: !!apiKey, server: 'WaleszDesk v1.3' });
 };
