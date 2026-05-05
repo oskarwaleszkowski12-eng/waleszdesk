@@ -859,7 +859,6 @@ window.addEventListener('DOMContentLoaded', () => {
   calc();
   checkBackend();
   setInterval(checkBackend, 10000);
-  startPnlRefresh();
   startLiveDashboard();
 });
 
@@ -1756,6 +1755,7 @@ function startLiveDashboard() {
   setInterval(() => {
     fetchLivePnl();
     fetchBalance();
+    updateStats();
   }, 10000);
 }
 
