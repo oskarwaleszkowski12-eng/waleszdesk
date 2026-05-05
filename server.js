@@ -210,6 +210,31 @@ app.get('/api/pnl', async (req, res) => {
   }
 });
 
+app.get('/api/pnl/history', async (req, res) => {
+  try {
+    const since = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const data  = await bybitGet('/v5/position/closed-pnl', {
+      category:  'linear',
+      startTime: since.toString(),
+      limit:     '200',
+    });
+    if (data.retCode !== 0) return res.status(400).json({ ok: false, error: data.retMsg });
+    const byDay = {};
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(); d.setUTCDate(d.getUTCDate() - i); d.setUTCHours(0,0,0,0);
+      byDay[d.toISOString().slice(0,10)] = 0;
+    }
+    for (const t of (data.result?.list || [])) {
+      const day = new Date(parseInt(t.updatedTime)).toISOString().slice(0,10);
+      if (day in byDay) byDay[day] += parseFloat(t.closedPnl || 0);
+    }
+    const history = Object.entries(byDay).map(([date, pnl]) => ({ date, pnl: parseFloat(pnl.toFixed(4)) }));
+    res.json({ ok: true, history });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 app.get('/api/pnl/today', async (req, res) => {
   try {
     const startOfDay = new Date();

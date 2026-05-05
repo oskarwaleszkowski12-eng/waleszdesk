@@ -649,11 +649,6 @@ tr:hover td { background: rgba(255,255,255,.015); }
             <input type="number" id="slippage" value="0.05" step="0.01" min="0" oninput="calc()" placeholder="0.05">
             <div class="sl-hint">Limit ~0.02% · Market ~0.05-0.1%</div>
           </div>
-          <div class="field">
-            <label>Hold Duration (hours)</label>
-            <input type="number" id="fee-hours" value="8" min="0" oninput="calc()">
-            <div class="sl-hint">For funding fee estimate</div>
-          </div>
         </div>
 
         <!-- Direction + Order Type -->
@@ -697,7 +692,7 @@ tr:hover td { background: rgba(255,255,255,.015); }
           <div class="result-row"><span class="result-label">Risk Amount</span><span class="result-val" style="color:var(--red)" id="r-risk">$0.00</span></div>
           <div class="result-row"><span class="result-label">Entry Fee</span><span class="result-val" style="color:var(--muted2)" id="fee-entry">$0.00</span></div>
           <div class="result-row"><span class="result-label">Exit Fee</span><span class="result-val" style="color:var(--muted2)" id="fee-exit">$0.00</span></div>
-          <div class="result-row"><span class="result-label">Funding (~<span id="fee-hours-label">8</span>h)</span><span class="result-val" style="color:var(--amber)" id="fee-funding">$0.00</span></div>
+          <div class="result-row"><span class="result-label">Funding (8h)</span><span class="result-val" style="color:var(--amber)" id="fee-funding">$0.00</span></div>
           <div class="result-row"><span class="result-label">Slippage Cost</span><span class="result-val" style="color:var(--muted2)" id="slip-cost">$0.00</span></div>
           <div class="result-row" style="border-top:1px solid var(--border2);margin-top:4px;padding-top:10px;">
             <span class="result-label" style="font-weight:700;color:var(--text)">Real Risk</span>
@@ -784,6 +779,17 @@ tr:hover td { background: rgba(255,255,255,.015); }
   <!-- PNL -->
   <div class="panel" id="panel-pnl">
     <div class="section-head"><div class="section-title">Performance</div></div>
+
+    <!-- 7-day history -->
+    <div class="card" style="margin-bottom:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);">Last 7 Days — Closed P&amp;L</div>
+        <button class="btn sm" onclick="fetchPnlHistory()">↻</button>
+      </div>
+      <div id="pnl-history-chart" style="width:100%;height:140px;position:relative;"></div>
+      <div id="pnl-history-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px;"></div>
+    </div>
+
     <div class="pnl-layout">
       <div class="card">
         <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:14px;">Equity Curve</div>
@@ -903,7 +909,7 @@ function showPanel(id, el) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   const panelEl = document.getElementById('panel-' + id); if(panelEl) panelEl.classList.add('active');
   if (el) el.classList.add('active');
-  if (id === 'pnl')     setTimeout(renderCharts, 50);
+  if (id === 'pnl')     { setTimeout(renderCharts, 50); fetchPnlHistory(); }
   if (id === 'journal') fetchJournalDB();
   if (id === 'positions') startPositionsRefresh();
   else stopPositionsRefresh();
@@ -1007,7 +1013,6 @@ function calc() {
   const tp    = parseFloat(_g('tp').value) || 0;
   const lev   = parseFloat(_g('lev').value) || 1;
   const slipPct = parseFloat(_g('slippage')?.value || 0.05) / 100;
-  const hours   = parseFloat(_g('fee-hours')?.value || 8);
   const isMarket = _g('ordertype')?.value === 'Market';
   const feeRate  = isMarket ? 0.00055 : 0.0002;
   const fundingRate = 0.0001;
@@ -1051,7 +1056,7 @@ function calc() {
   // Fees
   const entryFee   = size * feeRate;
   const exitFee    = size * feeRate;
-  const fundingFee = size * fundingRate * (hours / 8);
+  const fundingFee = size * fundingRate;
   const slipCost   = size * slipPct;
   const totalFees  = entryFee + exitFee + fundingFee + slipCost;
   const realRisk   = risk + entryFee + slipCost;
@@ -1075,9 +1080,6 @@ function calc() {
   s('fee-funding','-$' + fundingFee.toFixed(4));
   s('slip-cost', '-$' + slipCost.toFixed(4));
   s('real-risk-display', '$' + realRisk.toFixed(4));
-
-  const el = document.getElementById('fee-hours-label');
-  if (el) el.textContent = hours;
 
   const profitEl = document.getElementById('r-profit');
   if (profitEl) {
@@ -1489,6 +1491,93 @@ function exportCSV() {
   showToast('CSV exported!', 'ok');
 }
 
+// ── PNL HISTORY ────────────────────────────────────────
+async function fetchPnlHistory() {
+  const wrap = document.getElementById('pnl-history-chart');
+  if (!wrap) return;
+  wrap.innerHTML = '<div style="color:var(--muted2);font-size:12px;padding:20px 0;">Loading...</div>';
+  try {
+    const r = await fetch('/api/pnl/history');
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    renderPnlHistory(d.history);
+  } catch (e) {
+    wrap.innerHTML = '<div style="color:var(--muted2);font-size:12px;padding:20px 0;">Error: ' + e.message + '</div>';
+  }
+}
+
+function renderPnlHistory(history) {
+  const wrap  = document.getElementById('pnl-history-chart');
+  const stats = document.getElementById('pnl-history-stats');
+  if (!wrap) return;
+
+  const W = wrap.clientWidth || 600;
+  const H = 140;
+  const PAD = { top: 10, bottom: 28, left: 8, right: 8 };
+  const n   = history.length;
+  const gap = 6;
+  const barW = Math.floor((W - PAD.left - PAD.right - gap * (n - 1)) / n);
+  const pnls = history.map(d => d.pnl);
+  const maxAbs = Math.max(...pnls.map(Math.abs), 0.01);
+  const chartH = H - PAD.top - PAD.bottom;
+  const midY   = PAD.top + chartH / 2;
+
+  const bars = history.map((d, i) => {
+    const x       = PAD.left + i * (barW + gap);
+    const ratio   = d.pnl / maxAbs;
+    const barH    = Math.max(2, Math.abs(ratio) * (chartH / 2));
+    const y       = d.pnl >= 0 ? midY - barH : midY;
+    const color   = d.pnl >= 0 ? '#48bb78' : '#f56565';
+    const label   = d.date.slice(5); // MM-DD
+    const valLabel = (d.pnl >= 0 ? '+' : '') + d.pnl.toFixed(2);
+    const valY    = d.pnl >= 0 ? y - 4 : y + barH + 12;
+
+    return `
+      <rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="${color}" rx="3" opacity="0.85"/>
+      <text x="${x + barW/2}" y="${H - 6}" text-anchor="middle"
+            font-size="9" fill="#4a5568" font-family="DM Mono,monospace">${label}</text>
+      <text x="${x + barW/2}" y="${valY}" text-anchor="middle"
+            font-size="8.5" fill="${color}" font-family="DM Mono,monospace">${valLabel}</text>`;
+  }).join('');
+
+  wrap.innerHTML = `
+    <svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      <line x1="${PAD.left}" y1="${midY}" x2="${W - PAD.right}" y2="${midY}"
+            stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+      ${bars}
+    </svg>`;
+
+  // Stats
+  const total    = pnls.reduce((a, b) => a + b, 0);
+  const best     = Math.max(...pnls);
+  const worst    = Math.min(...pnls);
+  const winDays  = pnls.filter(p => p > 0).length;
+  const lossDays = pnls.filter(p => p < 0).length;
+  const fmt = v => (v >= 0 ? '+' : '') + '$' + Math.abs(v).toFixed(2);
+
+  if (stats) stats.innerHTML = `
+    <div class="stat" style="padding:10px 14px;">
+      <div class="stat-label">Total 7d</div>
+      <div class="stat-val ${total >= 0 ? 'pos' : 'neg'}" style="font-size:15px;">${fmt(total)}</div>
+    </div>
+    <div class="stat" style="padding:10px 14px;">
+      <div class="stat-label">Best Day</div>
+      <div class="stat-val pos" style="font-size:15px;">${fmt(best)}</div>
+    </div>
+    <div class="stat" style="padding:10px 14px;">
+      <div class="stat-label">Worst Day</div>
+      <div class="stat-val neg" style="font-size:15px;">${fmt(worst)}</div>
+    </div>
+    <div class="stat" style="padding:10px 14px;">
+      <div class="stat-label">Win / Loss Days</div>
+      <div class="stat-val" style="font-size:15px;">
+        <span style="color:var(--green)">${winDays}W</span>
+        <span style="color:var(--muted2);font-size:12px;"> / </span>
+        <span style="color:var(--red)">${lossDays}L</span>
+      </div>
+    </div>`;
+}
+
 // ── JOURNAL DB ─────────────────────────────────────────
 const CL_KEYS = [
   { key: 'trend',  label: 'Sprawdziłem trend' },
@@ -1849,16 +1938,14 @@ function calcFees() {
   const profit = parseFloat(document.getElementById('r-profit').textContent.replace('$','')) || 0;
   const risk   = parseFloat(document.getElementById('r-risk').textContent.replace('$','')) || 0;
   const feeType = document.getElementById('fee-type')?.value || 'limit';
-  const hours  = parseFloat(document.getElementById('fee-hours')?.value) || 8;
-
   const makerFee = 0.0002;  // 0.02%
   const takerFee = 0.00055; // 0.055%
-  const fundingRate = 0.0001; // 0.01% per 8h
+  const fundingRate = 0.0001; // 0.01% per 8h (1 session)
 
   const feeRate = feeType === 'limit' ? makerFee : takerFee;
   const entryFee   = size * feeRate;
   const exitFee    = size * feeRate;
-  const fundingFee = size * fundingRate * (hours / 8);
+  const fundingFee = size * fundingRate;
   const totalFees  = entryFee + exitFee + fundingFee;
   const realProfit = profit - totalFees;
   const realRisk   = risk + entryFee; // entry fee adds to risk
