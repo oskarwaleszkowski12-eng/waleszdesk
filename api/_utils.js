@@ -52,13 +52,14 @@ async function apiPost(path, params = {}) {
   const sig  = sign(apiSecret, ts + apiKey + rw + body);
   const url  = `${base}${path}`;
   try {
-    const res = await axios.post(url, params, {
+    const res = await axios.post(url, body, {
       headers: {
         'X-BAPI-API-KEY':     apiKey,
         'X-BAPI-SIGN':        sig,
         'X-BAPI-TIMESTAMP':   ts,
         'X-BAPI-RECV-WINDOW': rw,
         'X-BAPI-SIGN-TYPE':   '2',
+        'Content-Type':       'application/json',
       }
     });
     return res.data;
