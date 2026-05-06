@@ -734,6 +734,7 @@ tr:hover td { background: rgba(255,255,255,.015); }
       <div style="display:flex;align-items:center;gap:8px;">
         <span id="journal-count" style="font-size:11px;color:var(--muted2);font-family:var(--font-mono);"></span>
         <button class="btn sm accent" onclick="openPreTradeChecklist()">✓ Pre-Trade</button>
+        <button class="btn sm" id="journal-r-toggle" onclick="toggleJournalRMode()">R mode</button>
         <button class="btn sm" onclick="exportJournalCSV()">↓ Export CSV</button>
         <button class="btn sm" onclick="fetchJournalDB()">↻ Refresh</button>
       </div>
@@ -770,12 +771,17 @@ tr:hover td { background: rgba(255,255,255,.015); }
               <th style="text-align:right">Entry</th>
               <th style="text-align:right">Exit</th>
               <th style="text-align:right">Size</th>
-              <th style="text-align:right">P&amp;L</th>
+              <th id="journal-th-pnl" style="text-align:right">P&amp;L</th>
               <th style="text-align:center">Checklist</th>
             </tr>
           </thead>
           <tbody id="journal-db-body"></tbody>
         </table>
+      </div>
+      <div id="journal-r-footer" style="display:none;padding:10px 16px;border-top:1px solid var(--border2);display:flex;gap:20px;font-family:var(--font-mono);font-size:12px;background:var(--bg2);">
+        <span>Suma R: <strong id="jr-total" style="color:var(--green)">—</strong></span>
+        <span>Avg R: <strong id="jr-avg" style="color:var(--muted)">—</strong></span>
+        <span style="color:var(--muted2);font-size:11px;" id="jr-avgbasis"></span>
       </div>
       <div id="journal-db-empty" style="display:none;padding:48px;text-align:center;color:var(--muted2);font-size:13px;">
         No closed trades yet — positions closed on Bybit appear here automatically.
@@ -1867,6 +1873,46 @@ function renderTradeStats(s) {
 }
 
 // ── JOURNAL DB ─────────────────────────────────────────
+let journalRMode = false;
+
+function computeAvgLoss() {
+  const last30 = allJournalTrades.slice(0, 30);
+  const losses = last30.filter(t => parseFloat(t.pnl) < 0);
+  if (!losses.length) return null;
+  return losses.reduce((s, t) => s + Math.abs(parseFloat(t.pnl)), 0) / losses.length;
+}
+
+function fmtR(pnl, avgLoss) {
+  if (!avgLoss) return '—';
+  const r = pnl / avgLoss;
+  return (r >= 0 ? '+' : '') + r.toFixed(2) + 'R';
+}
+
+function toggleJournalRMode() {
+  journalRMode = !journalRMode;
+  const btn = document.getElementById('journal-r-toggle');
+  if (btn) { btn.textContent = journalRMode ? 'P&L mode' : 'R mode'; btn.classList.toggle('accent', journalRMode); }
+  const th = document.getElementById('journal-th-pnl');
+  if (th) th.textContent = journalRMode ? 'R' : 'P&L';
+  renderJournalDB(lastFilteredTrades);
+}
+
+function updateJournalRFooter(trades, avgLoss) {
+  const footer = document.getElementById('journal-r-footer');
+  if (!footer) return;
+  if (!journalRMode || !avgLoss) { footer.style.display = 'none'; return; }
+  footer.style.display = 'flex';
+  const rValues = trades.map(t => (parseFloat(t.pnl) || 0) / avgLoss);
+  const sumR = rValues.reduce((a, b) => a + b, 0);
+  const avgR = rValues.length ? sumR / rValues.length : 0;
+  const col = v => v >= 0 ? 'var(--green)' : 'var(--red)';
+  document.getElementById('jr-total').textContent = (sumR >= 0 ? '+' : '') + sumR.toFixed(2) + 'R';
+  document.getElementById('jr-total').style.color = col(sumR);
+  document.getElementById('jr-avg').textContent   = (avgR >= 0 ? '+' : '') + avgR.toFixed(2) + 'R';
+  document.getElementById('jr-avg').style.color   = col(avgR);
+  document.getElementById('jr-avgbasis').textContent = '(avg loss basis: $' + avgLoss.toFixed(2) + ')';
+}
+
 const CL_KEYS = [
   { key: 'mss_bos',   label: 'Czy jest clear MSS/BOS?' },
   { key: 'poi',       label: 'Czy entry jest na POI?' },
@@ -1980,6 +2026,7 @@ function renderJournalDB(trades) {
   const fmtP = v => v == null ? '—' : parseFloat(v).toFixed(2);
   const fmtD = v => v ? new Date(v).toLocaleString('pl-PL', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
 
+  const _avgLoss = computeAvgLoss();
   tbody.innerHTML = trades.map(t => {
     const pnl    = parseFloat(t.pnl) || 0;
     const pnlCol = pnl >= 0 ? 'var(--green)' : 'var(--red)';
@@ -2003,7 +2050,7 @@ function renderJournalDB(trades) {
         <td style="font-family:var(--font-mono);text-align:right">${fmtP(t.entry_price)}</td>
         <td style="font-family:var(--font-mono);text-align:right">${fmtP(t.exit_price)}</td>
         <td style="font-family:var(--font-mono);text-align:right">${fmtP(t.size)}</td>
-        <td style="font-family:var(--font-mono);font-weight:700;text-align:right;color:${pnlCol}">${fmt(t.pnl)}</td>
+        <td style="font-family:var(--font-mono);font-weight:700;text-align:right;color:${pnlCol}">${journalRMode ? fmtR(pnl, _avgLoss) : fmt(t.pnl)}</td>
         <td style="text-align:center">
           <span style="font-size:11px;font-family:var(--font-mono);color:${done===CL_KEYS.length?'var(--green)':'var(--muted2)'}">${done}/${CL_KEYS.length}</span>
         </td>
@@ -2028,6 +2075,8 @@ function renderJournalDB(trades) {
         </td>
       </tr>`;
   }).join('');
+
+  updateJournalRFooter(trades, _avgLoss);
 }
 
 function toggleJournalExpand(id) {
