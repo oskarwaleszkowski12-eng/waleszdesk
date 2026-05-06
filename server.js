@@ -267,14 +267,16 @@ app.get('/api/pnl/history', async (req, res) => {
     const history = Object.entries(byDay).map(([date, pnl]) => ({ date, pnl: parseFloat(pnl.toFixed(4)) }));
 
     const s = statsResult.rows[0];
-    const pf = s.gross_loss > 0 ? parseFloat((s.gross_profit / s.gross_loss).toFixed(2)) : null;
+    const pf      = s.gross_loss > 0 ? parseFloat((s.gross_profit / s.gross_loss).toFixed(2)) : null;
+    const avgWin  = s.wins   > 0 ? parseFloat((s.gross_profit / s.wins).toFixed(4))   : null;
+    const avgLoss = s.losses > 0 ? parseFloat((s.gross_loss   / s.losses).toFixed(4)) : null;
     res.json({
       ok: true,
       history,
       tradeStats: {
         best: s.best, worst: s.worst, total: s.total,
         wins: s.wins, losses: s.losses, be: s.be,
-        profitFactor: pf,
+        profitFactor: pf, avgWin, avgLoss,
       },
     });
   } catch (err) {

@@ -1722,14 +1722,14 @@ async function fetchPnlHistory() {
     const r = await fetch('/api/pnl/history?days=' + activePnlDays);
     const d = await r.json();
     if (!d.ok) throw new Error(d.error);
-    renderPnlHistory(d.history);
+    renderPnlHistory(d.history, d.tradeStats);
     if (d.tradeStats) renderTradeStats(d.tradeStats);
   } catch (e) {
     wrap.innerHTML = '<div style="color:var(--muted2);font-size:12px;padding:20px 0;">Error: ' + e.message + '</div>';
   }
 }
 
-function renderPnlHistory(history) {
+function renderPnlHistory(history, tradeStats) {
   const wrap  = document.getElementById('pnl-history-chart');
   const stats = document.getElementById('pnl-history-stats');
   if (!wrap) return;
@@ -1781,8 +1781,31 @@ function renderPnlHistory(history) {
   const lossDays = pnls.filter(p => p < 0).length;
   const fmt = v => (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
 
+  // Max Drawdown from cumulative equity
+  let cumDD = 0, peakDD = 0, maxDD = 0;
+  history.forEach(d => {
+    cumDD += d.pnl;
+    if (cumDD > peakDD) peakDD = cumDD;
+    const dd = peakDD - cumDD;
+    if (dd > maxDD) maxDD = dd;
+  });
+  const currentDD = Math.max(0, peakDD - cumDD);
+  const maxDDPct  = peakDD > 0 ? (maxDD / peakDD * 100) : 0;
+
+  // Expectancy from tradeStats
+  let expectancyHtml = '—';
+  let expectancyCol  = 'var(--text)';
+  if (tradeStats && tradeStats.avgWin != null && tradeStats.avgLoss != null) {
+    const total2   = (tradeStats.wins || 0) + (tradeStats.losses || 0) + (tradeStats.be || 0);
+    const wr       = total2 > 0 ? tradeStats.wins / total2 : 0;
+    const lr       = 1 - wr;
+    const exp      = (wr * tradeStats.avgWin) - (lr * tradeStats.avgLoss);
+    expectancyHtml = (exp >= 0 ? '+$' : '-$') + Math.abs(exp).toFixed(2) + ' / trade';
+    expectancyCol  = exp >= 0 ? 'var(--green)' : 'var(--red)';
+  }
+
   if (stats) {
-    stats.style.gridTemplateColumns = 'repeat(5,1fr)';
+    stats.style.gridTemplateColumns = 'repeat(auto-fill,minmax(130px,1fr))';
     stats.innerHTML = `
     <div class="stat" style="padding:10px 14px;">
       <div class="stat-label">Total ${activePnlDays}d</div>
@@ -1808,6 +1831,20 @@ function renderPnlHistory(history) {
       <div class="stat-label">Streak</div>
       <div class="stat-val">—</div>
       <div class="stat-sub">loading</div>
+    </div>
+    <div class="stat" style="padding:10px 14px;">
+      <div class="stat-label">Expectancy</div>
+      <div class="stat-val" style="font-size:13px;color:${expectancyCol}">${expectancyHtml}</div>
+      <div class="stat-sub" style="font-size:10px;">
+        ${tradeStats?.avgWin != null ? 'W: +$' + tradeStats.avgWin.toFixed(2) + ' · L: -$' + tradeStats.avgLoss.toFixed(2) : ''}
+      </div>
+    </div>
+    <div class="stat" style="padding:10px 14px;">
+      <div class="stat-label">Max Drawdown</div>
+      <div class="stat-val neg" style="font-size:14px;">-$${maxDD.toFixed(2)}</div>
+      <div class="stat-sub" style="font-size:10px;line-height:1.6;">
+        Current: -$${currentDD.toFixed(2)}<br>Peak→DD: ${maxDDPct.toFixed(1)}%
+      </div>
     </div>`;
   }
 
