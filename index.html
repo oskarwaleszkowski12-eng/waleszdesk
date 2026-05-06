@@ -1078,7 +1078,7 @@ function showPanel(id, el) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   const panelEl = document.getElementById('panel-' + id); if(panelEl) panelEl.classList.add('active');
   if (el) el.classList.add('active');
-  if (id === 'pnl')     { setTimeout(renderCharts, 50); fetchPnlHistory(); fetchPnlHours(); fetchPnlWeekdays(); }
+  if (id === 'pnl')     { setTimeout(renderCharts, 50); fetchPnlHistory(); fetchPnlWeekdays(); }
   if (id === 'alerts')  { renderAlertsList(); requestAlertPermission(); }
   if (id === 'journal') fetchJournalDB();
   if (id === 'positions') startPositionsRefresh();
@@ -1754,6 +1754,7 @@ async function fetchPnlHistory() {
     if (!d.ok) throw new Error(d.error);
     renderPnlHistory(d.history, d.tradeStats);
     if (d.tradeStats) renderTradeStats(d.tradeStats);
+    await fetchPnlHours(); // always after render so tile placeholders exist
   } catch (e) {
     wrap.innerHTML = '<div style="color:var(--muted2);font-size:12px;padding:20px 0;">Error: ' + e.message + '</div>';
   }
@@ -1764,7 +1765,19 @@ function renderPnlHistory(history, tradeStats) {
   const stats = document.getElementById('pnl-history-stats');
   if (!wrap) return;
 
-  const pnls = history.map(d => d.pnl);
+  const rawPnls = history.map(d => d.pnl);
+
+  // R mode: use avg_loss from period tradeStats
+  const useR = dashRMode && tradeStats?.avgLoss > 0;
+  const rl   = useR ? tradeStats.avgLoss : 1;
+  const vals = useR ? rawPnls.map(p => parseFloat((p / rl).toFixed(4))) : rawPnls;
+  const fmt  = useR
+    ? v => (v >= 0 ? '+' : '') + v.toFixed(2) + 'R'
+    : v => (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
+
+  // Update period label
+  const lbl = document.getElementById('pnl-history-label');
+  if (lbl) lbl.textContent = `Last ${activePnlDays} Days — Closed ${useR ? 'R' : 'P&L'}`;
 
   // ── Bar chart (Chart.js) ──
   if (histBarChart) { histBarChart.destroy(); histBarChart = null; }
@@ -1777,8 +1790,8 @@ function renderPnlHistory(history, tradeStats) {
       data: {
         labels: history.map(d => d.date.slice(5)),
         datasets: [{
-          data: pnls,
-          backgroundColor: pnls.map(v => v >= 0 ? 'rgba(0,200,150,0.85)' : 'rgba(255,77,77,0.85)'),
+          data: vals,
+          backgroundColor: vals.map(v => v >= 0 ? 'rgba(0,200,150,0.85)' : 'rgba(255,77,77,0.85)'),
           borderRadius: 6,
           borderSkipped: false,
           barPercentage: 0.45,
@@ -1799,7 +1812,9 @@ function renderPnlHistory(history, tradeStats) {
             bodyColor: '#f1f5f9',
             padding: 10,
             callbacks: {
-              label: ctx => (ctx.raw >= 0 ? '+$' : '-$') + Math.abs(ctx.raw).toFixed(2),
+              label: ctx => useR
+                ? (ctx.raw >= 0 ? '+' : '') + ctx.raw.toFixed(2) + 'R'
+                : (ctx.raw >= 0 ? '+$' : '-$') + Math.abs(ctx.raw).toFixed(2),
             }
           }
         },
@@ -1812,20 +1827,19 @@ function renderPnlHistory(history, tradeStats) {
           y: {
             grid: { color: 'rgba(255,255,255,0.04)' },
             border: { display: false, dash: [3, 4] },
-            ticks: { color: '#555', font: { size: 11, family: 'DM Mono,monospace' }, callback: v => '$' + v },
+            ticks: { color: '#555', font: { size: 11, family: 'DM Mono,monospace' }, callback: v => useR ? v + 'R' : '$' + v },
           }
         }
       }
     });
   }
 
-  // Stats
-  const total    = pnls.reduce((a, b) => a + b, 0);
-  const best     = Math.max(...pnls);
-  const worst    = Math.min(...pnls);
-  const winDays  = pnls.filter(p => p > 0).length;
-  const lossDays = pnls.filter(p => p < 0).length;
-  const fmt = v => (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
+  // Stats — Total/Best/Worst use vals (R or $); Win/Loss Days always count
+  const total    = vals.reduce((a, b) => a + b, 0);
+  const best     = Math.max(...vals);
+  const worst    = Math.min(...vals);
+  const winDays  = rawPnls.filter(p => p > 0).length;
+  const lossDays = rawPnls.filter(p => p < 0).length;
 
   // Max Drawdown from cumulative equity
   let cumDD = 0, peakDD = 0, maxDD = 0;
