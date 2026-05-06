@@ -2095,9 +2095,17 @@ async function fetchPositions() {
       const pnlColor = pnl >= 0 ? 'var(--green)' : 'var(--red)';
       const pnlStr = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
       const side = p.side.toLowerCase();
-      // Calculate funding estimate (0.01% per 8h)
       const posSize = parseFloat(p.size) * parseFloat(p.entryPrice);
       const fundingPer8h = posSize * 0.0001;
+      // Distance to liquidation
+      const markPx = parseFloat(p.markPrice) || parseFloat(p.entryPrice);
+      const liqPx  = parseFloat(p.liqPrice);
+      let distToLiqHtml = '<span style="color:var(--muted2)">—</span>';
+      if (liqPx > 0 && markPx > 0) {
+        const dist = Math.abs((liqPx - markPx) / markPx * 100);
+        const liqColor = dist < 10 ? 'var(--red)' : dist < 20 ? 'var(--amber)' : 'var(--green)';
+        distToLiqHtml = '<span style="color:' + liqColor + '">' + dist.toFixed(2) + '%</span>';
+      }
       return '<div class="pos-card ' + side + '">'
         + '<div class="pos-header">'
           + '<div>'
@@ -2116,6 +2124,7 @@ async function fetchPositions() {
           + '<div class="pos-item"><label>Leverage</label><span>' + p.leverage + 'x</span></div>'
           + '<div class="pos-item"><label>Pos Value</label><span>$' + posSize.toFixed(2) + '</span></div>'
           + '<div class="pos-item"><label>Funding/8h</label><span style="color:var(--amber)">~$' + fundingPer8h.toFixed(3) + '</span></div>'
+          + '<div class="pos-item"><label>Dist to Liq</label>' + distToLiqHtml + '</div>'
         + '</div>'
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px;">'
           + '<div style="display:flex;gap:6px;align-items:center;">'

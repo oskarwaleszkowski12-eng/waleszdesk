@@ -163,6 +163,7 @@ app.get('/api/positions', async (req, res) => {
         side:          p.side,
         size:          p.size,
         entryPrice:    p.avgPrice,
+        markPrice:     p.markPrice || '',
         liqPrice:      p.liqPrice,
         unrealisedPnl: parseFloat(p.unrealisedPnl).toFixed(2),
         leverage:      p.leverage,
