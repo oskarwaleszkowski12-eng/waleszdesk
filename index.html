@@ -2095,7 +2095,7 @@ async function fetchStats() {
     const wr  = document.getElementById('s-wr');
     const wrt = document.getElementById('s-wrtrades');
     if (wr)  wr.textContent  = d.winRate + '%';
-    if (wrt) wrt.textContent = d.totalTrades + ' trades';
+    if (wrt) wrt.textContent = d.totalTrades + ' trades · ' + d.winDays + 'W/' + d.lossDays + 'L days';
   } catch(e) { /* silent */ }
 }
 

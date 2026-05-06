@@ -294,22 +294,33 @@ app.post('/api/order', async (req, res) => {
 app.get('/api/stats', async (req, res) => {
   try {
     const { rows } = await pool.query(`
+      WITH daily AS (
+        SELECT
+          DATE(close_time AT TIME ZONE 'UTC') AS day,
+          SUM(pnl) AS daily_pnl
+        FROM trades
+        WHERE pnl IS NOT NULL
+        GROUP BY DATE(close_time AT TIME ZONE 'UTC')
+      )
       SELECT
-        COUNT(*)::int                          AS total_trades,
-        COUNT(*) FILTER (WHERE pnl > 0)::int   AS wins,
-        ROUND(AVG(pnl)::numeric, 4)            AS avg_pnl
-      FROM trades
-      WHERE pnl IS NOT NULL
+        (SELECT COUNT(*)::int FROM trades WHERE pnl IS NOT NULL) AS total_trades,
+        COUNT(*)::int                                             AS total_days,
+        COUNT(*) FILTER (WHERE daily_pnl > 0)::int               AS win_days,
+        COUNT(*) FILTER (WHERE daily_pnl < 0)::int               AS loss_days
+      FROM daily
+      WHERE daily_pnl != 0
     `);
     const r = rows[0];
-    const winRate = r.total_trades > 0
-      ? Math.round(r.wins / r.total_trades * 100)
+    const winRate = r.total_days > 0
+      ? Math.round(r.win_days / r.total_days * 100)
       : 0;
     res.json({
       ok:          true,
       winRate,
       totalTrades: r.total_trades,
-      avgPnl:      parseFloat(r.avg_pnl || 0),
+      totalDays:   r.total_days,
+      winDays:     r.win_days,
+      lossDays:    r.loss_days,
     });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
