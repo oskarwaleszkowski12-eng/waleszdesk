@@ -313,6 +313,39 @@ app.get('/api/pnl/hours', async (req, res) => {
   }
 });
 
+app.get('/api/pnl/weekdays', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT
+        EXTRACT(DOW FROM close_time AT TIME ZONE 'UTC')::int AS dow,
+        ROUND(AVG(pnl)::numeric, 4)                         AS avg_pnl,
+        ROUND(SUM(pnl)::numeric, 4)                         AS total_pnl,
+        COUNT(*)::int                                        AS trade_count
+      FROM trades
+      WHERE pnl IS NOT NULL
+      GROUP BY EXTRACT(DOW FROM close_time AT TIME ZONE 'UTC')::int
+      ORDER BY dow
+    `);
+    // DOW: 0=Sun,1=Mon,...,6=Sat → reindex to Mon-Sun display order
+    const byDow = {};
+    for (const r of rows) byDow[r.dow] = r;
+    const order = [1,2,3,4,5,6,0]; // Mon..Sat,Sun
+    const labels = ['Pon','Wto','Śro','Czw','Pią','Sob','Niedz'];
+    const weekdays = order.map((dow, i) => {
+      const r = byDow[dow];
+      return {
+        label:      labels[i],
+        avgPnl:     r ? parseFloat(r.avg_pnl)   : null,
+        totalPnl:   r ? parseFloat(r.total_pnl) : null,
+        tradeCount: r ? r.trade_count            : 0,
+      };
+    });
+    res.json({ ok: true, weekdays });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 app.post('/api/order', async (req, res) => {
   try {
     const { symbol, side, orderType, qty, price, stopLoss, takeProfit, leverage } = req.body;
