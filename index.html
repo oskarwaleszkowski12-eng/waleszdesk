@@ -2469,9 +2469,9 @@ function updateDashboardRValues() {
   const elToday = document.getElementById('s-today');
   const elTSub  = document.getElementById('s-todaytrades');
   if (elTotal) { elTotal.textContent = fmtV(totalR); elTotal.className = fmt(totalR); }
-  if (elSub)   elSub.textContent = 'Total R';
+  if (elSub)   elSub.textContent = 'Closed R (all trades)';
   if (elToday) { elToday.textContent = fmtV(todayR); elToday.className = fmt(todayR); }
-  if (elTSub)  elTSub.textContent = 'Today R';
+  if (elTSub)  elTSub.textContent = 'Closed R today';
 }
 
 function toggleDashRMode() {
