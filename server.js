@@ -159,9 +159,15 @@ app.get('/api/positions', async (req, res) => {
     const positions = (data.result?.list || [])
       .filter(p => parseFloat(p.size) > 0)
       .map(p => ({
-        symbol: p.symbol, side: p.side, size: p.size,
-        entryPrice: p.avgPrice, liqPrice: p.liqPrice,
-        unrealisedPnl: parseFloat(p.unrealisedPnl).toFixed(2), leverage: p.leverage,
+        symbol:        p.symbol,
+        side:          p.side,
+        size:          p.size,
+        entryPrice:    p.avgPrice,
+        liqPrice:      p.liqPrice,
+        unrealisedPnl: parseFloat(p.unrealisedPnl).toFixed(2),
+        leverage:      p.leverage,
+        takeProfit:    p.takeProfit || '',
+        stopLoss:      p.stopLoss  || '',
       }));
     res.json({ ok: true, positions });
   } catch (err) {
@@ -369,6 +375,33 @@ app.get('/api/pnl/weekdays', async (req, res) => {
       };
     });
     res.json({ ok: true, weekdays });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/api/set-tpsl', async (req, res) => {
+  try {
+    const { symbol, type, price } = req.body;
+    if (!symbol || !type || price == null)
+      return res.status(400).json({ ok: false, error: 'Missing fields: symbol, type, price' });
+
+    const params = {
+      category:    'linear',
+      symbol,
+      positionIdx: 0,
+      tpTriggerBy: 'MarkPrice',
+      slTriggerBy: 'MarkPrice',
+    };
+    if (type === 'TP') params.takeProfit = String(price);
+    else if (type === 'SL') params.stopLoss = String(price);
+    else return res.status(400).json({ ok: false, error: 'type must be TP or SL' });
+
+    console.log('[set-tpsl]', JSON.stringify(params));
+    const data = await bybitPost('/v5/position/trading-stop', params);
+    console.log('[set-tpsl] response:', JSON.stringify(data));
+    if (data.retCode !== 0) return res.status(400).json({ ok: false, error: data.retMsg });
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }

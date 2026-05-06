@@ -861,6 +861,18 @@ tr:hover td { background: rgba(255,255,255,.015); }
 
 </div>
 
+<!-- TP/SL MODAL -->
+<div class="overlay" id="modal-tpsl">
+  <div class="modal" style="width:380px;">
+    <div class="modal-title" id="tpsl-modal-title">Ustaw TP/SL</div>
+    <p id="tpsl-modal-msg" style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:4px;"></p>
+    <div class="modal-actions">
+      <button class="btn" onclick="cancelTpSl()">Anuluj</button>
+      <button class="btn accent" onclick="executeTpSl()">Potwierdź</button>
+    </div>
+  </div>
+</div>
+
 <!-- CLOSE POSITION MODAL -->
 <div class="overlay" id="modal-close-pos">
   <div class="modal" style="width:380px;">
@@ -2105,7 +2117,17 @@ async function fetchPositions() {
           + '<div class="pos-item"><label>Pos Value</label><span>$' + posSize.toFixed(2) + '</span></div>'
           + '<div class="pos-item"><label>Funding/8h</label><span style="color:var(--amber)">~$' + fundingPer8h.toFixed(3) + '</span></div>'
         + '</div>'
-        + '<div style="display:flex;gap:8px;margin-top:14px;">'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px;">'
+          + '<div style="display:flex;gap:6px;align-items:center;">'
+            + '<input id="tp-' + p.symbol + '" type="number" step="any" placeholder="' + (p.takeProfit ? parseFloat(p.takeProfit).toFixed(2) : 'TP price') + '" style="flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--font-mono);font-size:11px;padding:5px 8px;width:0;">'
+            + '<button class="btn sm success" onclick="confirmTpSl(\'' + p.symbol + '\',\'TP\',\'tp-' + p.symbol + '\')">Set TP</button>'
+          + '</div>'
+          + '<div style="display:flex;gap:6px;align-items:center;">'
+            + '<input id="sl-' + p.symbol + '" type="number" step="any" placeholder="' + (p.stopLoss ? parseFloat(p.stopLoss).toFixed(2) : 'SL price') + '" style="flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--font-mono);font-size:11px;padding:5px 8px;width:0;">'
+            + '<button class="btn sm danger" onclick="confirmTpSl(\'' + p.symbol + '\',\'SL\',\'sl-' + p.symbol + '\')">Set SL</button>'
+          + '</div>'
+        + '</div>'
+        + '<div style="display:flex;gap:8px;margin-top:8px;">'
           + '<button class="btn sm" style="flex:1;" onclick="confirmClose(\'' + p.symbol + '\',\'' + p.side + '\',' + parseFloat(p.size) + ',25)">Close 25%</button>'
           + '<button class="btn sm" style="flex:1;" onclick="confirmClose(\'' + p.symbol + '\',\'' + p.side + '\',' + parseFloat(p.size) + ',50)">Close 50%</button>'
           + '<button class="btn sm danger" style="flex:1;" onclick="confirmClose(\'' + p.symbol + '\',\'' + p.side + '\',' + parseFloat(p.size) + ',100)">Close 100%</button>'
@@ -2358,6 +2380,47 @@ function save() {
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 document.querySelectorAll('.overlay').forEach(m => m.addEventListener('click', e => { if(e.target===m) m.classList.remove('open'); }));
+
+// ── TP / SL ────────────────────────────────────────────
+let _tpslPayload = null;
+
+function confirmTpSl(symbol, type, inputId) {
+  const val = parseFloat(document.getElementById(inputId)?.value);
+  if (!val || isNaN(val) || val <= 0) { showToast('Wprowadź prawidłową cenę', 'err'); return; }
+  _tpslPayload = { symbol, type, price: val };
+  const label = type === 'TP' ? 'Take Profit' : 'Stop Loss';
+  document.getElementById('tpsl-modal-title').textContent = 'Ustaw ' + label;
+  document.getElementById('tpsl-modal-msg').textContent =
+    'Ustawić ' + label + ' dla ' + symbol + ' na $' + val.toFixed(2) + '?\n(trigger: Mark Price)';
+  document.getElementById('modal-tpsl').classList.add('open');
+}
+
+function cancelTpSl() {
+  _tpslPayload = null;
+  document.getElementById('modal-tpsl').classList.remove('open');
+}
+
+async function executeTpSl() {
+  if (!_tpslPayload) return;
+  const { symbol, type, price } = _tpslPayload;
+  cancelTpSl();
+  try {
+    const r = await fetch('/api/set-tpsl', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol, type, price }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      showToast((type === 'TP' ? 'Take Profit' : 'Stop Loss') + ' ustawiony dla ' + symbol, 'ok');
+      setTimeout(fetchPositions, 1500);
+    } else {
+      showToast('Błąd: ' + d.error, 'err');
+    }
+  } catch(e) {
+    showToast('Błąd sieci: ' + e.message, 'err');
+  }
+}
 
 // ── CLOSE POSITION ─────────────────────────────────────
 let _closePayload = null;
