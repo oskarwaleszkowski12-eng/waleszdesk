@@ -240,8 +240,9 @@ app.get('/api/pnl/today', async (req, res) => {
     const startOfDay = new Date();
     startOfDay.setUTCHours(0, 0, 0, 0);
     const data = await bybitGet('/v5/position/closed-pnl', {
-      category: 'linear',
+      category:  'linear',
       startTime: startOfDay.getTime().toString(),
+      limit:     '200',
     });
     if (data.retCode !== 0) return res.status(400).json({ ok: false, error: data.retMsg });
     const total = (data.result?.list || []).reduce((sum, p) => sum + parseFloat(p.closedPnl || 0), 0);
@@ -272,6 +273,32 @@ app.post('/api/order', async (req, res) => {
     const data = await bybitPost('/v5/order/create', order);
     if (data.retCode !== 0) return res.status(400).json({ ok: false, error: data.retMsg });
     res.json({ ok: true, orderId: data.result?.orderId });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── STATS ─────────────────────────────────────────────
+app.get('/api/stats', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT
+        COUNT(*)::int                          AS total_trades,
+        COUNT(*) FILTER (WHERE pnl > 0)::int   AS wins,
+        ROUND(AVG(pnl)::numeric, 4)            AS avg_pnl
+      FROM trades
+      WHERE pnl IS NOT NULL
+    `);
+    const r = rows[0];
+    const winRate = r.total_trades > 0
+      ? Math.round(r.wins / r.total_trades * 100)
+      : 0;
+    res.json({
+      ok:          true,
+      winRate,
+      totalTrades: r.total_trades,
+      avgPnl:      parseFloat(r.avg_pnl || 0),
+    });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }

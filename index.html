@@ -2032,9 +2032,22 @@ let tickerData = {};
 
 const TICKER_SYMBOLS = ['BTCUSDT','ETHUSDT','SOLUSDT','XRPUSDT','BNBUSDT','DOGEUSDT','ADAUSDT','AVAXUSDT','LINKUSDT','DOTUSDT'];
 
+async function fetchStats() {
+  try {
+    const r = await fetch('/api/stats');
+    const d = await r.json();
+    if (!d.ok) return;
+    const wr  = document.getElementById('s-wr');
+    const wrt = document.getElementById('s-wrtrades');
+    if (wr)  wr.textContent  = d.winRate + '%';
+    if (wrt) wrt.textContent = d.totalTrades + ' trades';
+  } catch(e) { /* silent */ }
+}
+
 function startLiveDashboard() {
   fetchLivePnl();
   fetchTodayPnl();
+  fetchStats();
   fetchBalance(true);
   startTickerWs();
   initLiveEquityChart();
@@ -2044,6 +2057,7 @@ function startLiveDashboard() {
     updateStats();
   }, 10000);
   setInterval(fetchTodayPnl, 60000);
+  setInterval(fetchStats,    60000);
 }
 
 function initLiveEquityChart() {
