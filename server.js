@@ -213,23 +213,29 @@ app.get('/api/pnl', async (req, res) => {
 app.get('/api/pnl/history', async (req, res) => {
   try {
     const days  = Math.min(180, Math.max(1, parseInt(req.query.days) || 7));
-    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-    const result = await pool.query(
-      `SELECT (close_time AT TIME ZONE 'UTC')::date AS day, SUM(pnl) AS total_pnl
-       FROM trades
-       WHERE close_time >= $1
-       GROUP BY (close_time AT TIME ZONE 'UTC')::date
-       ORDER BY day`,
-      [since]
-    );
+    const since = (Date.now() - days * 24 * 60 * 60 * 1000).toString();
+
+    // paginate Bybit (max 200/page) until no nextPageCursor
+    const allTrades = [];
+    let cursor = '';
+    for (let page = 0; page < 20; page++) {
+      const params = { category: 'linear', startTime: since, limit: '200' };
+      if (cursor) params.cursor = cursor;
+      const data = await bybitGet('/v5/position/closed-pnl', params);
+      if (data.retCode !== 0) return res.status(400).json({ ok: false, error: data.retMsg });
+      allTrades.push(...(data.result?.list || []));
+      cursor = data.result?.nextPageCursor || '';
+      if (!cursor) break;
+    }
+
     const byDay = {};
     for (let i = days - 1; i >= 0; i--) {
       const d = new Date(); d.setUTCDate(d.getUTCDate() - i); d.setUTCHours(0,0,0,0);
       byDay[d.toISOString().slice(0,10)] = 0;
     }
-    for (const row of result.rows) {
-      const day = row.day.toISOString().slice(0, 10);
-      if (day in byDay) byDay[day] = parseFloat(row.total_pnl);
+    for (const t of allTrades) {
+      const day = new Date(parseInt(t.updatedTime)).toISOString().slice(0,10);
+      if (day in byDay) byDay[day] += parseFloat(t.closedPnl || 0);
     }
     const history = Object.entries(byDay).map(([date, pnl]) => ({ date, pnl: parseFloat(pnl.toFixed(4)) }));
     res.json({ ok: true, history });
