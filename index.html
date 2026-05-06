@@ -735,6 +735,27 @@ tr:hover td { background: rgba(255,255,255,.015); }
         <button class="btn sm" onclick="fetchJournalDB()">↻ Refresh</button>
       </div>
     </div>
+    <div class="card" style="padding:12px 16px;margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <input id="jf-symbol" type="text" placeholder="Symbol…" oninput="applyJournalFilters()"
+        style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--font-mono);font-size:12px;padding:6px 10px;width:130px;outline:none;">
+      <select id="jf-result" onchange="applyJournalFilters()"
+        style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--font-display);font-size:12px;padding:6px 10px;outline:none;">
+        <option value="">All Results</option>
+        <option value="win">Win</option>
+        <option value="loss">Loss</option>
+        <option value="be">Breakeven</option>
+      </select>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:11px;color:var(--muted2);font-weight:600;">Od</span>
+        <input id="jf-date-from" type="date" onchange="applyJournalFilters()"
+          style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--font-mono);font-size:12px;padding:6px 10px;outline:none;">
+        <span style="font-size:11px;color:var(--muted2);font-weight:600;">Do</span>
+        <input id="jf-date-to" type="date" onchange="applyJournalFilters()"
+          style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--font-mono);font-size:12px;padding:6px 10px;outline:none;">
+      </div>
+      <button class="btn sm" onclick="clearJournalFilters()" style="margin-left:auto;">Wyczyść</button>
+    </div>
+
     <div class="card" style="padding:0;overflow:hidden;">
       <div class="journal-wrap">
         <table id="journal-db-table">
@@ -1781,10 +1802,11 @@ const CL_KEYS = [
   { key: 'reason', label: 'Zapisałem powód wejścia' },
 ];
 
+let allJournalTrades = [];
+
 async function fetchJournalDB() {
   const loading = document.getElementById('journal-db-loading');
   const empty   = document.getElementById('journal-db-empty');
-  const tbody   = document.getElementById('journal-db-body');
   if (loading) loading.style.display = '';
   if (empty)   empty.style.display   = 'none';
   try {
@@ -1792,11 +1814,39 @@ async function fetchJournalDB() {
     const d = await r.json();
     if (!d.ok) throw new Error(d.error);
     if (loading) loading.style.display = 'none';
-    renderJournalDB(d.trades);
+    allJournalTrades = d.trades;
+    applyJournalFilters();
   } catch (e) {
     if (loading) loading.style.display = 'none';
     if (empty) { empty.textContent = 'Error: ' + e.message; empty.style.display = ''; }
   }
+}
+
+function applyJournalFilters() {
+  const sym    = (document.getElementById('jf-symbol')?.value    || '').toUpperCase().trim();
+  const result = (document.getElementById('jf-result')?.value    || '');
+  const from   = document.getElementById('jf-date-from')?.value;
+  const to     = document.getElementById('jf-date-to')?.value;
+
+  const filtered = allJournalTrades.filter(t => {
+    if (sym && !(t.symbol || '').toUpperCase().includes(sym)) return false;
+    if (result) {
+      const pnl = parseFloat(t.pnl) || 0;
+      if (result === 'win'  && pnl <= 0) return false;
+      if (result === 'loss' && pnl >= 0) return false;
+      if (result === 'be'   && pnl !== 0) return false;
+    }
+    if (from && t.close_time && new Date(t.close_time) < new Date(from)) return false;
+    if (to   && t.close_time && new Date(t.close_time) > new Date(to + 'T23:59:59')) return false;
+    return true;
+  });
+  renderJournalDB(filtered);
+}
+
+function clearJournalFilters() {
+  const ids = ['jf-symbol', 'jf-result', 'jf-date-from', 'jf-date-to'];
+  ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  applyJournalFilters();
 }
 
 function renderJournalDB(trades) {
