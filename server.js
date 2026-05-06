@@ -213,23 +213,40 @@ app.get('/api/pnl', async (req, res) => {
 app.get('/api/pnl/history', async (req, res) => {
   try {
     const days   = Math.min(180, Math.max(1, parseInt(req.query.days) || 7));
-    const CHUNK  = 7 * 24 * 60 * 60 * 1000; // Bybit max window per request = 7 days
+    const CHUNK  = 7 * 24 * 60 * 60 * 1000;
     const now    = Date.now();
     const origin = now - days * 24 * 60 * 60 * 1000;
+    const since  = new Date(origin).toISOString();
 
-    // walk backwards in 7-day chunks so startTime+7d always covers the chunk
-    const allTrades = [];
-    for (let end = now; end > origin; end -= CHUNK) {
-      const start = Math.max(end - CHUNK, origin);
-      const data  = await bybitGet('/v5/position/closed-pnl', {
-        category:  'linear',
-        startTime: start.toString(),
-        endTime:   end.toString(),
-        limit:     '200',
-      });
-      if (data.retCode !== 0) continue; // skip failed chunk, don't abort
-      allTrades.push(...(data.result?.list || []));
-    }
+    // Bybit chunked fetch + DB trade stats in parallel
+    const chunksPromise = (async () => {
+      const all = [];
+      for (let end = now; end > origin; end -= CHUNK) {
+        const start = Math.max(end - CHUNK, origin);
+        const data  = await bybitGet('/v5/position/closed-pnl', {
+          category: 'linear', startTime: start.toString(), endTime: end.toString(), limit: '200',
+        });
+        if (data.retCode !== 0) continue;
+        all.push(...(data.result?.list || []));
+      }
+      return all;
+    })();
+
+    const statsPromise = pool.query(`
+      SELECT
+        MAX(pnl)::float                                          AS best,
+        MIN(pnl)::float                                          AS worst,
+        COUNT(*)::int                                            AS total,
+        COUNT(*) FILTER (WHERE pnl > 0)::int                    AS wins,
+        COUNT(*) FILTER (WHERE pnl < 0)::int                    AS losses,
+        COUNT(*) FILTER (WHERE pnl = 0)::int                    AS be,
+        COALESCE(SUM(pnl) FILTER (WHERE pnl > 0), 0)::float     AS gross_profit,
+        COALESCE(SUM(ABS(pnl)) FILTER (WHERE pnl < 0), 0)::float AS gross_loss
+      FROM trades
+      WHERE pnl IS NOT NULL AND close_time >= $1
+    `, [since]);
+
+    const [allTrades, statsResult] = await Promise.all([chunksPromise, statsPromise]);
 
     const byDay = {};
     for (let i = days - 1; i >= 0; i--) {
@@ -241,7 +258,18 @@ app.get('/api/pnl/history', async (req, res) => {
       if (day in byDay) byDay[day] += parseFloat(t.closedPnl || 0);
     }
     const history = Object.entries(byDay).map(([date, pnl]) => ({ date, pnl: parseFloat(pnl.toFixed(4)) }));
-    res.json({ ok: true, history });
+
+    const s = statsResult.rows[0];
+    const pf = s.gross_loss > 0 ? parseFloat((s.gross_profit / s.gross_loss).toFixed(2)) : null;
+    res.json({
+      ok: true,
+      history,
+      tradeStats: {
+        best: s.best, worst: s.worst, total: s.total,
+        wins: s.wins, losses: s.losses, be: s.be,
+        profitFactor: pf,
+      },
+    });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }

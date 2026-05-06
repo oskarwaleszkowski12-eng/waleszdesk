@@ -1599,6 +1599,7 @@ async function fetchPnlHistory() {
     const d = await r.json();
     if (!d.ok) throw new Error(d.error);
     renderPnlHistory(d.history);
+    if (d.tradeStats) renderTradeStats(d.tradeStats);
   } catch (e) {
     wrap.innerHTML = '<div style="color:var(--muted2);font-size:12px;padding:20px 0;">Error: ' + e.message + '</div>';
   }
@@ -1715,6 +1716,35 @@ function renderPnlHistory(history) {
                grid: { color: 'rgba(255,255,255,0.03)' } }
         }
       }
+    });
+  }
+}
+
+function renderTradeStats(s) {
+  const fmt = v => v == null ? '—' : (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
+
+  const best = document.getElementById('p-best');
+  const worst = document.getElementById('p-worst');
+  const total = document.getElementById('p-total');
+  const pf = document.getElementById('p-pf');
+  if (best)  best.textContent  = s.best  != null ? fmt(s.best)  : '—';
+  if (worst) worst.textContent = s.worst != null ? fmt(s.worst) : '—';
+  if (total) total.textContent = s.total ?? 0;
+  if (pf)    pf.textContent    = s.profitFactor != null ? s.profitFactor : '∞';
+
+  // update Win/Loss doughnut
+  if (wrChart) wrChart.destroy();
+  const ctx2 = document.getElementById('wr-chart');
+  if (ctx2) {
+    wrChart = new Chart(ctx2.getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Wins', 'Losses', 'BE'],
+        datasets: [{ data: [s.wins || 0, s.losses || 0, s.be || 0],
+          backgroundColor: ['#48bb78', '#f56565', '#4a5568'], borderWidth: 0, hoverOffset: 4 }]
+      },
+      options: { responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } }, cutout: '70%' }
     });
   }
 }
