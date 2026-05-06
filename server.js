@@ -381,21 +381,36 @@ app.post('/api/close-position', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Missing fields: symbol, side, qty' });
 
     const closeSide = side === 'Buy' ? 'Sell' : 'Buy';
-    const qtyNum = parseFloat(qty);
-    let qtyStr = symbol.startsWith('BTC') ? qtyNum.toFixed(3)
-               : symbol.startsWith('ETH') ? qtyNum.toFixed(2)
-               : qtyNum.toFixed(1);
-    qtyStr = parseFloat(qtyStr).toString();
 
-    const data = await bybitPost('/v5/order/create', {
-      category:    'linear',
+    // floor to lot-size precision (never round up — that could exceed position)
+    const qtyNum = parseFloat(qty);
+    const precision = symbol.startsWith('BTC') ? 3
+                    : symbol.startsWith('ETH') ? 2
+                    : 1;
+    const factor     = Math.pow(10, precision);
+    const qtyFloored = Math.floor(qtyNum * factor) / factor;
+    const qtyStr     = qtyFloored.toFixed(precision);
+
+    console.log(`[close-position] symbol=${symbol} side=${side} closeSide=${closeSide} rawQty=${qty} qtyStr=${qtyStr}`);
+
+    if (qtyFloored <= 0)
+      return res.status(400).json({ ok: false, error: `Qty ${qty} is below minimum lot size for ${symbol}` });
+
+    const order = {
+      category:     'linear',
       symbol,
-      side:        closeSide,
-      orderType:   'Market',
-      qty:         qtyStr,
-      timeInForce: 'IOC',
-      reduceOnly:  true,
-    });
+      side:         closeSide,
+      orderType:    'Market',
+      qty:          qtyStr,
+      timeInForce:  'IOC',
+      reduceOnly:   true,
+      positionIdx:  0,          // one-way mode
+    };
+    console.log('[close-position] order payload:', JSON.stringify(order));
+
+    const data = await bybitPost('/v5/order/create', order);
+    console.log('[close-position] bybit response:', JSON.stringify(data));
+
     if (data.retCode !== 0) return res.status(400).json({ ok: false, error: data.retMsg });
     res.json({ ok: true, orderId: data.result?.orderId });
   } catch (err) {
