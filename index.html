@@ -546,6 +546,7 @@ tr:hover td { background: rgba(255,255,255,.015); }
     <button class="nav-btn" onclick="showPanel('journal',this)">Journal</button>
     <button class="nav-btn" onclick="showPanel('positions',this)">Pozycje</button>
     <button class="nav-btn" onclick="showPanel('pnl',this)">P&amp;L</button>
+    <button class="nav-btn" onclick="showPanel('alerts',this)">🔔 Alerts</button>
     <button class="nav-btn" onclick="showPanel('api',this)">API</button>
   </nav>
   <div class="conn-badge">
@@ -848,6 +849,61 @@ tr:hover td { background: rgba(255,255,255,.015); }
     </div>
   </div>
 
+  <!-- ALERTS -->
+  <div class="panel" id="panel-alerts">
+    <div class="section-head"><div class="section-title">Alerts</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span id="alert-notif-status" style="font-size:11px;color:var(--muted2);"></span>
+        <button class="btn sm" onclick="requestAlertPermission()">Enable Notifications</button>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+      <!-- Price Alert -->
+      <div class="card">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:14px;">Price Alert</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;gap:8px;">
+            <input id="al-symbol" type="text" value="BTCUSDT" placeholder="Symbol"
+              style="flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--font-mono);font-size:12px;padding:7px 10px;outline:none;">
+            <select id="al-price-cond"
+              style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--font-display);font-size:12px;padding:7px 10px;outline:none;">
+              <option value="above">Above</option>
+              <option value="below">Below</option>
+            </select>
+          </div>
+          <input id="al-price" type="number" step="any" placeholder="Target price ($)"
+            style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--font-mono);font-size:12px;padding:7px 10px;outline:none;width:100%;box-sizing:border-box;">
+          <button class="btn accent" onclick="addPriceAlert()">+ Add Price Alert</button>
+        </div>
+      </div>
+
+      <!-- P&L Alert -->
+      <div class="card">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:14px;">P&amp;L Alert (Unrealised)</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span style="font-size:12px;color:var(--muted2);white-space:nowrap;">When P&amp;L reaches</span>
+            <select id="al-pnl-cond"
+              style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--font-display);font-size:12px;padding:7px 10px;outline:none;">
+              <option value="above">+$ (profit)</option>
+              <option value="below">-$ (loss)</option>
+            </select>
+          </div>
+          <input id="al-pnl" type="number" step="any" placeholder="Amount ($)"
+            style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--font-mono);font-size:12px;padding:7px 10px;outline:none;width:100%;box-sizing:border-box;">
+          <button class="btn accent" onclick="addPnlAlert()">+ Add P&amp;L Alert</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active alerts list -->
+    <div class="card">
+      <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:14px;">Active Alerts</div>
+      <div id="alerts-list"><div style="color:var(--muted2);font-size:13px;">Brak aktywnych alertów.</div></div>
+    </div>
+  </div>
+
   <!-- API -->
   <div class="panel" id="panel-api">
     <div class="section-head"><div class="section-title">API Configuration</div></div>
@@ -972,6 +1028,7 @@ function showPanel(id, el) {
   const panelEl = document.getElementById('panel-' + id); if(panelEl) panelEl.classList.add('active');
   if (el) el.classList.add('active');
   if (id === 'pnl')     { setTimeout(renderCharts, 50); fetchPnlHistory(); fetchPnlHours(); fetchPnlWeekdays(); }
+  if (id === 'alerts')  { renderAlertsList(); requestAlertPermission(); }
   if (id === 'journal') fetchJournalDB();
   if (id === 'positions') startPositionsRefresh();
   else stopPositionsRefresh();
@@ -2293,6 +2350,7 @@ async function fetchLivePnl() {
     }
 
     const unrealised = (d.positions || []).reduce((sum, p) => sum + parseFloat(p.unrealisedPnl || 0), 0);
+    currentUnrealisedPnl = unrealised;
     const fmt = v => (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
     const cls = v => 'stat-val ' + (v >= 0 ? 'pos' : 'neg');
 
@@ -2350,6 +2408,114 @@ async function fetchStats() {
   } catch(e) { /* silent */ }
 }
 
+// ── ALERTS ─────────────────────────────────────────────
+let currentUnrealisedPnl = 0;
+
+function getAlerts()         { return JSON.parse(localStorage.getItem('wd_alerts') || '[]'); }
+function saveAlerts(alerts)  { localStorage.setItem('wd_alerts', JSON.stringify(alerts)); }
+
+function requestAlertPermission() {
+  const el = document.getElementById('alert-notif-status');
+  if (!('Notification' in window)) { if (el) el.textContent = 'Notifications not supported'; return; }
+  if (Notification.permission === 'granted') { if (el) el.textContent = '✓ Notifications enabled'; return; }
+  Notification.requestPermission().then(p => {
+    if (el) el.textContent = p === 'granted' ? '✓ Notifications enabled' : '✗ Permission denied';
+  });
+}
+
+function addPriceAlert() {
+  const symbol = (document.getElementById('al-symbol')?.value || '').toUpperCase().trim();
+  const price  = parseFloat(document.getElementById('al-price')?.value);
+  const cond   = document.getElementById('al-price-cond')?.value || 'above';
+  if (!symbol || isNaN(price) || price <= 0) { showToast('Wprowadź symbol i cenę', 'err'); return; }
+  const alerts = getAlerts();
+  alerts.push({ id: Date.now(), type: 'price', symbol, condition: cond, value: price, active: true, createdAt: new Date().toISOString() });
+  saveAlerts(alerts);
+  document.getElementById('al-price').value = '';
+  renderAlertsList();
+  showToast('Alert dodany: ' + symbol + ' ' + cond + ' $' + price.toFixed(2), 'ok');
+}
+
+function addPnlAlert() {
+  const value = parseFloat(document.getElementById('al-pnl')?.value);
+  const cond  = document.getElementById('al-pnl-cond')?.value || 'above';
+  if (isNaN(value) || value <= 0) { showToast('Wprowadź kwotę P&L', 'err'); return; }
+  const finalVal = cond === 'below' ? -Math.abs(value) : Math.abs(value);
+  const alerts = getAlerts();
+  alerts.push({ id: Date.now(), type: 'pnl', condition: cond, value: finalVal, active: true, createdAt: new Date().toISOString() });
+  saveAlerts(alerts);
+  document.getElementById('al-pnl').value = '';
+  renderAlertsList();
+  showToast('Alert P&L dodany: ' + (cond === 'above' ? '+' : '') + '$' + finalVal.toFixed(2), 'ok');
+}
+
+function deleteAlert(id) {
+  saveAlerts(getAlerts().filter(a => a.id !== id));
+  renderAlertsList();
+}
+
+function renderAlertsList() {
+  const el = document.getElementById('alerts-list');
+  if (!el) return;
+  const alerts = getAlerts().filter(a => a.active);
+  if (!alerts.length) { el.innerHTML = '<div style="color:var(--muted2);font-size:13px;">Brak aktywnych alertów.</div>'; return; }
+  el.innerHTML = alerts.map(a => {
+    const desc = a.type === 'price'
+      ? '🔔 <b>' + a.symbol + '</b> ' + (a.condition === 'above' ? 'powyżej' : 'poniżej') + ' <b>$' + a.value.toFixed(2) + '</b>'
+      : '📊 P&L ' + (a.condition === 'above' ? 'powyżej' : 'poniżej') + ' <b>' + (a.value >= 0 ? '+' : '') + '$' + Math.abs(a.value).toFixed(2) + '</b>';
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">'
+      + '<span style="font-size:13px;">' + desc + '</span>'
+      + '<button class="btn sm danger" onclick="deleteAlert(' + a.id + ')">✕ Delete</button>'
+      + '</div>';
+  }).join('');
+}
+
+function fireAlert(alert, msg) {
+  const alerts = getAlerts();
+  const idx = alerts.findIndex(a => a.id === alert.id);
+  if (idx !== -1) { alerts[idx].active = false; saveAlerts(alerts); }
+  showToast('🔔 ' + msg, 'ok');
+  if (Notification.permission === 'granted') {
+    try { new Notification('WaleszDesk Alert', { body: msg }); } catch(e) {}
+  }
+  renderAlertsList();
+}
+
+async function checkAlerts() {
+  const active = getAlerts().filter(a => a.active);
+  if (!active.length) return;
+
+  const priceAlerts = active.filter(a => a.type === 'price');
+  const pnlAlerts   = active.filter(a => a.type === 'pnl');
+
+  // Fetch mark prices for unique symbols
+  if (priceAlerts.length) {
+    const symbols = [...new Set(priceAlerts.map(a => a.symbol))];
+    const prices = {};
+    await Promise.all(symbols.map(async sym => {
+      try {
+        const r = await fetch('/api/ticker?symbol=' + sym);
+        const d = await r.json();
+        if (d.ok) prices[sym] = d.markPrice;
+      } catch(e) {}
+    }));
+    for (const alert of priceAlerts) {
+      const px = prices[alert.symbol];
+      if (px == null) continue;
+      const hit = alert.condition === 'above' ? px >= alert.value : px <= alert.value;
+      if (hit) fireAlert(alert, alert.symbol + ' Mark: $' + px.toFixed(2) + ' (' + (alert.condition === 'above' ? '≥' : '≤') + ' $' + alert.value.toFixed(2) + ')');
+    }
+  }
+
+  // Check P&L alerts
+  for (const alert of pnlAlerts) {
+    const hit = alert.condition === 'above'
+      ? currentUnrealisedPnl >= alert.value
+      : currentUnrealisedPnl <= alert.value;
+    if (hit) fireAlert(alert, 'Unrealised P&L: ' + (currentUnrealisedPnl >= 0 ? '+' : '') + '$' + currentUnrealisedPnl.toFixed(2));
+  }
+}
+
 function startLiveDashboard() {
   fetchLivePnl();
   fetchTodayPnl();
@@ -2361,6 +2527,7 @@ function startLiveDashboard() {
     fetchLivePnl();
     fetchBalance(true);
     updateStats();
+    checkAlerts();
   }, 10000);
   setInterval(fetchTodayPnl, 60000);
   setInterval(fetchStats,    60000);

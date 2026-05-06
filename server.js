@@ -381,6 +381,20 @@ app.get('/api/pnl/weekdays', async (req, res) => {
   }
 });
 
+app.get('/api/ticker', async (req, res) => {
+  try {
+    const symbol = (req.query.symbol || 'BTCUSDT').toUpperCase();
+    const { data } = await axios.get('https://api.bybit.com/v5/market/tickers', {
+      params: { category: 'linear', symbol },
+    });
+    const t = data.result?.list?.[0];
+    if (!t) return res.status(404).json({ ok: false, error: 'Symbol not found' });
+    res.json({ ok: true, symbol, markPrice: parseFloat(t.markPrice), lastPrice: parseFloat(t.lastPrice) });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 app.post('/api/set-tpsl', async (req, res) => {
   try {
     const { symbol, type, price } = req.body;
