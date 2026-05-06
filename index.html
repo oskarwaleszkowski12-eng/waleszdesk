@@ -560,6 +560,7 @@ tr:hover td { background: rgba(255,255,255,.015); }
   <div class="stats-row">
     <div class="stat"><div class="stat-label">Total P&L <span id="pnl-live-dot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--muted);margin-left:4px;vertical-align:middle;"></span></div><div class="stat-val" id="s-pnl">$0.00</div><div class="stat-sub" id="s-pnl-sub">Fetching...</div></div>
     <div class="stat"><div class="stat-label">Win Rate</div><div class="stat-val acc" id="s-wr">0%</div><div class="stat-sub" id="s-wrtrades">0 trades</div></div>
+    <div class="stat"><div class="stat-label">Streak</div><div class="stat-val" id="s-streak">—</div><div class="stat-sub" id="s-streak-sub">days</div></div>
     <div class="stat"><div class="stat-label">Active Bots</div><div class="stat-val" id="s-bots">0</div><div class="stat-sub" id="s-botstotal">0 total</div></div>
     <div class="stat"><div class="stat-label">Avg R:R</div><div class="stat-val acc" id="s-rr">—</div><div class="stat-sub">Journal</div></div>
     <div class="stat"><div class="stat-label">Today P&L</div><div class="stat-val" id="s-today">$0.00</div><div class="stat-sub" id="s-todaytrades">0 today</div></div>
@@ -2096,6 +2097,19 @@ async function fetchStats() {
     const wrt = document.getElementById('s-wrtrades');
     if (wr)  wr.textContent  = d.winRate + '%';
     if (wrt) wrt.textContent = d.totalTrades + ' trades · ' + d.winDays + 'W/' + d.lossDays + 'L days';
+    const sk = document.getElementById('s-streak');
+    const skSub = document.getElementById('s-streak-sub');
+    if (sk) {
+      if (d.streak && d.streakType) {
+        const dot = d.streakType === 'W' ? '🟢' : '🔴';
+        sk.textContent = dot + ' ' + d.streak + d.streakType;
+        sk.className = 'stat-val ' + (d.streakType === 'W' ? 'pos' : 'neg');
+      } else {
+        sk.textContent = '—';
+        sk.className = 'stat-val';
+      }
+    }
+    if (skSub) skSub.textContent = 'consecutive days';
   } catch(e) { /* silent */ }
 }
 

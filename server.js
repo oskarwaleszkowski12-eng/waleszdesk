@@ -295,27 +295,43 @@ app.post('/api/order', async (req, res) => {
 // ── STATS ─────────────────────────────────────────────
 app.get('/api/stats', async (req, res) => {
   try {
-    const { rows } = await pool.query(`
-      WITH daily AS (
+    const [summary, streakRows] = await Promise.all([
+      pool.query(`
+        WITH daily AS (
+          SELECT DATE(close_time AT TIME ZONE 'UTC') AS day, SUM(pnl) AS daily_pnl
+          FROM trades WHERE pnl IS NOT NULL
+          GROUP BY DATE(close_time AT TIME ZONE 'UTC')
+        )
         SELECT
-          DATE(close_time AT TIME ZONE 'UTC') AS day,
-          SUM(pnl) AS daily_pnl
-        FROM trades
-        WHERE pnl IS NOT NULL
+          (SELECT COUNT(*)::int FROM trades WHERE pnl IS NOT NULL) AS total_trades,
+          COUNT(*)::int                                             AS total_days,
+          COUNT(*) FILTER (WHERE daily_pnl > 0)::int               AS win_days,
+          COUNT(*) FILTER (WHERE daily_pnl < 0)::int               AS loss_days
+        FROM daily WHERE daily_pnl != 0
+      `),
+      pool.query(`
+        SELECT DATE(close_time AT TIME ZONE 'UTC') AS day, SUM(pnl) AS daily_pnl
+        FROM trades WHERE pnl IS NOT NULL
         GROUP BY DATE(close_time AT TIME ZONE 'UTC')
-      )
-      SELECT
-        (SELECT COUNT(*)::int FROM trades WHERE pnl IS NOT NULL) AS total_trades,
-        COUNT(*)::int                                             AS total_days,
-        COUNT(*) FILTER (WHERE daily_pnl > 0)::int               AS win_days,
-        COUNT(*) FILTER (WHERE daily_pnl < 0)::int               AS loss_days
-      FROM daily
-      WHERE daily_pnl != 0
-    `);
-    const r = rows[0];
+        HAVING SUM(pnl) != 0
+        ORDER BY day DESC
+      `),
+    ]);
+
+    const r = summary.rows[0];
     const winRate = r.total_days > 0
       ? Math.round(r.win_days / r.total_days * 100)
       : 0;
+
+    // streak: consecutive win/loss days from most recent
+    let streak = 0, streakType = null;
+    for (const row of streakRows.rows) {
+      const win = parseFloat(row.daily_pnl) > 0;
+      if (streakType === null) { streakType = win ? 'W' : 'L'; streak = 1; }
+      else if ((win && streakType === 'W') || (!win && streakType === 'L')) streak++;
+      else break;
+    }
+
     res.json({
       ok:          true,
       winRate,
@@ -323,6 +339,8 @@ app.get('/api/stats', async (req, res) => {
       totalDays:   r.total_days,
       winDays:     r.win_days,
       lossDays:    r.loss_days,
+      streak,
+      streakType,
     });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
