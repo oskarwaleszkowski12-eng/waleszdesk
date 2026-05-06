@@ -374,6 +374,35 @@ app.get('/api/pnl/weekdays', async (req, res) => {
   }
 });
 
+app.post('/api/close-position', async (req, res) => {
+  try {
+    const { symbol, side, qty } = req.body;
+    if (!symbol || !side || !qty)
+      return res.status(400).json({ ok: false, error: 'Missing fields: symbol, side, qty' });
+
+    const closeSide = side === 'Buy' ? 'Sell' : 'Buy';
+    const qtyNum = parseFloat(qty);
+    let qtyStr = symbol.startsWith('BTC') ? qtyNum.toFixed(3)
+               : symbol.startsWith('ETH') ? qtyNum.toFixed(2)
+               : qtyNum.toFixed(1);
+    qtyStr = parseFloat(qtyStr).toString();
+
+    const data = await bybitPost('/v5/order/create', {
+      category:    'linear',
+      symbol,
+      side:        closeSide,
+      orderType:   'Market',
+      qty:         qtyStr,
+      timeInForce: 'IOC',
+      reduceOnly:  true,
+    });
+    if (data.retCode !== 0) return res.status(400).json({ ok: false, error: data.retMsg });
+    res.json({ ok: true, orderId: data.result?.orderId });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 app.post('/api/order', async (req, res) => {
   try {
     const { symbol, side, orderType, qty, price, stopLoss, takeProfit, leverage } = req.body;

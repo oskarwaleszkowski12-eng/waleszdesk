@@ -861,6 +861,18 @@ tr:hover td { background: rgba(255,255,255,.015); }
 
 </div>
 
+<!-- CLOSE POSITION MODAL -->
+<div class="overlay" id="modal-close-pos">
+  <div class="modal" style="width:380px;">
+    <div class="modal-title">Zamknij pozycję</div>
+    <p id="close-modal-msg" style="font-size:13px;color:var(--muted);line-height:1.6;white-space:pre-line;margin-bottom:4px;"></p>
+    <div class="modal-actions">
+      <button class="btn" onclick="cancelClose()">Anuluj</button>
+      <button class="btn danger" onclick="executeClose()">Potwierdź zamknięcie</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL -->
 <div class="overlay" id="modal-bot">
   <div class="modal">
@@ -2093,6 +2105,11 @@ async function fetchPositions() {
           + '<div class="pos-item"><label>Pos Value</label><span>$' + posSize.toFixed(2) + '</span></div>'
           + '<div class="pos-item"><label>Funding/8h</label><span style="color:var(--amber)">~$' + fundingPer8h.toFixed(3) + '</span></div>'
         + '</div>'
+        + '<div style="display:flex;gap:8px;margin-top:14px;">'
+          + '<button class="btn sm" style="flex:1;" onclick="confirmClose(\'' + p.symbol + '\',\'' + p.side + '\',' + parseFloat(p.size) + ',25)">Close 25%</button>'
+          + '<button class="btn sm" style="flex:1;" onclick="confirmClose(\'' + p.symbol + '\',\'' + p.side + '\',' + parseFloat(p.size) + ',50)">Close 50%</button>'
+          + '<button class="btn sm danger" style="flex:1;" onclick="confirmClose(\'' + p.symbol + '\',\'' + p.side + '\',' + parseFloat(p.size) + ',100)">Close 100%</button>'
+        + '</div>'
       + '</div>';
     }).join('');
     showToast(d.positions.length + ' open position(s) loaded', 'ok');
@@ -2341,6 +2358,44 @@ function save() {
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 document.querySelectorAll('.overlay').forEach(m => m.addEventListener('click', e => { if(e.target===m) m.classList.remove('open'); }));
+
+// ── CLOSE POSITION ─────────────────────────────────────
+let _closePayload = null;
+
+function confirmClose(symbol, side, size, pct) {
+  const qty = pct === 100 ? size : pct === 50 ? size / 2 : size / 4;
+  _closePayload = { symbol, side, qty };
+  document.getElementById('close-modal-msg').textContent =
+    'Czy na pewno chcesz zamknąć ' + pct + '% pozycji ' + symbol + '?\n(qty: ' + qty.toFixed(4) + ')';
+  document.getElementById('modal-close-pos').classList.add('open');
+}
+
+function cancelClose() {
+  _closePayload = null;
+  document.getElementById('modal-close-pos').classList.remove('open');
+}
+
+async function executeClose() {
+  if (!_closePayload) return;
+  const { symbol, side, qty } = _closePayload;
+  cancelClose();
+  try {
+    const r = await fetch('/api/close-position', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol, side, qty }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      showToast('Zlecenie zamknięcia wysłane — ' + symbol, 'ok');
+      setTimeout(fetchPositions, 1500);
+    } else {
+      showToast('Błąd: ' + d.error, 'err');
+    }
+  } catch(e) {
+    showToast('Błąd sieci: ' + e.message, 'err');
+  }
+}
 
 let toastTimer;
 function showToast(msg, type='') {
