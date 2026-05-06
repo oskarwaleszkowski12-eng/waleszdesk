@@ -2546,6 +2546,9 @@ function toggleDashRMode() {
     fetchLivePnl();
     fetchTodayPnl();
   }
+  if (document.getElementById('panel-pnl')?.classList.contains('active')) {
+    fetchPnlHistory();
+  }
 }
 
 async function fetchLivePnl() {
