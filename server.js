@@ -212,20 +212,23 @@ app.get('/api/pnl', async (req, res) => {
 
 app.get('/api/pnl/history', async (req, res) => {
   try {
-    const days  = Math.min(180, Math.max(1, parseInt(req.query.days) || 7));
-    const since = (Date.now() - days * 24 * 60 * 60 * 1000).toString();
+    const days   = Math.min(180, Math.max(1, parseInt(req.query.days) || 7));
+    const CHUNK  = 7 * 24 * 60 * 60 * 1000; // Bybit max window per request = 7 days
+    const now    = Date.now();
+    const origin = now - days * 24 * 60 * 60 * 1000;
 
-    // paginate Bybit (max 200/page) until no nextPageCursor
+    // walk backwards in 7-day chunks so startTime+7d always covers the chunk
     const allTrades = [];
-    let cursor = '';
-    for (let page = 0; page < 20; page++) {
-      const params = { category: 'linear', startTime: since, limit: '200' };
-      if (cursor) params.cursor = cursor;
-      const data = await bybitGet('/v5/position/closed-pnl', params);
-      if (data.retCode !== 0) return res.status(400).json({ ok: false, error: data.retMsg });
+    for (let end = now; end > origin; end -= CHUNK) {
+      const start = Math.max(end - CHUNK, origin);
+      const data  = await bybitGet('/v5/position/closed-pnl', {
+        category:  'linear',
+        startTime: start.toString(),
+        endTime:   end.toString(),
+        limit:     '200',
+      });
+      if (data.retCode !== 0) continue; // skip failed chunk, don't abort
       allTrades.push(...(data.result?.list || []));
-      cursor = data.result?.nextPageCursor || '';
-      if (!cursor) break;
     }
 
     const byDay = {};
