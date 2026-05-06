@@ -1041,7 +1041,7 @@ let state = {
   apiKeys: JSON.parse(localStorage.getItem('wd_keys') || '{}'),
 };
 let backendOnline = false;
-let pnlChart = null, wrChart = null;
+let pnlChart = null, wrChart = null, histBarChart = null;
 
 const TOKENS = [
   { sym:'BTCUSDT',  label:'BTC',  color:'#f7931a' },
@@ -1765,44 +1765,60 @@ function renderPnlHistory(history, tradeStats) {
   const stats = document.getElementById('pnl-history-stats');
   if (!wrap) return;
 
-  const W = wrap.clientWidth || 600;
-  const H = 110;
-  const PAD = { top: 8, bottom: 24, left: 8, right: 8 };
-  const n   = history.length;
-  const gap = n > 60 ? 1 : n > 20 ? 2 : 4;
-  const barW = Math.max(1, Math.floor((W - PAD.left - PAD.right - gap * (n - 1)) / n));
   const pnls = history.map(d => d.pnl);
-  const maxAbs = Math.max(...pnls.map(Math.abs), 0.01);
-  const chartH = H - PAD.top - PAD.bottom;
-  const midY   = PAD.top + chartH / 2;
-  const labelEvery = Math.ceil(n / 10);
-  const showValLabels = n <= 14;
 
-  const bars = history.map((d, i) => {
-    const x       = PAD.left + i * (barW + gap);
-    const ratio   = d.pnl / maxAbs;
-    const barH    = Math.max(1, Math.abs(ratio) * (chartH / 2));
-    const y       = d.pnl >= 0 ? midY - barH : midY;
-    const color   = d.pnl >= 0 ? '#48bb78' : '#f56565';
-    const showLabel = i % labelEvery === 0 || i === n - 1;
-    const label   = d.date.slice(5); // MM-DD
-    const valLabel = (d.pnl >= 0 ? '+' : '') + d.pnl.toFixed(2);
-    const valY    = d.pnl >= 0 ? y - 3 : y + barH + 10;
-
-    return `
-      <rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="${color}" rx="2" opacity="0.85"/>
-      ${showLabel ? `<text x="${x + barW/2}" y="${H - 4}" text-anchor="middle"
-            font-size="8" fill="#4a5568" font-family="DM Mono,monospace">${label}</text>` : ''}
-      ${showValLabels ? `<text x="${x + barW/2}" y="${valY}" text-anchor="middle"
-            font-size="8" fill="${color}" font-family="DM Mono,monospace">${valLabel}</text>` : ''}`;
-  }).join('');
-
-  wrap.innerHTML = `
-    <svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
-      <line x1="${PAD.left}" y1="${midY}" x2="${W - PAD.right}" y2="${midY}"
-            stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
-      ${bars}
-    </svg>`;
+  // ── Bar chart (Chart.js) ──
+  if (histBarChart) { histBarChart.destroy(); histBarChart = null; }
+  wrap.style.height = '160px';
+  wrap.innerHTML = '<canvas id="hist-bar-canvas" style="width:100%;height:100%;"></canvas>';
+  const hbCanvas = document.getElementById('hist-bar-canvas');
+  if (hbCanvas) {
+    histBarChart = new Chart(hbCanvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: history.map(d => d.date.slice(5)),
+        datasets: [{
+          data: pnls,
+          backgroundColor: pnls.map(v => v >= 0 ? 'rgba(0,200,150,0.85)' : 'rgba(255,77,77,0.85)'),
+          borderRadius: 6,
+          borderSkipped: false,
+          barPercentage: 0.45,
+          categoryPercentage: 0.6,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1a1d2e',
+            borderColor: '#333',
+            borderWidth: 1,
+            cornerRadius: 6,
+            titleColor: '#9ca3af',
+            bodyColor: '#f1f5f9',
+            padding: 10,
+            callbacks: {
+              label: ctx => (ctx.raw >= 0 ? '+$' : '-$') + Math.abs(ctx.raw).toFixed(2),
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: 'rgba(255,255,255,0.04)' },
+            border: { display: false },
+            ticks: { color: '#555', font: { size: 11, family: 'DM Mono,monospace' }, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 },
+          },
+          y: {
+            grid: { color: 'rgba(255,255,255,0.04)' },
+            border: { display: false, dash: [3, 4] },
+            ticks: { color: '#555', font: { size: 11, family: 'DM Mono,monospace' }, callback: v => '$' + v },
+          }
+        }
+      }
+    });
+  }
 
   // Stats
   const total    = pnls.reduce((a, b) => a + b, 0);
