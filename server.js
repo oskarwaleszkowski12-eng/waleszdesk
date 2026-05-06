@@ -249,16 +249,18 @@ app.get('/api/pnl/history', async (req, res) => {
 
 app.get('/api/pnl/today', async (req, res) => {
   try {
-    const startOfDay = new Date();
-    startOfDay.setUTCHours(0, 0, 0, 0);
-    const data = await bybitGet('/v5/position/closed-pnl', {
-      category:  'linear',
-      startTime: startOfDay.getTime().toString(),
-      limit:     '200',
+    const { rows } = await pool.query(`
+      SELECT COALESCE(SUM(pnl), 0)::float AS total_pnl,
+             COUNT(*)::int                AS trade_count
+      FROM trades
+      WHERE DATE(close_time AT TIME ZONE 'UTC') = CURRENT_DATE
+        AND pnl IS NOT NULL
+    `);
+    res.json({
+      ok:         true,
+      pnl:        parseFloat(parseFloat(rows[0].total_pnl).toFixed(4)),
+      tradeCount: rows[0].trade_count,
     });
-    if (data.retCode !== 0) return res.status(400).json({ ok: false, error: data.retMsg });
-    const total = (data.result?.list || []).reduce((sum, p) => sum + parseFloat(p.closedPnl || 0), 0);
-    res.json({ ok: true, pnl: parseFloat(total.toFixed(4)) });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }
