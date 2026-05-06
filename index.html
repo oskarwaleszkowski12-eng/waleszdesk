@@ -1868,10 +1868,14 @@ function renderTradeStats(s) {
 
 // ── JOURNAL DB ─────────────────────────────────────────
 const CL_KEYS = [
-  { key: 'trend',  label: 'Sprawdziłem trend' },
-  { key: 'entry',  label: 'Entry zgodny z planem' },
-  { key: 'sl',     label: 'Przestrzegałem SL' },
-  { key: 'reason', label: 'Zapisałem powód wejścia' },
+  { key: 'mss_bos',   label: 'Czy jest clear MSS/BOS?' },
+  { key: 'poi',       label: 'Czy entry jest na POI?' },
+  { key: 'rr_min',    label: 'Czy RR wynosi minimum 1:3?' },
+  { key: 'sl_logic',  label: 'Czy SL jest logiczny, a nie emocjonalny?' },
+  { key: 'risk_plan', label: 'Czy ryzyko jest zgodne z planem?' },
+  { key: 'no_fomo',   label: 'Czy nie wchodzę z FOMO?' },
+  { key: 'entry',     label: 'Entry zgodny z planem' },
+  { key: 'trend',     label: 'Czy zagranie jest z trendem' },
 ];
 
 let allJournalTrades = [];
