@@ -154,6 +154,34 @@ body {
 .stat-val.acc { color: var(--accent); }
 .stat-sub { font-size: 10px; color: var(--muted); margin-top: 5px; font-family: var(--font-mono); }
 
+/* ── PNL PERFORMANCE TILES ─────────────── */
+.pnl-tile {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  min-height: 80px;
+}
+.pnl-tile:hover { border-color: var(--border2); }
+.pnl-tile-label {
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted2); margin-bottom: 8px;
+}
+.pnl-tile-val {
+  font-size: 18px; font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text); line-height: 1.2;
+}
+.pnl-tile-sub {
+  font-size: 10px; color: var(--muted2);
+  margin-top: 6px; line-height: 1.6;
+  font-family: var(--font-mono);
+}
+
 /* ── SECTION HEAD ──────────────────────── */
 .section-head {
   display: flex; align-items: center;
@@ -1703,12 +1731,15 @@ async function fetchPnlHours() {
     if (sk) {
       if (d.streak && d.streakType) {
         const dot = d.streakType === 'W' ? '🟢' : '🔴';
-        sk.innerHTML = `
-          <div class="stat-label">Streak</div>
-          <div class="stat-val ${d.streakType === 'W' ? 'pos' : 'neg'}" style="font-size:15px;">${dot} ${d.streak}${d.streakType}</div>
-          <div class="stat-sub">consecutive days</div>`;
+        sk.innerHTML =
+          `<div class="pnl-tile-label">Streak</div>` +
+          `<div class="pnl-tile-val ${d.streakType === 'W' ? 'pos' : 'neg'}">${dot} ${d.streak}${d.streakType}</div>` +
+          `<div class="pnl-tile-sub">consecutive days</div>`;
       } else {
-        sk.innerHTML = `<div class="stat-label">Streak</div><div class="stat-val">—</div><div class="stat-sub">no data</div>`;
+        sk.innerHTML =
+          `<div class="pnl-tile-label">Streak</div>` +
+          `<div class="pnl-tile-val" style="color:var(--muted2)">—</div>` +
+          `<div class="pnl-tile-sub">no data</div>`;
       }
     }
   } catch(e) { el.innerHTML = ''; }
@@ -1793,59 +1824,48 @@ function renderPnlHistory(history, tradeStats) {
   const maxDDPct  = peakDD > 0 ? (maxDD / peakDD * 100) : 0;
 
   // Expectancy from tradeStats
-  let expectancyHtml = '—';
-  let expectancyCol  = 'var(--text)';
-  if (tradeStats && tradeStats.avgWin != null && tradeStats.avgLoss != null) {
-    const total2   = (tradeStats.wins || 0) + (tradeStats.losses || 0) + (tradeStats.be || 0);
-    const wr       = total2 > 0 ? tradeStats.wins / total2 : 0;
-    const lr       = 1 - wr;
-    const exp      = (wr * tradeStats.avgWin) - (lr * tradeStats.avgLoss);
-    expectancyHtml = (exp >= 0 ? '+$' : '-$') + Math.abs(exp).toFixed(2) + ' / trade';
-    expectancyCol  = exp >= 0 ? 'var(--green)' : 'var(--red)';
+  const hasExpData = tradeStats && tradeStats.avgWin != null && tradeStats.avgLoss != null
+                     && (tradeStats.wins || 0) >= 1 && (tradeStats.losses || 0) >= 1;
+  let expectancyVal = 'N/A';
+  let expectancyCol = 'var(--muted2)';
+  let expectancySub = '';
+  if (hasExpData) {
+    const total2 = (tradeStats.wins || 0) + (tradeStats.losses || 0) + (tradeStats.be || 0);
+    const wr     = total2 > 0 ? tradeStats.wins / total2 : 0;
+    const exp    = (wr * tradeStats.avgWin) - ((1 - wr) * tradeStats.avgLoss);
+    expectancyVal = (exp >= 0 ? '+$' : '-$') + Math.abs(exp).toFixed(2);
+    expectancyCol = exp >= 0 ? 'var(--green)' : 'var(--red)';
+    expectancySub = 'W: +$' + tradeStats.avgWin.toFixed(2) + ' &nbsp;·&nbsp; L: -$' + tradeStats.avgLoss.toFixed(2);
   }
 
+  const T = (label, valHtml, subHtml = '', id = '') =>
+    `<div class="stat pnl-tile"${id ? ' id="' + id + '"' : ''}>` +
+      `<div class="pnl-tile-label">${label}</div>` +
+      `<div class="pnl-tile-val">${valHtml}</div>` +
+      (subHtml ? `<div class="pnl-tile-sub">${subHtml}</div>` : '') +
+    `</div>`;
+
   if (stats) {
-    stats.style.gridTemplateColumns = 'repeat(auto-fill,minmax(130px,1fr))';
-    stats.innerHTML = `
-    <div class="stat" style="padding:10px 14px;">
-      <div class="stat-label">Total ${activePnlDays}d</div>
-      <div class="stat-val ${total >= 0 ? 'pos' : 'neg'}" style="font-size:15px;">${fmt(total)}</div>
-    </div>
-    <div class="stat" style="padding:10px 14px;">
-      <div class="stat-label">Best Day</div>
-      <div class="stat-val pos" style="font-size:15px;">${fmt(best)}</div>
-    </div>
-    <div class="stat" style="padding:10px 14px;">
-      <div class="stat-label">Worst Day</div>
-      <div class="stat-val neg" style="font-size:15px;">${fmt(worst)}</div>
-    </div>
-    <div class="stat" style="padding:10px 14px;">
-      <div class="stat-label">Win / Loss Days</div>
-      <div class="stat-val" style="font-size:15px;">
-        <span style="color:var(--green)">${winDays}W</span>
-        <span style="color:var(--muted2);font-size:12px;"> / </span>
-        <span style="color:var(--red)">${lossDays}L</span>
-      </div>
-    </div>
-    <div class="stat" style="padding:10px 14px;" id="pnl-streak-inline">
-      <div class="stat-label">Streak</div>
-      <div class="stat-val">—</div>
-      <div class="stat-sub">loading</div>
-    </div>
-    <div class="stat" style="padding:10px 14px;">
-      <div class="stat-label">Expectancy</div>
-      <div class="stat-val" style="font-size:13px;color:${expectancyCol}">${expectancyHtml}</div>
-      <div class="stat-sub" style="font-size:10px;">
-        ${tradeStats?.avgWin != null ? 'W: +$' + tradeStats.avgWin.toFixed(2) + ' · L: -$' + tradeStats.avgLoss.toFixed(2) : ''}
-      </div>
-    </div>
-    <div class="stat" style="padding:10px 14px;">
-      <div class="stat-label">Max Drawdown</div>
-      <div class="stat-val neg" style="font-size:14px;">-$${maxDD.toFixed(2)}</div>
-      <div class="stat-sub" style="font-size:10px;line-height:1.6;">
-        Current: -$${currentDD.toFixed(2)}<br>Peak→DD: ${maxDDPct.toFixed(1)}%
-      </div>
-    </div>`;
+    stats.style.gridTemplateColumns = 'repeat(4,1fr)';
+    stats.innerHTML =
+      T(`Total ${activePnlDays}d`,
+        `<span class="${total >= 0 ? 'pos' : 'neg'}">${fmt(total)}</span>`) +
+      T('Best Day',
+        `<span class="pos">${fmt(best)}</span>`) +
+      T('Worst Day',
+        `<span class="neg">${fmt(worst)}</span>`) +
+      T('Win / Loss Days',
+        `<span class="pos">${winDays}W</span><span style="color:var(--muted2);font-size:13px;margin:0 4px;">/</span><span class="neg">${lossDays}L</span>`) +
+      T('Streak',
+        '<span style="color:var(--muted2)">—</span>',
+        '<span style="color:var(--muted2)">loading…</span>',
+        'pnl-streak-inline') +
+      T('Expectancy',
+        `<span style="color:${expectancyCol}">${expectancyVal}</span>`,
+        expectancySub ? expectancySub + '<br><span style="color:var(--muted2)">per trade</span>' : '') +
+      T('Max Drawdown',
+        `<span class="neg">-$${maxDD.toFixed(2)}</span>`,
+        `Current: <span style="color:var(--muted2)">-$${currentDD.toFixed(2)}</span><br>Peak→DD: <span style="color:var(--muted2)">${maxDDPct.toFixed(1)}%</span>`);
   }
 
   // ── Equity Curve (cumulative daily P&L) ──
@@ -2340,10 +2360,12 @@ async function fetchPositions() {
     if (!d.positions.length) { grid.style.display = 'none'; empty.textContent = 'No open positions'; empty.style.display = ''; return; }
     empty.style.display = 'none';
     grid.style.display = '';
+    const _posAvgLoss = computeAvgLoss();
     grid.innerHTML = d.positions.map(p => {
       const pnl = parseFloat(p.unrealisedPnl) || 0;
       const pnlColor = pnl >= 0 ? 'var(--green)' : 'var(--red)';
       const pnlStr = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
+      const rStr = _posAvgLoss ? '≈ ' + (pnl >= 0 ? '+' : '') + (pnl / _posAvgLoss).toFixed(2) + 'R' : '';
       const side = p.side.toLowerCase();
       const posSize = parseFloat(p.size) * parseFloat(p.entryPrice);
       const fundingPer8h = posSize * 0.0001;
@@ -2365,6 +2387,7 @@ async function fetchPositions() {
           + '<div style="text-align:right;">'
             + '<div style="font-size:20px;font-weight:700;font-family:var(--font-mono);color:' + pnlColor + '">' + pnlStr + '</div>'
             + '<div style="font-size:10px;color:var(--muted2)">Unrealised P&L</div>'
+            + (rStr ? '<div style="font-size:11px;color:var(--muted2);font-family:var(--font-mono);margin-top:2px;">' + rStr + '</div>' : '')
           + '</div>'
         + '</div>'
         + '<div class="pos-grid">'
