@@ -163,21 +163,23 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  min-height: 80px;
+  min-height: 90px;
 }
 .pnl-tile:hover { border-color: var(--border2); }
 .pnl-tile-label {
-  font-size: 10px; font-weight: 700;
+  font-size: 11px; font-weight: 700;
   letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--muted2); margin-bottom: 8px;
+  color: #555; margin-bottom: 8px;
 }
 .pnl-tile-val {
-  font-size: 18px; font-weight: 700;
+  font-size: 22px; font-weight: 700;
   font-family: var(--font-mono);
   color: var(--text); line-height: 1.2;
 }
+.pnl-tile-val.pos { color: #00c896; }
+.pnl-tile-val.neg { color: #ff4d4d; }
 .pnl-tile-sub {
-  font-size: 10px; color: var(--muted2);
+  font-size: 11px; color: #666;
   margin-top: 6px; line-height: 1.6;
   font-family: var(--font-mono);
 }
@@ -855,8 +857,8 @@ tr:hover td { background: rgba(255,255,255,.015); }
         </div>
       </div>
       <div id="pnl-history-chart" style="width:100%;height:110px;position:relative;"></div>
-      <div id="pnl-history-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px;"></div>
-      <div id="pnl-hour-stats" style="display:flex;gap:10px;margin-top:10px;"></div>
+      <div id="pnl-history-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:14px;"></div>
+      <div id="pnl-hour-stats" style="display:none;"></div>
     </div>
 
     <!-- Day of Week Heatmap -->
@@ -1710,20 +1712,17 @@ async function fetchPnlHours() {
     const d = await r.json();
     if (!d.ok) return;
 
-    // Best / Worst hour tiles
-    if (d.best && d.worst) {
+    // Best / Worst hour → inline tile in stats grid
+    const hourTile = document.getElementById('pnl-hour-inline');
+    if (hourTile && d.best && d.worst) {
       const fmtAvg = v => (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
-      el.innerHTML = `
-        <div class="stat" style="flex:1;padding:10px 14px;">
-          <div class="stat-label">Best Hour</div>
-          <div class="stat-val pos" style="font-size:15px;">${d.best.hour}</div>
-          <div class="stat-sub">${fmtAvg(d.best.avgPnl)} avg · ${d.best.trades} trades</div>
-        </div>
-        <div class="stat" style="flex:1;padding:10px 14px;">
-          <div class="stat-label">Worst Hour</div>
-          <div class="stat-val neg" style="font-size:15px;">${d.worst.hour}</div>
-          <div class="stat-sub">${fmtAvg(d.worst.avgPnl)} avg · ${d.worst.trades} trades</div>
-        </div>`;
+      hourTile.innerHTML =
+        `<div class="pnl-tile-label">Best / Worst Hour</div>` +
+        `<div class="pnl-tile-val" style="color:#00c896;font-size:18px;">🟢 ${d.best.hour}</div>` +
+        `<div class="pnl-tile-sub">` +
+          `<span style="color:#00c896">${fmtAvg(d.best.avgPnl)} · ${d.best.trades}t</span><br>` +
+          `<span style="color:#ff4d4d">🔴 ${d.worst.hour} &nbsp;${fmtAvg(d.worst.avgPnl)} · ${d.worst.trades}t</span>` +
+        `</div>`;
     }
 
     // Streak tile (placed in the stats grid by renderPnlHistory)
@@ -1855,33 +1854,42 @@ function renderPnlHistory(history, tradeStats) {
   }
 
   const T = (label, valHtml, subHtml = '', id = '') =>
-    `<div class="stat pnl-tile"${id ? ' id="' + id + '"' : ''}>` +
+    `<div class="pnl-tile"${id ? ' id="' + id + '"' : ''}>` +
       `<div class="pnl-tile-label">${label}</div>` +
       `<div class="pnl-tile-val">${valHtml}</div>` +
       (subHtml ? `<div class="pnl-tile-sub">${subHtml}</div>` : '') +
     `</div>`;
 
+  const C = (v, pos = '#00c896', neg = '#ff4d4d', zero = '#aaa') =>
+    `style="color:${v > 0 ? pos : v < 0 ? neg : zero}"`;
+
   if (stats) {
     stats.style.gridTemplateColumns = 'repeat(4,1fr)';
     stats.innerHTML =
+      /* Row 1 */
       T(`Total ${activePnlDays}d`,
-        `<span class="${total >= 0 ? 'pos' : 'neg'}">${fmt(total)}</span>`) +
+        `<span ${C(total)}>${fmt(total)}</span>`) +
       T('Best Day',
-        `<span class="pos">${fmt(best)}</span>`) +
+        `<span style="color:#00c896">${fmt(best)}</span>`) +
       T('Worst Day',
-        `<span class="neg">${fmt(worst)}</span>`) +
+        `<span style="color:#ff4d4d">${fmt(worst)}</span>`) +
       T('Win / Loss Days',
-        `<span class="pos">${winDays}W</span><span style="color:var(--muted2);font-size:13px;margin:0 4px;">/</span><span class="neg">${lossDays}L</span>`) +
+        `<span style="color:#00c896">${winDays}W</span><span style="color:#555;font-size:16px;margin:0 5px;">/</span><span style="color:#ff4d4d">${lossDays}L</span>`) +
+      /* Row 2 */
       T('Streak',
-        '<span style="color:var(--muted2)">—</span>',
-        '<span style="color:var(--muted2)">loading…</span>',
+        '<span style="color:#aaa">—</span>',
+        '<span style="color:#555">loading…</span>',
         'pnl-streak-inline') +
       T('Expectancy',
-        `<span style="color:${expectancyCol}">${expectancyVal}</span>`,
-        expectancySub ? expectancySub + '<br><span style="color:var(--muted2)">per trade</span>' : '') +
+        `<span style="color:${expectancyCol};font-size:${hasExpData ? '18px' : '22px'}">${expectancyVal}</span>`,
+        expectancySub ? `<span style="color:#666">${expectancySub}</span><br><span style="color:#555">per trade</span>` : '') +
       T('Max Drawdown',
-        `<span class="neg">-$${maxDD.toFixed(2)}</span>`,
-        `Current: <span style="color:var(--muted2)">-$${currentDD.toFixed(2)}</span><br>Peak→DD: <span style="color:var(--muted2)">${maxDDPct.toFixed(1)}%</span>`);
+        `<span style="color:#ff4d4d">-$${maxDD.toFixed(2)}</span>`,
+        `Current: <span style="color:#666">-$${currentDD.toFixed(2)}</span><br>Peak→DD: <span style="color:#666">${maxDDPct.toFixed(1)}%</span>`) +
+      T('Best / Worst Hour',
+        '<span style="color:#aaa">—</span>',
+        '<span style="color:#555">loading…</span>',
+        'pnl-hour-inline');
   }
 
   // ── Equity Curve (cumulative daily P&L) ──
