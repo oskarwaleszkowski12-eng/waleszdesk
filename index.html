@@ -733,6 +733,7 @@ tr:hover td { background: rgba(255,255,255,.015); }
       <div class="section-title">Trading Journal</div>
       <div style="display:flex;align-items:center;gap:8px;">
         <span id="journal-count" style="font-size:11px;color:var(--muted2);font-family:var(--font-mono);"></span>
+        <button class="btn sm accent" onclick="openPreTradeChecklist()">✓ Pre-Trade</button>
         <button class="btn sm" onclick="exportJournalCSV()">↓ Export CSV</button>
         <button class="btn sm" onclick="fetchJournalDB()">↻ Refresh</button>
       </div>
@@ -977,6 +978,19 @@ tr:hover td { background: rgba(255,255,255,.015); }
     <div class="modal-actions">
       <button class="btn sm" onclick="closeModal('modal-bot')">Cancel</button>
       <button class="btn accent sm" onclick="addBot()">Add Bot</button>
+    </div>
+  </div>
+</div>
+
+<!-- PRE-TRADE CHECKLIST MODAL -->
+<div class="overlay" id="modal-pretrade">
+  <div class="modal" style="width:460px;">
+    <div class="modal-title">Pre-Trade Checklist</div>
+    <div id="pretrade-items" style="margin:12px 0;display:flex;flex-direction:column;gap:8px;"></div>
+    <div style="font-size:11px;color:var(--muted);text-align:center;margin-bottom:12px;" id="pretrade-counter">0 / 8 zaznaczonych</div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('modal-pretrade');resetPreTradeChecklist()">Anuluj</button>
+      <button class="btn accent" id="pretrade-proceed-btn" onclick="proceedAfterChecklist()" disabled style="opacity:0.4;cursor:not-allowed;">Wchodzę w trade ✓</button>
     </div>
   </div>
 </div>
@@ -2730,6 +2744,74 @@ function showToast(msg, type='') {
   t.className = 'show' + (type?' '+type:'');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.className = '', 3000);
+}
+
+const PRE_TRADE_ITEMS = [
+  'Czy jest clear MSS/BOS?',
+  'Czy entry jest na POI?',
+  'Czy RR wynosi minimum 1:3?',
+  'Czy SL jest logiczny, a nie emocjonalny?',
+  'Czy ryzyko jest zgodne z planem?',
+  'Czy nie wchodzę z FOMO?',
+  'Entry zgodny z planem',
+  'Czy zagranie jest z trendem',
+];
+
+function openPreTradeChecklist() {
+  const container = document.getElementById('pretrade-items');
+  container.innerHTML = PRE_TRADE_ITEMS.map((item, i) => `
+    <label id="pretrade-row-${i}" style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:9px 12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg3);transition:background 0.15s,border-color 0.15s;">
+      <input type="checkbox" id="pretrade-cb-${i}" onchange="updatePreTradeChecklist()" style="width:16px;height:16px;accent-color:var(--green);cursor:pointer;flex-shrink:0;">
+      <span style="font-size:13px;color:var(--text)">${item}</span>
+    </label>
+  `).join('');
+  resetPreTradeChecklist(false);
+  document.getElementById('modal-pretrade').classList.add('open');
+}
+
+function updatePreTradeChecklist() {
+  const total = PRE_TRADE_ITEMS.length;
+  let checked = 0;
+  for (let i = 0; i < total; i++) {
+    const cb = document.getElementById('pretrade-cb-' + i);
+    const row = document.getElementById('pretrade-row-' + i);
+    if (cb && cb.checked) {
+      checked++;
+      row.style.background = 'rgba(34,197,94,0.08)';
+      row.style.borderColor = 'var(--green)';
+    } else if (row) {
+      row.style.background = 'var(--bg3)';
+      row.style.borderColor = 'var(--border2)';
+    }
+  }
+  document.getElementById('pretrade-counter').textContent = checked + ' / ' + total + ' zaznaczonych';
+  const btn = document.getElementById('pretrade-proceed-btn');
+  if (checked === total) {
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.style.cursor = 'pointer';
+  } else {
+    btn.disabled = true;
+    btn.style.opacity = '0.4';
+    btn.style.cursor = 'not-allowed';
+  }
+}
+
+function resetPreTradeChecklist(clearItems = true) {
+  if (clearItems) {
+    const container = document.getElementById('pretrade-items');
+    if (container) container.innerHTML = '';
+  }
+  const counter = document.getElementById('pretrade-counter');
+  if (counter) counter.textContent = '0 / 8 zaznaczonych';
+  const btn = document.getElementById('pretrade-proceed-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.4'; btn.style.cursor = 'not-allowed'; }
+}
+
+function proceedAfterChecklist() {
+  closeModal('modal-pretrade');
+  resetPreTradeChecklist();
+  showToast('Checklist zaliczony — możesz wejść w trade ✓', 'ok');
 }
 </script>
 </body>
