@@ -560,7 +560,6 @@ tr:hover td { background: rgba(255,255,255,.015); }
   <div class="stats-row">
     <div class="stat"><div class="stat-label">Total P&L <span id="pnl-live-dot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--muted);margin-left:4px;vertical-align:middle;"></span></div><div class="stat-val" id="s-pnl">$0.00</div><div class="stat-sub" id="s-pnl-sub">Fetching...</div></div>
     <div class="stat"><div class="stat-label">Win Rate</div><div class="stat-val acc" id="s-wr">0%</div><div class="stat-sub" id="s-wrtrades">0 trades</div></div>
-    <div class="stat"><div class="stat-label">Streak</div><div class="stat-val" id="s-streak">—</div><div class="stat-sub" id="s-streak-sub">days</div></div>
     <div class="stat"><div class="stat-label">Active Bots</div><div class="stat-val" id="s-bots">0</div><div class="stat-sub" id="s-botstotal">0 total</div></div>
     <div class="stat"><div class="stat-label">Avg R:R</div><div class="stat-val acc" id="s-rr">—</div><div class="stat-sub">Journal</div></div>
     <div class="stat"><div class="stat-label">Today P&L</div><div class="stat-val" id="s-today">$0.00</div><div class="stat-sub" id="s-todaytrades">0 today</div></div>
@@ -1520,19 +1519,37 @@ async function fetchPnlHours() {
   try {
     const r = await fetch('/api/pnl/hours');
     const d = await r.json();
-    if (!d.ok || !d.best || !d.worst) { el.innerHTML = ''; return; }
-    const fmtAvg = v => (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
-    el.innerHTML = `
-      <div class="stat" style="flex:1;padding:10px 14px;">
-        <div class="stat-label">Best Hour</div>
-        <div class="stat-val pos" style="font-size:15px;">${d.best.hour}</div>
-        <div class="stat-sub">${fmtAvg(d.best.avgPnl)} avg · ${d.best.trades} trades</div>
-      </div>
-      <div class="stat" style="flex:1;padding:10px 14px;">
-        <div class="stat-label">Worst Hour</div>
-        <div class="stat-val neg" style="font-size:15px;">${d.worst.hour}</div>
-        <div class="stat-sub">${fmtAvg(d.worst.avgPnl)} avg · ${d.worst.trades} trades</div>
-      </div>`;
+    if (!d.ok) return;
+
+    // Best / Worst hour tiles
+    if (d.best && d.worst) {
+      const fmtAvg = v => (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
+      el.innerHTML = `
+        <div class="stat" style="flex:1;padding:10px 14px;">
+          <div class="stat-label">Best Hour</div>
+          <div class="stat-val pos" style="font-size:15px;">${d.best.hour}</div>
+          <div class="stat-sub">${fmtAvg(d.best.avgPnl)} avg · ${d.best.trades} trades</div>
+        </div>
+        <div class="stat" style="flex:1;padding:10px 14px;">
+          <div class="stat-label">Worst Hour</div>
+          <div class="stat-val neg" style="font-size:15px;">${d.worst.hour}</div>
+          <div class="stat-sub">${fmtAvg(d.worst.avgPnl)} avg · ${d.worst.trades} trades</div>
+        </div>`;
+    }
+
+    // Streak tile (placed in the stats grid by renderPnlHistory)
+    const sk = document.getElementById('pnl-streak-inline');
+    if (sk) {
+      if (d.streak && d.streakType) {
+        const dot = d.streakType === 'W' ? '🟢' : '🔴';
+        sk.innerHTML = `
+          <div class="stat-label">Streak</div>
+          <div class="stat-val ${d.streakType === 'W' ? 'pos' : 'neg'}" style="font-size:15px;">${dot} ${d.streak}${d.streakType}</div>
+          <div class="stat-sub">consecutive days</div>`;
+      } else {
+        sk.innerHTML = `<div class="stat-label">Streak</div><div class="stat-val">—</div><div class="stat-sub">no data</div>`;
+      }
+    }
   } catch(e) { el.innerHTML = ''; }
 }
 
@@ -1602,7 +1619,9 @@ function renderPnlHistory(history) {
   const lossDays = pnls.filter(p => p < 0).length;
   const fmt = v => (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
 
-  if (stats) stats.innerHTML = `
+  if (stats) {
+    stats.style.gridTemplateColumns = 'repeat(5,1fr)';
+    stats.innerHTML = `
     <div class="stat" style="padding:10px 14px;">
       <div class="stat-label">Total ${activePnlDays}d</div>
       <div class="stat-val ${total >= 0 ? 'pos' : 'neg'}" style="font-size:15px;">${fmt(total)}</div>
@@ -1622,7 +1641,13 @@ function renderPnlHistory(history) {
         <span style="color:var(--muted2);font-size:12px;"> / </span>
         <span style="color:var(--red)">${lossDays}L</span>
       </div>
+    </div>
+    <div class="stat" style="padding:10px 14px;" id="pnl-streak-inline">
+      <div class="stat-label">Streak</div>
+      <div class="stat-val">—</div>
+      <div class="stat-sub">loading</div>
     </div>`;
+  }
 
   // ── Equity Curve (cumulative daily P&L) ──
   let cum = 0;
@@ -2120,19 +2145,6 @@ async function fetchStats() {
     const wrt = document.getElementById('s-wrtrades');
     if (wr)  wr.textContent  = d.winRate + '%';
     if (wrt) wrt.textContent = d.totalTrades + ' trades · ' + d.winDays + 'W/' + d.lossDays + 'L days';
-    const sk = document.getElementById('s-streak');
-    const skSub = document.getElementById('s-streak-sub');
-    if (sk) {
-      if (d.streak && d.streakType) {
-        const dot = d.streakType === 'W' ? '🟢' : '🔴';
-        sk.textContent = dot + ' ' + d.streak + d.streakType;
-        sk.className = 'stat-val ' + (d.streakType === 'W' ? 'pos' : 'neg');
-      } else {
-        sk.textContent = '—';
-        sk.className = 'stat-val';
-      }
-    }
-    if (skSub) skSub.textContent = 'consecutive days';
   } catch(e) { /* silent */ }
 }
 

@@ -268,24 +268,45 @@ app.get('/api/pnl/today', async (req, res) => {
 
 app.get('/api/pnl/hours', async (req, res) => {
   try {
-    const { rows } = await pool.query(`
-      SELECT
-        EXTRACT(HOUR FROM close_time AT TIME ZONE 'UTC')::int AS hour,
-        ROUND(AVG(pnl)::numeric, 4)                          AS avg_pnl,
-        COUNT(*)::int                                         AS trade_count
-      FROM trades
-      WHERE pnl IS NOT NULL
-      GROUP BY EXTRACT(HOUR FROM close_time AT TIME ZONE 'UTC')::int
-      ORDER BY avg_pnl DESC
-    `);
-    if (!rows.length) return res.json({ ok: true, best: null, worst: null });
+    const [hourRows, streakRows] = await Promise.all([
+      pool.query(`
+        SELECT
+          EXTRACT(HOUR FROM close_time AT TIME ZONE 'UTC')::int AS hour,
+          ROUND(AVG(pnl)::numeric, 4)                          AS avg_pnl,
+          COUNT(*)::int                                         AS trade_count
+        FROM trades
+        WHERE pnl IS NOT NULL
+        GROUP BY EXTRACT(HOUR FROM close_time AT TIME ZONE 'UTC')::int
+        ORDER BY avg_pnl DESC
+      `),
+      pool.query(`
+        SELECT DATE(close_time AT TIME ZONE 'UTC') AS day, SUM(pnl) AS daily_pnl
+        FROM trades WHERE pnl IS NOT NULL
+        GROUP BY DATE(close_time AT TIME ZONE 'UTC')
+        HAVING SUM(pnl) != 0
+        ORDER BY day DESC
+      `),
+    ]);
+
     const fmt = h => String(h).padStart(2, '0') + ':00';
-    const best  = rows[0];
-    const worst = rows[rows.length - 1];
+    const rows = hourRows.rows;
+    const best  = rows.length ? rows[0] : null;
+    const worst = rows.length ? rows[rows.length - 1] : null;
+
+    let streak = 0, streakType = null;
+    for (const row of streakRows.rows) {
+      const win = parseFloat(row.daily_pnl) > 0;
+      if (streakType === null) { streakType = win ? 'W' : 'L'; streak = 1; }
+      else if ((win && streakType === 'W') || (!win && streakType === 'L')) streak++;
+      else break;
+    }
+
     res.json({
       ok: true,
-      best:  { hour: fmt(best.hour),  avgPnl: parseFloat(best.avg_pnl),  trades: best.trade_count },
-      worst: { hour: fmt(worst.hour), avgPnl: parseFloat(worst.avg_pnl), trades: worst.trade_count },
+      best:  best  ? { hour: fmt(best.hour),  avgPnl: parseFloat(best.avg_pnl),  trades: best.trade_count  } : null,
+      worst: worst ? { hour: fmt(worst.hour), avgPnl: parseFloat(worst.avg_pnl), trades: worst.trade_count } : null,
+      streak,
+      streakType,
     });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
