@@ -732,6 +732,7 @@ tr:hover td { background: rgba(255,255,255,.015); }
       <div class="section-title">Trading Journal</div>
       <div style="display:flex;align-items:center;gap:8px;">
         <span id="journal-count" style="font-size:11px;color:var(--muted2);font-family:var(--font-mono);"></span>
+        <button class="btn sm" onclick="exportJournalCSV()">↓ Export CSV</button>
         <button class="btn sm" onclick="fetchJournalDB()">↻ Refresh</button>
       </div>
     </div>
@@ -1803,6 +1804,7 @@ const CL_KEYS = [
 ];
 
 let allJournalTrades = [];
+let lastFilteredTrades = [];
 
 async function fetchJournalDB() {
   const loading = document.getElementById('journal-db-loading');
@@ -1840,7 +1842,42 @@ function applyJournalFilters() {
     if (to   && t.close_time && new Date(t.close_time) > new Date(to + 'T23:59:59')) return false;
     return true;
   });
+  lastFilteredTrades = filtered;
   renderJournalDB(filtered);
+}
+
+function exportJournalCSV() {
+  if (!lastFilteredTrades.length) { showToast('Brak tradów do eksportu', 'err'); return; }
+  const fmtDur = ms => {
+    if (!ms || ms < 0) return '—';
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    return h > 0 ? h + 'h ' + m + 'm' : m + 'm';
+  };
+  const header = ['date','symbol','side','size','entry','exit','pnl','duration'];
+  const rows = lastFilteredTrades.map(t => {
+    const dur = t.open_time && t.close_time
+      ? fmtDur(new Date(t.close_time) - new Date(t.open_time)) : '—';
+    return [
+      t.close_time ? new Date(t.close_time).toISOString().slice(0,16).replace('T',' ') : '',
+      t.symbol  || '',
+      t.side    || '',
+      t.size    != null ? parseFloat(t.size).toString() : '',
+      t.entry_price != null ? parseFloat(t.entry_price).toFixed(4) : '',
+      t.exit_price  != null ? parseFloat(t.exit_price).toFixed(4)  : '',
+      t.pnl     != null ? parseFloat(t.pnl).toFixed(4) : '',
+      dur,
+    ].map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',');
+  });
+  const csv  = [header.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement('a'), {
+    href: url, download: 'journal_' + new Date().toISOString().slice(0,10) + '.csv'
+  });
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+  showToast(lastFilteredTrades.length + ' tradów wyeksportowano', 'ok');
 }
 
 function clearJournalFilters() {
