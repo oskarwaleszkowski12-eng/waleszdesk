@@ -553,6 +553,7 @@ tr:hover td { background: rgba(255,255,255,.015); }
     <div class="conn-dot" id="conn-dot"></div>
     <span id="conn-label">Offline</span>
   </div>
+  <button class="btn sm" id="dash-r-toggle" onclick="toggleDashRMode()" style="margin-left:8px;font-size:11px;">$ mode</button>
 </div>
 
 <div class="main">
@@ -1939,6 +1940,7 @@ async function fetchJournalDB() {
     if (loading) loading.style.display = 'none';
     allJournalTrades = d.trades;
     applyJournalFilters();
+    if (dashRMode) updateDashboardRValues();
   } catch (e) {
     if (loading) loading.style.display = 'none';
     if (empty) { empty.textContent = 'Error: ' + e.message; empty.style.display = ''; }
@@ -2403,6 +2405,50 @@ function calcFees() {
 }
 
 let pnlInterval = null;
+let dashRMode = localStorage.getItem('dashRMode') === 'true';
+
+function applyDashRToggleUI() {
+  const btn = document.getElementById('dash-r-toggle');
+  if (!btn) return;
+  btn.textContent = dashRMode ? 'R mode' : '$ mode';
+  btn.classList.toggle('accent', dashRMode);
+}
+
+function updateDashboardRValues() {
+  if (!dashRMode) return;
+  const avgLoss = computeAvgLoss();
+  if (!avgLoss) return;
+  const fmt = v => 'stat-val ' + (v >= 0 ? 'pos' : 'neg');
+  const fmtV = (v) => (v >= 0 ? '+' : '') + v.toFixed(2) + 'R';
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const totalR = allJournalTrades.reduce((s, t) => s + (parseFloat(t.pnl) || 0) / avgLoss, 0);
+  const todayR = allJournalTrades
+    .filter(t => t.close_time && t.close_time.slice(0, 10) === todayStr)
+    .reduce((s, t) => s + (parseFloat(t.pnl) || 0) / avgLoss, 0);
+
+  const elTotal = document.getElementById('s-pnl');
+  const elSub   = document.getElementById('s-pnl-sub');
+  const elToday = document.getElementById('s-today');
+  const elTSub  = document.getElementById('s-todaytrades');
+  if (elTotal) { elTotal.textContent = fmtV(totalR); elTotal.className = fmt(totalR); }
+  if (elSub)   elSub.textContent = 'Total R';
+  if (elToday) { elToday.textContent = fmtV(todayR); elToday.className = fmt(todayR); }
+  if (elTSub)  elTSub.textContent = 'Today R';
+}
+
+function toggleDashRMode() {
+  dashRMode = !dashRMode;
+  localStorage.setItem('dashRMode', dashRMode);
+  applyDashRToggleUI();
+  if (dashRMode) {
+    if (!allJournalTrades.length) fetchJournalDB().then(updateDashboardRValues);
+    else updateDashboardRValues();
+  } else {
+    fetchLivePnl();
+    fetchTodayPnl();
+  }
+}
 
 async function fetchLivePnl() {
   const totalEl = document.getElementById('s-pnl');
@@ -2421,7 +2467,7 @@ async function fetchLivePnl() {
     const fmt = v => (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
     const cls = v => 'stat-val ' + (v >= 0 ? 'pos' : 'neg');
 
-    if (totalEl) {
+    if (totalEl && !dashRMode) {
       totalEl.textContent = fmt(unrealised);
       totalEl.className   = cls(unrealised);
       if (sub) sub.textContent = d.positions.length ? 'Live unrealised' : 'No open positions';
@@ -2448,8 +2494,8 @@ async function fetchTodayPnl() {
     if (!d.ok) { if (sub) sub.textContent = 'API error'; return; }
     const fmt = v => (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
     const cls = v => 'stat-val ' + (v >= 0 ? 'pos' : 'neg');
-    if (el) { el.textContent = fmt(d.pnl); el.className = cls(d.pnl); }
-    if (sub) sub.textContent = (d.tradeCount || 0) + ' trades today';
+    if (el && !dashRMode) { el.textContent = fmt(d.pnl); el.className = cls(d.pnl); }
+    if (sub && !dashRMode) sub.textContent = (d.tradeCount || 0) + ' trades today';
   } catch(e) {
     if (sub) sub.textContent = 'Offline';
   }
@@ -2584,6 +2630,7 @@ async function checkAlerts() {
 }
 
 function startLiveDashboard() {
+  applyDashRToggleUI();
   fetchLivePnl();
   fetchTodayPnl();
   fetchStats();
