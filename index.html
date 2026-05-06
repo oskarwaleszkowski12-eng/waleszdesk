@@ -188,6 +188,7 @@ body {
 .btn.success { border-color: var(--green); color: var(--green); }
 .btn.success:hover { background: var(--green-dim); }
 .btn.sm { padding: 5px 12px; font-size: 11px; }
+.btn.sm.active { background: var(--accent); color: #000; border-color: var(--accent); }
 
 /* ── BOTS ──────────────────────────────── */
 .bots-grid {
@@ -780,14 +781,22 @@ tr:hover td { background: rgba(255,255,255,.015); }
   <div class="panel" id="panel-pnl">
     <div class="section-head"><div class="section-title">Performance</div></div>
 
-    <!-- 7-day history -->
+    <!-- P&L History -->
     <div class="card" style="margin-bottom:16px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-        <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);">Last 7 Days — Closed P&amp;L</div>
-        <button class="btn sm" onclick="fetchPnlHistory()">↻</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div id="pnl-history-label" style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);">Last 7 Days — Closed P&amp;L</div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="display:flex;gap:4px;">
+            <button class="btn sm active" data-days="7" onclick="setPnlPeriod(this,7)">7D</button>
+            <button class="btn sm" data-days="30" onclick="setPnlPeriod(this,30)">30D</button>
+            <button class="btn sm" data-days="90" onclick="setPnlPeriod(this,90)">90D</button>
+            <button class="btn sm" data-days="180" onclick="setPnlPeriod(this,180)">180D</button>
+          </div>
+          <button class="btn sm" onclick="fetchPnlHistory()">↻</button>
+        </div>
       </div>
-      <div id="pnl-history-chart" style="width:100%;height:140px;position:relative;"></div>
-      <div id="pnl-history-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px;"></div>
+      <div id="pnl-history-chart" style="width:100%;height:110px;position:relative;"></div>
+      <div id="pnl-history-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px;"></div>
     </div>
 
     <div class="pnl-layout">
@@ -1492,12 +1501,23 @@ function exportCSV() {
 }
 
 // ── PNL HISTORY ────────────────────────────────────────
+let activePnlDays = 7;
+
+function setPnlPeriod(btn, days) {
+  activePnlDays = days;
+  document.querySelectorAll('[data-days]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const label = document.getElementById('pnl-history-label');
+  if (label) label.textContent = `Last ${days} Days — Closed P&L`;
+  fetchPnlHistory();
+}
+
 async function fetchPnlHistory() {
   const wrap = document.getElementById('pnl-history-chart');
   if (!wrap) return;
   wrap.innerHTML = '<div style="color:var(--muted2);font-size:12px;padding:20px 0;">Loading...</div>';
   try {
-    const r = await fetch('/api/pnl/history');
+    const r = await fetch('/api/pnl/history?days=' + activePnlDays);
     const d = await r.json();
     if (!d.ok) throw new Error(d.error);
     renderPnlHistory(d.history);
@@ -1512,32 +1532,35 @@ function renderPnlHistory(history) {
   if (!wrap) return;
 
   const W = wrap.clientWidth || 600;
-  const H = 140;
-  const PAD = { top: 10, bottom: 28, left: 8, right: 8 };
+  const H = 110;
+  const PAD = { top: 8, bottom: 24, left: 8, right: 8 };
   const n   = history.length;
-  const gap = 6;
-  const barW = Math.floor((W - PAD.left - PAD.right - gap * (n - 1)) / n);
+  const gap = n > 60 ? 1 : n > 20 ? 2 : 4;
+  const barW = Math.max(1, Math.floor((W - PAD.left - PAD.right - gap * (n - 1)) / n));
   const pnls = history.map(d => d.pnl);
   const maxAbs = Math.max(...pnls.map(Math.abs), 0.01);
   const chartH = H - PAD.top - PAD.bottom;
   const midY   = PAD.top + chartH / 2;
+  const labelEvery = Math.ceil(n / 10);
+  const showValLabels = n <= 14;
 
   const bars = history.map((d, i) => {
     const x       = PAD.left + i * (barW + gap);
     const ratio   = d.pnl / maxAbs;
-    const barH    = Math.max(2, Math.abs(ratio) * (chartH / 2));
+    const barH    = Math.max(1, Math.abs(ratio) * (chartH / 2));
     const y       = d.pnl >= 0 ? midY - barH : midY;
     const color   = d.pnl >= 0 ? '#48bb78' : '#f56565';
+    const showLabel = i % labelEvery === 0 || i === n - 1;
     const label   = d.date.slice(5); // MM-DD
     const valLabel = (d.pnl >= 0 ? '+' : '') + d.pnl.toFixed(2);
-    const valY    = d.pnl >= 0 ? y - 4 : y + barH + 12;
+    const valY    = d.pnl >= 0 ? y - 3 : y + barH + 10;
 
     return `
-      <rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="${color}" rx="3" opacity="0.85"/>
-      <text x="${x + barW/2}" y="${H - 6}" text-anchor="middle"
-            font-size="9" fill="#4a5568" font-family="DM Mono,monospace">${label}</text>
-      <text x="${x + barW/2}" y="${valY}" text-anchor="middle"
-            font-size="8.5" fill="${color}" font-family="DM Mono,monospace">${valLabel}</text>`;
+      <rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="${color}" rx="2" opacity="0.85"/>
+      ${showLabel ? `<text x="${x + barW/2}" y="${H - 4}" text-anchor="middle"
+            font-size="8" fill="#4a5568" font-family="DM Mono,monospace">${label}</text>` : ''}
+      ${showValLabels ? `<text x="${x + barW/2}" y="${valY}" text-anchor="middle"
+            font-size="8" fill="${color}" font-family="DM Mono,monospace">${valLabel}</text>` : ''}`;
   }).join('');
 
   wrap.innerHTML = `
@@ -1557,7 +1580,7 @@ function renderPnlHistory(history) {
 
   if (stats) stats.innerHTML = `
     <div class="stat" style="padding:10px 14px;">
-      <div class="stat-label">Total 7d</div>
+      <div class="stat-label">Total ${activePnlDays}d</div>
       <div class="stat-val ${total >= 0 ? 'pos' : 'neg'}" style="font-size:15px;">${fmt(total)}</div>
     </div>
     <div class="stat" style="padding:10px 14px;">
