@@ -564,6 +564,99 @@ tr:hover td { background: rgba(255,255,255,.015); }
   .log-grid, .log-grid2 { grid-template-columns: repeat(2, 1fr); }
   .nav-btn { padding: 5px 10px; font-size: 11px; }
 }
+
+/* ── Bot Modal Redesign (bm-) ─────────────────────────── */
+.bm-modal { width: min(600px, 96vw); max-height: 92vh; overflow-y: auto; padding: 0; }
+.bm-header {
+  display: flex; align-items: center; gap: 14px;
+  background: linear-gradient(135deg, rgba(0,200,150,.12) 0%, rgba(0,200,150,.03) 100%);
+  border-bottom: 1px solid var(--border2); padding: 22px 24px 18px;
+}
+.bm-header-icon { font-size: 28px; line-height: 1; flex-shrink: 0; }
+.bm-header-text { flex: 1; }
+.bm-header-title { font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: -.01em; }
+.bm-header-sub { font-size: 11px; color: var(--muted2); margin-top: 2px; }
+.bm-close {
+  background: none; border: 1px solid var(--border); color: var(--muted2);
+  border-radius: var(--r); width: 28px; height: 28px; cursor: pointer;
+  font-size: 12px; display: flex; align-items: center; justify-content: center;
+  transition: color .15s, border-color .15s; flex-shrink: 0;
+}
+.bm-close:hover { color: var(--text); border-color: var(--border2); }
+.bm-body { padding: 22px 24px 24px; }
+.bm-tabs {
+  display: flex; gap: 4px; background: var(--bg3);
+  border-radius: 10px; padding: 4px; margin-bottom: 20px;
+}
+.bm-tab {
+  flex: 1; background: none; border: none; border-radius: 7px;
+  color: var(--muted2); font-size: 11px; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase; padding: 7px 0;
+  cursor: pointer; transition: background .15s, color .15s;
+}
+.bm-tab.active { background: var(--bg1); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+.bm-type-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+.bm-type-card {
+  background: var(--bg3); border: 2px solid var(--border);
+  border-radius: var(--r2); padding: 14px 16px;
+  cursor: pointer; transition: border-color .15s, background .15s; text-align: left;
+}
+.bm-type-card:hover { border-color: var(--border2); }
+.bm-type-card.active { border-color: var(--accent); background: rgba(0,200,150,.07); }
+.bm-card-icon { font-size: 20px; margin-bottom: 6px; line-height: 1; }
+.bm-card-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+.bm-card-desc { font-size: 10px; color: var(--muted2); line-height: 1.4; }
+.bm-input-wrap { position: relative; display: flex; align-items: center; }
+.bm-icon { position: absolute; left: 10px; font-size: 13px; pointer-events: none; line-height: 1; }
+.bm-input {
+  width: 100%; background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: var(--r); color: var(--text); font-size: 12px;
+  padding: 8px 10px; outline: none; transition: border-color .15s;
+}
+.bm-input:focus { border-color: var(--accent); }
+.bm-input::placeholder { color: var(--muted); }
+.bm-input-wrap .bm-input { padding-left: 32px; }
+.bm-select {
+  width: 100%; background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: var(--r); color: var(--text); font-size: 12px;
+  padding: 8px 10px; outline: none; cursor: pointer;
+  transition: border-color .15s; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23777'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+}
+.bm-select:focus { border-color: var(--accent); }
+.bm-hint { font-size: 10px; color: var(--muted); margin-top: 4px; }
+.bm-vis-btn {
+  position: absolute; right: 8px; background: none; border: 1px solid var(--border);
+  color: var(--muted2); border-radius: 5px; font-size: 10px; padding: 3px 7px;
+  cursor: pointer; transition: color .15s, border-color .15s;
+}
+.bm-vis-btn:hover { color: var(--text); border-color: var(--border2); }
+.bm-test-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; background: none; border: 1.5px solid var(--accent);
+  color: var(--accent); border-radius: var(--r); padding: 9px;
+  font-size: 12px; font-weight: 700; cursor: pointer;
+  transition: background .15s; margin-top: 4px;
+}
+.bm-test-btn:hover { background: rgba(0,200,150,.08); }
+@keyframes bmSpin { to { transform: rotate(360deg); } }
+.bm-spinner {
+  width: 14px; height: 14px; border: 2px solid rgba(0,200,150,.3);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: bmSpin .7s linear infinite;
+}
+.bm-launch-btn {
+  width: 100%; background: linear-gradient(135deg, #00c896 0%, #00a070 100%);
+  border: none; border-radius: var(--r); color: #000;
+  font-size: 14px; font-weight: 800; padding: 13px;
+  cursor: pointer; margin-top: 18px; letter-spacing: .02em;
+  transition: opacity .15s, transform .1s;
+}
+.bm-launch-btn:hover { opacity: .9; transform: translateY(-1px); }
+.bm-launch-btn:active { transform: translateY(0); }
+@keyframes bmFadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+#bot-tab-strategy[style*="display: none"] ~ *, #bot-tab-account:not([style*="display: none"]) { animation: bmFadeIn .15s ease; }
 </style>
 </head>
 <body>
@@ -1014,95 +1107,142 @@ tr:hover td { background: rgba(255,255,255,.015); }
 
 <!-- MODAL -->
 <div class="overlay" id="modal-bot">
-  <div class="modal" style="width:500px;max-height:92vh;overflow-y:auto;">
-    <div class="modal-title">New Trading Bot</div>
+  <div class="modal bm-modal">
 
-    <!-- Common: Name + Symbol always visible -->
-    <div class="fields-2" style="margin-bottom:14px;">
-      <div class="field" style="margin:0;"><label>Bot Name</label><input type="text" id="bot-name" placeholder="e.g. BTC DCA Long"></div>
-      <div class="field" style="margin:0;"><label>Symbol</label><input type="text" id="bot-sym" value="BTCUSDT" style="text-transform:uppercase;"></div>
+    <!-- Header -->
+    <div class="bm-header">
+      <div class="bm-header-icon">🤖</div>
+      <div class="bm-header-text">
+        <div class="bm-header-title">New Trading Bot</div>
+        <div class="bm-header-sub">Configure your automated strategy</div>
+      </div>
+      <button class="bm-close" onclick="closeModal('modal-bot')">✕</button>
     </div>
 
-    <!-- Tab bar -->
-    <div style="display:flex;border-bottom:1px solid var(--border);margin-bottom:16px;">
-      <button id="bot-tab-strategy-btn" onclick="setBotTab('strategy')"
-        style="flex:1;background:none;border:none;border-bottom:2px solid var(--accent);color:var(--text);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:8px 0;cursor:pointer;">Strategia</button>
-      <button id="bot-tab-account-btn"  onclick="setBotTab('account')"
-        style="flex:1;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted2);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:8px 0;cursor:pointer;">Subkonto &amp; Kapitał</button>
-    </div>
+    <div class="bm-body">
 
-    <!-- ── TAB: Strategia ── -->
-    <div id="bot-tab-strategy">
-      <!-- Type toggle -->
-      <div style="display:flex;gap:8px;margin-bottom:16px;">
-        <button id="btn-type-dca"  class="btn sm active" onclick="setBotType('dca')"  style="flex:1;">DCA Bot</button>
-        <button id="btn-type-grid" class="btn sm"         onclick="setBotType('grid')" style="flex:1;">Grid Bot</button>
-      </div>
-
-      <!-- DCA fields -->
-      <div id="bot-dca-fields">
-        <div class="field"><label>Side</label>
-          <select id="dca-side" style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:12px;padding:7px 10px;outline:none;width:100%;">
-            <option value="LONG">LONG</option><option value="SHORT">SHORT</option>
-          </select>
+      <!-- Name + Symbol -->
+      <div class="fields-2" style="margin-bottom:20px;">
+        <div class="field" style="margin:0;">
+          <label>Bot Name</label>
+          <div class="bm-input-wrap">
+            <span class="bm-icon">📝</span>
+            <input class="bm-input" type="text" id="bot-name" placeholder="e.g. BTC DCA Long">
+          </div>
         </div>
-        <div class="fields-2">
-          <div class="field"><label>Base Order ($)</label><input type="number" id="dca-base"    value="100" min="1"></div>
-          <div class="field"><label>Safety Order ($)</label><input type="number" id="dca-safety" value="150" min="1"></div>
+        <div class="field" style="margin:0;">
+          <label>Symbol</label>
+          <div class="bm-input-wrap">
+            <span class="bm-icon">₿</span>
+            <input class="bm-input" type="text" id="bot-sym" value="BTCUSDT" style="text-transform:uppercase;">
+          </div>
         </div>
-        <div class="fields-2">
-          <div class="field"><label>Max Safety Orders</label><input type="number" id="dca-max-so" value="5" min="1" max="10"></div>
-          <div class="field"><label>Price Deviation (%)</label><input type="number" id="dca-dev" value="2" min="0.1" max="20" step="0.1"></div>
-        </div>
-        <div class="field"><label>Take Profit (%)</label><input type="number" id="dca-tp" value="1.5" min="0.1" step="0.1"></div>
       </div>
 
-      <!-- Grid fields -->
-      <div id="bot-grid-fields" style="display:none;">
-        <div class="field"><label>Side</label>
-          <select id="grid-side" style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:12px;padding:7px 10px;outline:none;width:100%;">
-            <option value="LONG">LONG</option><option value="SHORT">SHORT</option><option value="NEUTRAL">NEUTRAL</option>
-          </select>
-        </div>
-        <div class="fields-2">
-          <div class="field"><label>Upper Price ($)</label><input type="number" id="grid-upper" placeholder="e.g. 70000" min="0"></div>
-          <div class="field"><label>Lower Price ($)</label><input type="number" id="grid-lower" placeholder="e.g. 60000" min="0"></div>
-        </div>
-        <div class="fields-2">
-          <div class="field"><label>Grid Levels</label><input type="number" id="grid-levels" value="10" min="2" max="50"></div>
-          <div class="field"><label>Order Size ($)</label><input type="number" id="grid-order-size" value="50" min="1"></div>
-        </div>
+      <!-- Pill tab switcher -->
+      <div class="bm-tabs">
+        <button id="bot-tab-strategy-btn" class="bm-tab active" onclick="setBotTab('strategy')">Strategia</button>
+        <button id="bot-tab-account-btn"  class="bm-tab"        onclick="setBotTab('account')">Subkonto &amp; Kapitał</button>
       </div>
-    </div>
 
-    <!-- ── TAB: Subkonto & Kapitał ── -->
-    <div id="bot-tab-account" style="display:none;">
-      <div class="field"><label>Subaccount Name (label)</label>
-        <input type="text" id="bot-subaccount" placeholder="e.g. Bot Account 1">
-      </div>
-      <div class="field"><label>API Key (Bybit subaccount)</label>
-        <input type="text" id="bot-api-key" placeholder="Wklej API Key subkonta" autocomplete="off" spellcheck="false">
-      </div>
-      <div class="field"><label>API Secret</label>
-        <div style="display:flex;gap:8px;">
-          <input type="password" id="bot-api-secret" placeholder="Wklej API Secret" autocomplete="off" spellcheck="false" style="flex:1;">
-          <button class="btn sm" id="btn-secret-vis" onclick="toggleSecretVis()" style="min-width:48px;">Show</button>
+      <!-- ── TAB: Strategia ── -->
+      <div id="bot-tab-strategy">
+
+        <!-- Type cards -->
+        <div class="bm-type-cards">
+          <div id="btn-type-dca" class="bm-type-card active" onclick="setBotType('dca')">
+            <div class="bm-card-icon">📉</div>
+            <div class="bm-card-title">DCA Bot</div>
+            <div class="bm-card-desc">Dollar Cost Averaging — safety orders on price dips</div>
+          </div>
+          <div id="btn-type-grid" class="bm-type-card" onclick="setBotType('grid')">
+            <div class="bm-card-icon">⚡</div>
+            <div class="bm-card-title">Grid Bot</div>
+            <div class="bm-card-desc">Buy low sell high within a defined price range</div>
+          </div>
+        </div>
+
+        <!-- DCA fields -->
+        <div id="bot-dca-fields">
+          <div class="field"><label>Side</label>
+            <select id="dca-side" class="bm-select">
+              <option value="LONG">LONG</option><option value="SHORT">SHORT</option>
+            </select>
+          </div>
+          <div class="fields-2">
+            <div class="field"><label>Base Order ($)</label><input class="bm-input" type="number" id="dca-base" value="100" min="1"></div>
+            <div class="field"><label>Safety Order ($)</label><input class="bm-input" type="number" id="dca-safety" value="150" min="1"></div>
+          </div>
+          <div class="fields-2">
+            <div class="field"><label>Max Safety Orders</label><input class="bm-input" type="number" id="dca-max-so" value="5" min="1" max="10"></div>
+            <div class="field"><label>Price Deviation (%)</label><input class="bm-input" type="number" id="dca-dev" value="2" min="0.1" max="20" step="0.1"></div>
+          </div>
+          <div class="field"><label>Take Profit (%)</label><input class="bm-input" type="number" id="dca-tp" value="1.5" min="0.1" step="0.1"></div>
+        </div>
+
+        <!-- Grid fields -->
+        <div id="bot-grid-fields" style="display:none;">
+          <div class="field"><label>Side</label>
+            <select id="grid-side" class="bm-select">
+              <option value="LONG">LONG</option><option value="SHORT">SHORT</option><option value="NEUTRAL">NEUTRAL</option>
+            </select>
+          </div>
+          <div class="fields-2">
+            <div class="field"><label>Upper Price ($)</label><input class="bm-input" type="number" id="grid-upper" placeholder="e.g. 70000" min="0"></div>
+            <div class="field"><label>Lower Price ($)</label><input class="bm-input" type="number" id="grid-lower" placeholder="e.g. 60000" min="0"></div>
+          </div>
+          <div class="fields-2">
+            <div class="field"><label>Grid Levels</label><input class="bm-input" type="number" id="grid-levels" value="10" min="2" max="50"></div>
+            <div class="field"><label>Order Size ($)</label><input class="bm-input" type="number" id="grid-order-size" value="50" min="1"></div>
+          </div>
         </div>
       </div>
-      <div class="field"><label>Allocated Balance ($)</label>
-        <input type="number" id="bot-allocated" placeholder="np. 500" min="0" step="0.01">
-      </div>
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
-        <button class="btn sm" onclick="testBotConnection()">🔗 Test Connection</button>
-        <span id="bot-conn-result" style="font-size:11px;font-family:var(--font-mono);"></span>
-      </div>
-    </div>
 
-    <div id="bot-cap-warn" style="display:none;color:var(--red);font-size:11px;margin-bottom:12px;padding:8px;background:rgba(245,101,101,.06);border-radius:var(--r);border:1px solid rgba(245,101,101,.2);"></div>
+      <!-- ── TAB: Subkonto & Kapitał ── -->
+      <div id="bot-tab-account" style="display:none;">
+        <div class="field">
+          <label>Subaccount Name</label>
+          <div class="bm-input-wrap">
+            <span class="bm-icon">🏷</span>
+            <input class="bm-input" type="text" id="bot-subaccount" placeholder="e.g. Bot Account 1">
+          </div>
+          <div class="bm-hint">Optional label — for your reference only</div>
+        </div>
+        <div class="field">
+          <label>API Key</label>
+          <div class="bm-input-wrap">
+            <span class="bm-icon">🔑</span>
+            <input class="bm-input" type="text" id="bot-api-key" placeholder="Paste Bybit API Key" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="bm-hint">Leave blank to use global server API keys</div>
+        </div>
+        <div class="field">
+          <label>API Secret</label>
+          <div class="bm-input-wrap">
+            <span class="bm-icon">🔒</span>
+            <input class="bm-input" type="password" id="bot-api-secret" placeholder="Paste API Secret" autocomplete="off" spellcheck="false" style="padding-right:58px;">
+            <button class="bm-vis-btn" id="btn-secret-vis" onclick="toggleSecretVis()">Show</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Allocated Balance ($)</label>
+          <div class="bm-input-wrap">
+            <span class="bm-icon">💰</span>
+            <input class="bm-input" type="number" id="bot-allocated" placeholder="e.g. 500" min="0" step="0.01">
+          </div>
+          <div class="bm-hint">Reference only — does not restrict bot trades</div>
+        </div>
+        <button class="bm-test-btn" onclick="testBotConnection()">
+          <span id="bm-test-label">🔗 Test Connection</span>
+          <span class="bm-spinner" id="bm-test-spinner" style="display:none;"></span>
+        </button>
+        <div id="bot-conn-result" style="font-size:11px;font-family:var(--font-mono);margin-top:8px;min-height:16px;"></div>
+      </div>
 
-    <div class="modal-actions">
-      <button class="btn sm" onclick="closeModal('modal-bot')">Cancel</button>
-      <button class="btn accent sm" onclick="addBot()">🚀 Launch Bot</button>
+      <div id="bot-cap-warn" style="display:none;color:var(--red);font-size:11px;margin-bottom:12px;padding:8px;background:rgba(245,101,101,.06);border-radius:var(--r);border:1px solid rgba(245,101,101,.2);"></div>
+
+      <button class="bm-launch-btn" onclick="addBot()">🚀 Launch Bot</button>
+
     </div>
   </div>
 </div>
@@ -1537,12 +1677,8 @@ function setBotTab(tab) {
   const isStrat = tab === 'strategy';
   document.getElementById('bot-tab-strategy').style.display = isStrat ? '' : 'none';
   document.getElementById('bot-tab-account').style.display  = isStrat ? 'none' : '';
-  const sBtn = document.getElementById('bot-tab-strategy-btn');
-  const aBtn = document.getElementById('bot-tab-account-btn');
-  sBtn.style.borderBottomColor = isStrat ? 'var(--accent)' : 'transparent';
-  sBtn.style.color             = isStrat ? 'var(--text)'   : 'var(--muted2)';
-  aBtn.style.borderBottomColor = isStrat ? 'transparent'   : 'var(--accent)';
-  aBtn.style.color             = isStrat ? 'var(--muted2)' : 'var(--text)';
+  document.getElementById('bot-tab-strategy-btn').classList.toggle('active', isStrat);
+  document.getElementById('bot-tab-account-btn').classList.toggle('active', !isStrat);
 }
 
 function toggleSecretVis() {
@@ -1557,7 +1693,11 @@ async function testBotConnection() {
   const secret = document.getElementById('bot-api-secret').value.trim();
   const res    = document.getElementById('bot-conn-result');
   if (!key || !secret) { res.textContent = '⚠ Wpisz key i secret'; res.style.color = 'var(--amber)'; return; }
-  res.textContent = '⏳ Łączenie...'; res.style.color = 'var(--muted2)';
+  const label   = document.getElementById('bm-test-label');
+  const spinner = document.getElementById('bm-test-spinner');
+  if (label)   label.style.display   = 'none';
+  if (spinner) spinner.style.display = 'inline-block';
+  res.textContent = '';
   try {
     const d = await (await fetch(`/api/bots/test-connection?key=${encodeURIComponent(key)}&secret=${encodeURIComponent(secret)}`)).json();
     if (d.ok) {
@@ -1568,6 +1708,10 @@ async function testBotConnection() {
       res.style.color = 'var(--red)';
     }
   } catch { res.textContent = '✗ Błąd sieci'; res.style.color = 'var(--red)'; }
+  finally {
+    if (label)   label.style.display   = '';
+    if (spinner) spinner.style.display = 'none';
+  }
 }
 
 function openAddBot() {
