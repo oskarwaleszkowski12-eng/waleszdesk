@@ -3,6 +3,7 @@ const cors          = require('cors');
 const crypto        = require('crypto');
 const axios         = require('axios');
 const path          = require('path');
+const jwt           = require('jsonwebtoken');
 const { Pool }      = require('pg');
 const startBotEngine             = require('./botEngine');
 const { createExchangeClient }   = require('./exchanges');
@@ -107,6 +108,16 @@ async function initDb() {
       ON trades(symbol, close_time);
   `);
   console.log('[DB] trades table ready');
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS invite_codes (
+      id         SERIAL      PRIMARY KEY,
+      code       VARCHAR(20) NOT NULL UNIQUE,
+      label      VARCHAR(100) DEFAULT '',
+      used       BOOLEAN     NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  console.log('[DB] invite_codes table ready');
 }
 
 // ── CLOSED-POSITION POLLING ────────────────────────────
@@ -169,6 +180,37 @@ function decrypt(ciphertext) {
   const d = crypto.createDecipheriv('aes-256-cbc', encKey(), Buffer.from(ivHex, 'hex'));
   return Buffer.concat([d.update(Buffer.from(hex, 'hex')), d.final()]).toString('utf8');
 }
+
+// ── JWT Auth ───────────────────────────────────────────
+const JWT_SECRET    = process.env.JWT_SECRET || 'waleszdesk-jwt-secret-dev';
+const ADMIN_PASS    = process.env.ADMIN_PASSWORD || '';
+
+function requireAuth(req, res, next) {
+  const header = req.headers['authorization'] || '';
+  const token  = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (!token) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  try {
+    jwt.verify(token, JWT_SECRET);
+    next();
+  } catch {
+    res.status(401).json({ ok: false, error: 'Invalid or expired token' });
+  }
+}
+
+app.post('/api/auth/login', (req, res) => {
+  const { password } = req.body || {};
+  if (!ADMIN_PASS || password !== ADMIN_PASS) {
+    return res.status(401).json({ ok: false, error: 'Invalid password' });
+  }
+  const token = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
+  res.json({ ok: true, token });
+});
+
+// Protect all /api/* routes except /api/auth/* and /api/algo/*
+app.use('/api', (req, res, next) => {
+  if (req.path.startsWith('/auth/') || req.path.startsWith('/algo/') || req.path === '/algo') return next();
+  requireAuth(req, res, next);
+});
 
 // ── Bybit helpers with explicit keys ──────────────────
 async function bybitGetWithKeys(apiKey, apiSecret, endpoint, params = {}) {
@@ -913,9 +955,16 @@ app.post('/api/algo/verify-keys', async (req, res) => {
 
 app.post('/api/algo/launch', async (req, res) => {
   try {
-    const { apiKey, apiSecret, apiPassphrase, exchange, templateId, allocatedCapital } = req.body;
+    const { apiKey, apiSecret, apiPassphrase, exchange, templateId, allocatedCapital, inviteCode } = req.body;
     if (!apiKey || !apiSecret || !templateId || !allocatedCapital)
       return res.status(400).json({ ok: false, error: 'Missing required fields' });
+
+    // Validate invite code
+    if (!inviteCode) return res.status(400).json({ ok: false, error: 'Invite code required' });
+    const { rows: codeRows } = await pool.query(
+      `SELECT id FROM invite_codes WHERE code=$1 AND used=FALSE`, [inviteCode.trim().toUpperCase()]
+    );
+    if (!codeRows.length) return res.status(400).json({ ok: false, error: 'Invalid or already used invite code' });
 
     const ex = (exchange || 'bybit').toLowerCase();
 
@@ -957,6 +1006,7 @@ app.post('/api/algo/launch', async (req, res) => {
        apiPassphrase ? encrypt(apiPassphrase) : null,
        ex, uid, balance, templateId, allocatedCapital, bot.id]
     );
+    await pool.query(`UPDATE invite_codes SET used=TRUE WHERE code=$1`, [inviteCode.trim().toUpperCase()]);
     res.json({ ok: true, botId: bot.id, uid });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
@@ -1057,6 +1107,45 @@ app.get('/api/algo/admin/users', async (req, res) => {
       ...r,
       pnl: parseFloat(((r.stats || {}).total_pnl || 0)).toFixed(2),
     }))});
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+// ── INVITE CODES (public verify + admin CRUD) ─────────
+app.post('/api/algo/verify-invite', async (req, res) => {
+  try {
+    const { code } = req.body || {};
+    if (!code) return res.status(400).json({ ok: false, error: 'Missing code' });
+    const { rows } = await pool.query(
+      `SELECT * FROM invite_codes WHERE code=$1 AND used=FALSE`, [code.trim().toUpperCase()]
+    );
+    if (!rows.length) return res.status(400).json({ ok: false, error: 'Invalid or already used code' });
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+app.get('/api/algo/admin/invite-codes', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT * FROM invite_codes ORDER BY created_at DESC`);
+    res.json({ ok: true, codes: rows });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+app.post('/api/algo/admin/invite-codes', async (req, res) => {
+  try {
+    const { label } = req.body || {};
+    const code = crypto.randomBytes(4).toString('hex').toUpperCase();
+    const { rows } = await pool.query(
+      `INSERT INTO invite_codes (code, label) VALUES ($1,$2) RETURNING *`,
+      [code, label || '']
+    );
+    res.json({ ok: true, code: rows[0] });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+app.patch('/api/algo/admin/invite-codes/:id/deactivate', async (req, res) => {
+  try {
+    await pool.query(`UPDATE invite_codes SET used=TRUE WHERE id=$1`, [req.params.id]);
+    res.json({ ok: true });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 

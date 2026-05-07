@@ -120,6 +120,23 @@ input.has-btn{border-radius:var(--r) 0 0 var(--r)}
   <span class="topbar-status" id="topbar-status">Not connected</span>
 </div>
 
+<!-- INVITE GATE -->
+<div id="invite-gate" style="position:fixed;inset:0;z-index:999;background:var(--bg0);flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px;display:none">
+  <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:700;letter-spacing:1px">WALESZ<em style="font-style:normal;color:var(--accent)">DESK</em></div>
+  <div style="color:var(--muted2);font-size:12px;letter-spacing:1px;text-transform:uppercase">Algo Access · Invite Required</div>
+  <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:300px">
+    <input id="invite-code-input" type="text" placeholder="Invite code (e.g. AB12CD34)"
+      style="text-transform:uppercase;letter-spacing:3px;text-align:center;font-family:'DM Mono',monospace;font-size:16px"
+      oninput="this.value=this.value.toUpperCase()"
+      onkeydown="if(event.key==='Enter')submitInviteCode()">
+    <button onclick="submitInviteCode()"
+      style="background:var(--accent);color:#000;border:none;border-radius:var(--r);padding:11px;font-family:'Syne',sans-serif;font-size:14px;font-weight:600;cursor:pointer;letter-spacing:1px">
+      VERIFY CODE
+    </button>
+    <div id="invite-gate-err" style="display:none;color:var(--red);font-size:12px;text-align:center;"></div>
+  </div>
+</div>
+
 <div class="main">
   <div id="stepper">
     <div class="step-item" id="s1">
@@ -253,7 +270,8 @@ let algoState = {
   balance: null,
   uid: null,
   selectedTemplateId: null,
-  templates: []
+  templates: [],
+  inviteCode: null,
 };
 
 const EX_COLORS = { bybit:'#f7a600', binance:'#f3ba2f', okx:'#ddd', bitget:'#00d9b5', mexc:'#2eba6c', blofin:'#9b59b6' };
@@ -344,9 +362,13 @@ function setStepperState(active) {
 }
 
 function goStep(n) {
-  document.querySelectorAll('.algo-step').forEach(el => el.classList.remove('active'));
+  // Ensure stepper and steps are visible (may have been hidden by invite gate)
+  const stepperEl = document.getElementById('stepper');
+  if (stepperEl && n !== 'done') stepperEl.style.display = '';
+  document.querySelectorAll('.algo-step').forEach(el => { el.style.display = ''; el.classList.remove('active'); });
   if (n === 'done') {
     document.getElementById('step-done').classList.add('active');
+    if (stepperEl) stepperEl.style.display = 'none';
   } else {
     document.getElementById('step-' + n).classList.add('active');
     algoState.step = n;
@@ -504,6 +526,26 @@ function updatePreview() {
   document.getElementById('prev-risk').textContent = t.risk || '—';
 }
 
+async function submitInviteCode() {
+  const code   = document.getElementById('invite-code-input').value.trim().toUpperCase();
+  const errEl  = document.getElementById('invite-gate-err');
+  errEl.style.display = 'none';
+  if (!code) { errEl.textContent = 'Please enter your invite code'; errEl.style.display = ''; return; }
+  try {
+    const res = await fetch('/api/algo/verify-invite', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ code }),
+    });
+    const d = await res.json();
+    if (!d.ok) { errEl.textContent = d.error || 'Invalid code'; errEl.style.display = ''; return; }
+    algoState.inviteCode = code;
+    sessionStorage.setItem('wd_algo_invite', code);
+    document.getElementById('invite-gate').style.display = 'none';
+    goStep(1);
+  } catch { errEl.textContent = 'Server error — try again'; errEl.style.display = ''; }
+}
+
 async function launchBot() {
   hideErr('s3-error');
   const capInput = document.getElementById('s3-capital');
@@ -523,7 +565,7 @@ async function launchBot() {
     const res = await fetch('/api/algo/launch', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ apiKey: algoState.apiKey, apiSecret: algoState.apiSecret, apiPassphrase: algoState.apiPassphrase || undefined, exchange: algoState.exchange, templateId: algoState.selectedTemplateId, allocatedCapital: capital })
+      body: JSON.stringify({ apiKey: algoState.apiKey, apiSecret: algoState.apiSecret, apiPassphrase: algoState.apiPassphrase || undefined, exchange: algoState.exchange, templateId: algoState.selectedTemplateId, allocatedCapital: capital, inviteCode: algoState.inviteCode })
     });
     const d = await res.json();
     if (!res.ok || d.error) throw new Error(d.error || 'Launch failed');
@@ -583,6 +625,7 @@ function escHtml(s) {
 
 window.addEventListener('load', () => {
   selectExchange('bybit');
+  // Check for already-launched session first (skip invite gate)
   try {
     const raw = localStorage.getItem('wd_algo_session');
     if (raw) {
@@ -593,7 +636,18 @@ window.addEventListener('load', () => {
       }
     }
   } catch(_) {}
-  goStep(1);
+  // Check if invite already verified this session
+  const savedCode = sessionStorage.getItem('wd_algo_invite');
+  if (savedCode) {
+    algoState.inviteCode = savedCode;
+    goStep(1);
+  } else {
+    // Show invite gate
+    document.getElementById('invite-gate').style.display = 'flex';
+    // Hide main stepper/steps until gate is passed
+    document.getElementById('stepper').style.display = 'none';
+    document.querySelectorAll('.algo-step').forEach(el => el.style.display = 'none');
+  }
 });
 </script>
 </body>

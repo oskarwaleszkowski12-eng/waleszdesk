@@ -707,6 +707,22 @@ tr:hover td { background: rgba(255,255,255,.015); }
 </head>
 <body>
 
+<!-- ── LOGIN OVERLAY ──────────────────────────────────── -->
+<div id="login-overlay" style="position:fixed;inset:0;z-index:9999;background:var(--bg0);flex-direction:column;align-items:center;justify-content:center;gap:24px;display:none">
+  <div style="font-family:var(--font-display);font-size:28px;font-weight:700;letter-spacing:2px">WALESZ<em style="font-style:normal;color:var(--accent)">DESK</em></div>
+  <div style="color:var(--muted2);font-size:13px;letter-spacing:1px;text-transform:uppercase">Admin Access</div>
+  <div style="display:flex;flex-direction:column;gap:12px;width:280px">
+    <input id="login-pw" type="password" placeholder="Password" autocomplete="current-password"
+      style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);padding:11px 14px;color:var(--text);font-family:var(--font-mono);font-size:14px;outline:none;width:100%"
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <button onclick="doLogin()"
+      style="background:var(--accent);color:#000;border:none;border-radius:var(--r);padding:11px;font-family:var(--font-display);font-size:14px;font-weight:600;cursor:pointer;letter-spacing:1px">
+      LOGIN
+    </button>
+    <div id="login-err" style="color:var(--red);font-size:12px;text-align:center;display:none"></div>
+  </div>
+</div>
+
 <div class="topbar">
   <div class="logo">WALESZ<em>DESK</em></div>
   <nav class="nav">
@@ -1233,8 +1249,43 @@ tr:hover td { background: rgba(255,255,255,.015); }
         </table>
       </div>
     </div>
+
+    <div class="algo-section-label" style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;">
+      <span>Invite Codes</span>
+      <button class="btn accent sm" onclick="openGenerateInvite()">+ Generate</button>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden;">
+      <div class="au-table-wrap">
+        <table class="au-table" id="invite-codes-table">
+          <thead><tr><th>Code</th><th>Label</th><th>Status</th><th>Created</th><th></th></tr></thead>
+          <tbody id="invite-codes-body">
+            <tr><td colspan="5" style="text-align:center;color:var(--muted2);padding:24px 0;">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
+</div>
+
+<!-- GENERATE INVITE MODAL -->
+<div class="overlay" id="modal-invite">
+  <div class="modal" style="width:min(360px,96vw)">
+    <div class="modal-title">Generate Invite Code</div>
+    <div class="field"><label>Label (optional)</label>
+      <input type="text" id="invite-label" placeholder="e.g. Client name" style="width:100%">
+    </div>
+    <div id="invite-result" style="display:none;margin-top:12px;padding:14px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);text-align:center;">
+      <div style="font-size:11px;color:var(--muted2);margin-bottom:6px;">Generated Code</div>
+      <div id="invite-result-code" style="font-family:var(--font-mono);font-size:22px;font-weight:500;color:var(--accent);letter-spacing:3px;"></div>
+      <div style="font-size:11px;color:var(--muted2);margin-top:6px;">One-time use — share with client</div>
+    </div>
+    <div id="invite-err" style="display:none;color:var(--red);font-size:12px;margin-top:8px;"></div>
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
+      <button class="btn" onclick="closeModal('modal-invite')">Close</button>
+      <button class="btn accent" id="invite-gen-btn" onclick="generateInvite()">Generate</button>
+    </div>
+  </div>
 </div>
 
 <!-- ALGO TEMPLATE MODAL -->
@@ -1519,7 +1570,7 @@ const TOKENS = [
 ];
 
 // ── INIT ───────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', () => {
+function bootApp() {
   const jDate = document.getElementById('j-date'); if(jDate) jDate.value = new Date().toISOString().slice(0,10);
   initTokenGrid();
   setRisk(1);
@@ -1530,6 +1581,10 @@ window.addEventListener('DOMContentLoaded', () => {
   calc();
   checkBackend();
   startLiveDashboard();
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  if (checkAuth()) bootApp();
 });
 
 // ── PANELS ─────────────────────────────────────────────
@@ -1778,7 +1833,7 @@ async function placeOrderAuto() {
 
   try {
     const body = { symbol: sym, side: dir === 'long' ? 'Buy' : 'Sell', orderType: otype, qty, price: entry, stopLoss: sl || undefined, takeProfit: tp || undefined, leverage: lev };
-    const r = await fetch('/api/order', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const r = await apiFetch('/api/order', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
     const data = await r.json();
     res.style.display = 'block';
     if (data.ok) {
@@ -1843,7 +1898,7 @@ async function checkBackend() {
   try {
     const controller = new AbortController();
     setTimeout(() => controller.abort(), 3000);
-    const r = await fetch('/api/balance', { signal: controller.signal });
+    const r = await apiFetch('/api/balance', { signal: controller.signal });
     const d = await r.json();
     backendOnline = !!(d && (d.ok || d.balance !== undefined));
   } catch { backendOnline = false; }
@@ -1874,7 +1929,7 @@ async function fetchBalance(silent = false) {
   if (!silent) { if (spin) spin.style.display = 'inline'; if (el) el.textContent = '...'; }
   try {
     const ctrl1 = new AbortController(); setTimeout(() => ctrl1.abort(), 5000);
-    const r = await fetch('/api/balance', { signal: ctrl1.signal });
+    const r = await apiFetch('/api/balance', { signal: ctrl1.signal });
     const d = await r.json();
     if (d.ok) {
       backendOnline = true;
@@ -1948,7 +2003,7 @@ async function testBotConnection() {
   try {
     const pass = document.getElementById('bot-api-passphrase')?.value.trim() || '';
     const url  = `/api/bots/test-connection?key=${encodeURIComponent(key)}&secret=${encodeURIComponent(secret)}&exchange=${encodeURIComponent(currentBotExchange)}` + (pass ? `&passphrase=${encodeURIComponent(pass)}` : '');
-    const d = await (await fetch(url)).json();
+    const d = await (await apiFetch(url)).json();
     if (d.ok) {
       res.textContent = `✓ Połączono — Saldo: $${parseFloat(d.balance).toFixed(2)}`;
       res.style.color = 'var(--green)';
@@ -2105,7 +2160,7 @@ async function saveEditBot() {
 
   document.getElementById('bot-cap-warn').style.display = 'none';
   try {
-    const r = await fetch(`/api/bots/${botEditId}`, {
+    const r = await apiFetch(`/api/bots/${botEditId}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     });
     const d = await r.json();
@@ -2154,7 +2209,7 @@ async function addBot() {
 
   document.getElementById('bot-cap-warn').style.display = 'none';
   try {
-    const r = await fetch('/api/bots', {
+    const r = await apiFetch('/api/bots', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, type: currentBotType, symbol, config, apiKey, apiSecret, apiPassphrase: apiPassphrase || undefined, exchange: currentBotExchange, subaccountName, allocatedBalance: allocatedBal }),
@@ -2173,7 +2228,7 @@ async function addBot() {
 
 async function pauseBot(id) {
   try {
-    const d = await (await fetch(`/api/bots/${id}/pause`, { method: 'PATCH' })).json();
+    const d = await (await apiFetch(`/api/bots/${id}/pause`, { method: 'PATCH' })).json();
     if (!d.ok) { showToast(d.error, 'err'); return; }
     showToast('Bot paused', 'ok'); fetchBots();
   } catch { showToast('Network error', 'err'); }
@@ -2181,7 +2236,7 @@ async function pauseBot(id) {
 
 async function resumeBot(id) {
   try {
-    const d = await (await fetch(`/api/bots/${id}/resume`, { method: 'PATCH' })).json();
+    const d = await (await apiFetch(`/api/bots/${id}/resume`, { method: 'PATCH' })).json();
     if (!d.ok) { showToast(d.error, 'err'); return; }
     showToast('Bot resumed', 'ok'); fetchBots();
   } catch { showToast('Network error', 'err'); }
@@ -2190,7 +2245,7 @@ async function resumeBot(id) {
 async function stopBot(id, name) {
   if (!confirm(`Stop "${name}" and cancel all open orders?`)) return;
   try {
-    const d = await (await fetch(`/api/bots/${id}`, { method: 'DELETE' })).json();
+    const d = await (await apiFetch(`/api/bots/${id}`, { method: 'DELETE' })).json();
     if (!d.ok) { showToast(d.error, 'err'); return; }
     showToast('Bot stopped', 'ok'); fetchBots();
   } catch { showToast('Network error', 'err'); }
@@ -2199,7 +2254,7 @@ async function stopBot(id, name) {
 async function deleteBotPermanent(id, name) {
   if (!confirm(`Czy na pewno chcesz usunąć bota "${name}"? Tej akcji nie można cofnąć.`)) return;
   try {
-    const d = await (await fetch(`/api/bots/${id}`, { method: 'DELETE' })).json();
+    const d = await (await apiFetch(`/api/bots/${id}`, { method: 'DELETE' })).json();
     if (!d.ok) { showToast(d.error, 'err'); return; }
     showToast(`Bot "${name}" deleted`, 'ok'); fetchBots();
   } catch { showToast('Network error', 'err'); }
@@ -2207,7 +2262,7 @@ async function deleteBotPermanent(id, name) {
 
 async function pauseAllBots() {
   try {
-    const d = await (await fetch('/api/bots/pause-all', { method: 'PATCH' })).json();
+    const d = await (await apiFetch('/api/bots/pause-all', { method: 'PATCH' })).json();
     if (!d.ok) { showToast(d.error, 'err'); return; }
     showToast(`Paused ${d.paused} bot(s)`, 'ok'); fetchBots();
   } catch { showToast('Network error', 'err'); }
@@ -2216,7 +2271,7 @@ async function pauseAllBots() {
 async function stopAllBots() {
   if (!confirm('Zatrzymać wszystkie boty? Ta akcja anuluje wszystkie zlecenia.')) return;
   try {
-    const d = await (await fetch('/api/bots/stop-all', { method: 'PATCH' })).json();
+    const d = await (await apiFetch('/api/bots/stop-all', { method: 'PATCH' })).json();
     if (!d.ok) { showToast(d.error, 'err'); return; }
     showToast(`Stopped ${d.stopped} bot(s)`, 'ok'); fetchBots();
   } catch { showToast('Network error', 'err'); }
@@ -2232,7 +2287,7 @@ async function openBotLogs(id) {
   if (content) content.innerHTML = `<div style="text-align:center;color:var(--muted2);padding:40px 0;font-size:13px;">Loading...</div>`;
   document.getElementById('modal-bot-logs').classList.add('open');
   try {
-    const d = await (await fetch(`/api/bots/${id}/trades`)).json();
+    const d = await (await apiFetch(`/api/bots/${id}/trades`)).json();
     if (!d.ok || !d.trades.length) {
       content.innerHTML = `<div style="text-align:center;color:var(--muted2);padding:40px 0;font-size:13px;">No trades yet — bot hasn't executed any orders</div>`;
       return;
@@ -2265,7 +2320,7 @@ async function openBotLogs(id) {
 
 async function fetchBots() {
   try {
-    const d = await (await fetch('/api/bots')).json();
+    const d = await (await apiFetch('/api/bots')).json();
     if (!d.ok) return;
     botsData = d.bots;
     renderBots();
@@ -2548,7 +2603,7 @@ async function fetchPnlWeekdays() {
   const el = document.getElementById('pnl-weekday-heatmap');
   if (!el) return;
   try {
-    const r = await fetch('/api/pnl/weekdays');
+    const r = await apiFetch('/api/pnl/weekdays');
     const d = await r.json();
     if (!d.ok) return;
     const vals = d.weekdays.map(w => w.avgPnl).filter(v => v !== null);
@@ -2579,7 +2634,7 @@ async function fetchPnlHours() {
   const el = document.getElementById('pnl-hour-stats');
   if (!el) return;
   try {
-    const r = await fetch('/api/pnl/hours');
+    const r = await apiFetch('/api/pnl/hours');
     const d = await r.json();
     if (!d.ok) return;
 
@@ -2620,7 +2675,7 @@ async function fetchPnlHistory() {
   if (!wrap) return;
   wrap.innerHTML = '<div style="color:var(--muted2);font-size:12px;padding:20px 0;">Loading...</div>';
   try {
-    const r = await fetch('/api/pnl/history?days=' + activePnlDays);
+    const r = await apiFetch('/api/pnl/history?days=' + activePnlDays);
     const d = await r.json();
     if (!d.ok) throw new Error(d.error);
     renderPnlHistory(d.history, d.tradeStats);
@@ -2900,7 +2955,7 @@ async function fetchJournalDB() {
   if (loading) loading.style.display = '';
   if (empty)   empty.style.display   = 'none';
   try {
-    const r = await fetch('/api/journal');
+    const r = await apiFetch('/api/journal');
     const d = await r.json();
     if (!d.ok) throw new Error(d.error);
     if (loading) loading.style.display = 'none';
@@ -3080,7 +3135,7 @@ async function toggleJournalCheck(id, key, el) {
   }
 
   try {
-    await fetch('/api/journal/' + id, {
+    await apiFetch('/api/journal/' + id, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ checklist }),
@@ -3095,7 +3150,7 @@ async function saveJournalNotes(id) {
   const btn = ta.nextElementSibling;
   try {
     btn.textContent = 'Saving...';
-    await fetch('/api/journal/' + id, {
+    await apiFetch('/api/journal/' + id, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ notes: ta.value }),
@@ -3187,7 +3242,7 @@ async function saveKeys(ex) {
   try {
     const pass = state.apiKeys[ex+'_pass'] || '';
     const url  = `/api/bots/test-connection?key=${encodeURIComponent(key)}&secret=${encodeURIComponent(sec)}&exchange=${ex}` + (pass ? `&passphrase=${encodeURIComponent(pass)}` : '');
-    const d = await (await fetch(url)).json();
+    const d = await (await apiFetch(url)).json();
     if (d.ok) updateApiDot(ex, true, `$${parseFloat(d.balance).toFixed(2)}`);
     else      updateApiDot(ex, false, d.error || 'Invalid keys');
   } catch { /* leave as saved */ }
@@ -3290,7 +3345,7 @@ async function fetchPositions() {
   const empty = document.getElementById('positions-empty');
   try {
     const ctrl2 = new AbortController(); setTimeout(() => ctrl2.abort(), 5000);
-    const r = await fetch('/api/positions', { signal: ctrl2.signal });
+    const r = await apiFetch('/api/positions', { signal: ctrl2.signal });
     const d = await r.json();
     if (!d.ok) { grid.style.display = 'none'; empty.textContent = 'Error: ' + d.error; empty.style.display = ''; return; }
     if (!d.positions.length) { grid.style.display = 'none'; empty.textContent = 'No open positions'; empty.style.display = ''; return; }
@@ -3454,7 +3509,7 @@ async function fetchLivePnl() {
   const sub     = document.getElementById('s-pnl-sub');
   try {
     const ctrl3 = new AbortController(); setTimeout(() => ctrl3.abort(), 5000);
-    const r = await fetch('/api/positions', { signal: ctrl3.signal });
+    const r = await apiFetch('/api/positions', { signal: ctrl3.signal });
     const d = await r.json();
     if (!d.ok) {
       if (sub) sub.textContent = 'API error';
@@ -3488,7 +3543,7 @@ async function fetchTodayPnl() {
   const sub = document.getElementById('s-todaytrades');
   try {
     const ctrl = new AbortController(); setTimeout(() => ctrl.abort(), 5000);
-    const r = await fetch('/api/pnl/today', { signal: ctrl.signal });
+    const r = await apiFetch('/api/pnl/today', { signal: ctrl.signal });
     const d = await r.json();
     if (!d.ok) { if (sub) sub.textContent = 'API error'; return; }
     const fmt = v => (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
@@ -3510,7 +3565,7 @@ const TICKER_SYMBOLS = ['BTCUSDT','ETHUSDT','SOLUSDT','XRPUSDT','BNBUSDT','DOGEU
 
 async function fetchStats() {
   try {
-    const r = await fetch('/api/stats');
+    const r = await apiFetch('/api/stats');
     const d = await r.json();
     if (!d.ok) return;
     const wr  = document.getElementById('s-wr');
@@ -3606,7 +3661,7 @@ async function checkAlerts() {
     const prices = {};
     await Promise.all(symbols.map(async sym => {
       try {
-        const r = await fetch('/api/ticker?symbol=' + sym);
+        const r = await apiFetch('/api/ticker?symbol=' + sym);
         const d = await r.json();
         if (d.ok) prices[sym] = d.markPrice;
       } catch(e) {}
@@ -3659,7 +3714,7 @@ function toggleBtcSpike() {
 async function checkBtcSpike() {
   if (!getBtcSpikeEnabled()) return;
   try {
-    const r = await fetch('/api/ticker?symbol=BTCUSDT');
+    const r = await apiFetch('/api/ticker?symbol=BTCUSDT');
     if (!r.ok) return;
     const d = await r.json();
     const price = d.markPrice;
@@ -3690,13 +3745,66 @@ let algoTemplateEditId = null;
 
 async function fetchAlgoAdmin() {
   try {
-    const [td, ud] = await Promise.all([
-      fetch('/api/algo/admin/templates').then(r => r.json()),
-      fetch('/api/algo/admin/users').then(r => r.json()),
+    const [td, ud, cd] = await Promise.all([
+      apiFetch('/api/algo/admin/templates').then(r => r.json()),
+      apiFetch('/api/algo/admin/users').then(r => r.json()),
+      apiFetch('/api/algo/admin/invite-codes').then(r => r.json()),
     ]);
     if (td.ok) renderAlgoTemplates(td.templates);
     if (ud.ok) renderAlgoUsers(ud.users);
+    if (cd.ok) renderInviteCodes(cd.codes);
   } catch { showToast('Failed to load algo data', 'err'); }
+}
+
+function renderInviteCodes(codes) {
+  const tbody = document.getElementById('invite-codes-body');
+  if (!tbody) return;
+  if (!codes.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted2);padding:24px 0;">No codes yet</td></tr>'; return; }
+  tbody.innerHTML = codes.map(c => `
+    <tr>
+      <td style="font-family:var(--font-mono);font-size:13px;font-weight:500;color:var(--accent);letter-spacing:2px;">${c.code}</td>
+      <td style="color:var(--muted2)">${c.label || '—'}</td>
+      <td>${c.used ? '<span style="color:var(--red)">Used</span>' : '<span style="color:var(--green)">Active</span>'}</td>
+      <td style="color:var(--muted2);font-size:11px;">${new Date(c.created_at).toLocaleDateString()}</td>
+      <td style="text-align:right;">${c.used ? '' : `<button class="btn sm" style="color:var(--red)" onclick="deactivateInvite(${c.id})">Deactivate</button>`}</td>
+    </tr>`).join('');
+}
+
+function openGenerateInvite() {
+  document.getElementById('invite-label').value = '';
+  document.getElementById('invite-result').style.display = 'none';
+  document.getElementById('invite-err').style.display = 'none';
+  document.getElementById('invite-gen-btn').style.display = '';
+  openModal('modal-invite');
+}
+
+async function generateInvite() {
+  const label  = document.getElementById('invite-label').value.trim();
+  const errEl  = document.getElementById('invite-err');
+  const resEl  = document.getElementById('invite-result');
+  const codeEl = document.getElementById('invite-result-code');
+  errEl.style.display = 'none';
+  try {
+    const d = await (await apiFetch('/api/algo/admin/invite-codes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label }),
+    })).json();
+    if (!d.ok) { errEl.textContent = d.error; errEl.style.display = ''; return; }
+    codeEl.textContent = d.code.code;
+    resEl.style.display = '';
+    document.getElementById('invite-gen-btn').style.display = 'none';
+    fetchAlgoAdmin();
+  } catch (e) { errEl.textContent = e.message; errEl.style.display = ''; }
+}
+
+async function deactivateInvite(id) {
+  if (!confirm('Deactivate this invite code?')) return;
+  try {
+    await apiFetch(`/api/algo/admin/invite-codes/${id}/deactivate`, { method: 'PATCH' });
+    fetchAlgoAdmin();
+    showToast('Code deactivated', 'ok');
+  } catch { showToast('Failed', 'err'); }
 }
 
 function renderAlgoTemplates(templates) {
@@ -3778,7 +3886,7 @@ function openEditTemplate(id) {
     const grid = document.getElementById('algo-templates-grid');
     if (!grid) return;
   });
-  fetch('/api/algo/admin/templates').then(r => r.json()).then(d => {
+  apiFetch('/api/algo/admin/templates').then(r => r.json()).then(d => {
     if (!d.ok) return;
     const t = d.templates.find(x => x.id === id);
     if (!t) return;
@@ -3825,7 +3933,7 @@ async function saveTemplate() {
   try {
     const url    = algoTemplateEditId ? `/api/algo/admin/templates/${algoTemplateEditId}` : '/api/algo/admin/templates';
     const method = algoTemplateEditId ? 'PATCH' : 'POST';
-    const d = await (await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
+    const d = await (await apiFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
     if (!d.ok) { errEl.textContent = d.error; errEl.style.display = ''; return; }
     closeModal('modal-algo-template');
     showToast(algoTemplateEditId ? 'Template updated' : 'Template created', 'ok');
@@ -3835,7 +3943,7 @@ async function saveTemplate() {
 
 async function toggleTemplate(id) {
   try {
-    const d = await (await fetch(`/api/algo/admin/templates/${id}/toggle`, { method: 'PATCH' })).json();
+    const d = await (await apiFetch(`/api/algo/admin/templates/${id}/toggle`, { method: 'PATCH' })).json();
     if (!d.ok) { showToast(d.error, 'err'); return; }
     showToast(d.template.active ? 'Template enabled' : 'Template disabled', 'ok');
     fetchAlgoAdmin();
@@ -3999,7 +4107,7 @@ async function executeTpSl() {
   const { symbol, type, price } = _tpslPayload;
   cancelTpSl();
   try {
-    const r = await fetch('/api/set-tpsl', {
+    const r = await apiFetch('/api/set-tpsl', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbol, type, price }),
@@ -4037,7 +4145,7 @@ async function executeClose() {
   const { symbol, side, qty } = _closePayload;
   cancelClose();
   try {
-    const r = await fetch('/api/close-position', {
+    const r = await apiFetch('/api/close-position', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbol, side, qty }),
@@ -4129,6 +4237,50 @@ function proceedAfterChecklist() {
   closeModal('modal-pretrade');
   resetPreTradeChecklist();
   showToast('Checklist zaliczony — możesz wejść w trade ✓', 'ok');
+}
+
+// ── AUTH ──────────────────────────────────────────────
+function authToken() { return sessionStorage.getItem('wd_token') || ''; }
+
+function apiFetch(url, opts = {}) {
+  const token = authToken();
+  const headers = { ...(opts.headers || {}), ...(token ? { 'Authorization': 'Bearer ' + token } : {}) };
+  return fetch(url, { ...opts, headers });
+}
+
+async function doLogin() {
+  const pw  = document.getElementById('login-pw').value;
+  const err = document.getElementById('login-err');
+  err.style.display = 'none';
+  try {
+    const r = await apiFetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw }),
+    });
+    const d = await r.json();
+    if (!d.ok) { err.textContent = d.error || 'Wrong password'; err.style.display = ''; return; }
+    sessionStorage.setItem('wd_token', d.token);
+    document.getElementById('login-overlay').style.display = 'none';
+    bootApp();
+  } catch (e) {
+    err.textContent = 'Server error'; err.style.display = '';
+  }
+}
+
+function checkAuth() {
+  const token = authToken();
+  if (!token) { showLoginOverlay(); return false; }
+  // quick local expiry check (JWT payload is base64)
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    if (payload.exp * 1000 < Date.now()) { sessionStorage.removeItem('wd_token'); showLoginOverlay(); return false; }
+  } catch { sessionStorage.removeItem('wd_token'); showLoginOverlay(); return false; }
+  return true;
+}
+
+function showLoginOverlay() {
+  document.getElementById('login-overlay').style.display = 'flex';
 }
 </script>
 </body>
