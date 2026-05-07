@@ -567,14 +567,110 @@ tr:hover td { background: rgba(255,255,255,.015); }
 /* ── EMPTY ─────────────────────────────── */
 .empty { text-align: center; padding: 48px; color: var(--muted2); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; }
 
+/* ── TABLET ─────────────────────────────── */
 @media (max-width: 1100px) {
   .stats-row { grid-template-columns: repeat(3, 1fr); }
   .risk-layout, .pnl-layout { grid-template-columns: 1fr; }
 }
-@media (max-width: 700px) {
-  .stats-row { grid-template-columns: repeat(2, 1fr); }
+
+/* ── MOBILE ─────────────────────────────── */
+@media (max-width: 768px) {
+
+  /* Topbar */
+  .topbar {
+    padding: 0 12px;
+    height: 48px;
+    gap: 8px;
+  }
+  .logo { font-size: 12px; letter-spacing: 0.06em; flex-shrink: 0; }
+  .nav {
+    flex: 1; overflow-x: auto; overflow-y: hidden;
+    white-space: nowrap; gap: 2px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav-btn { padding: 5px 10px; font-size: 11px; flex-shrink: 0; }
+  .conn-badge { display: none; }
+  #dash-r-toggle { padding: 4px 9px; font-size: 10px; flex-shrink: 0; }
+
+  /* Main layout */
+  .main { padding: 60px 12px 24px; }
+
+  /* Stats row: 2×3 */
+  .stats-row { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 14px; }
+  .stat { padding: 11px 13px; }
+  .stat-val { font-size: 17px; }
+
+  /* Section head: wrap buttons on small screens */
+  .section-head { flex-wrap: wrap; gap: 8px; }
+  #panel-bots .section-head > div { display: flex; flex-wrap: wrap; gap: 6px; }
+  #panel-bots .section-head .btn { flex: 1; min-width: calc(50% - 3px); justify-content: center; }
+
+  /* Bots grid: 1 column */
+  .bots-grid { grid-template-columns: 1fr; }
+
+  /* Risk panel */
+  .risk-layout { grid-template-columns: 1fr; }
+  .fields-2, .fields-3 { grid-template-columns: 1fr 1fr; }
   .log-grid, .log-grid2 { grid-template-columns: repeat(2, 1fr); }
-  .nav-btn { padding: 5px 10px; font-size: 11px; }
+
+  /* P&L panel */
+  .pnl-layout { grid-template-columns: 1fr; }
+  /* Period buttons: horizontal scroll */
+  #panel-pnl .section-head + .card > div:first-child { flex-wrap: nowrap; overflow-x: auto; }
+  #panel-pnl .section-head + .card > div:first-child > div { overflow-x: auto; white-space: nowrap; flex-shrink: 0; }
+  /* Stats tiles: 2×2 */
+  #pnl-history-stats { grid-template-columns: repeat(2, 1fr) !important; }
+  /* Weekday heatmap: 4 wide on mobile */
+  #pnl-weekday-heatmap { grid-template-columns: repeat(4, 1fr) !important; }
+
+  /* Positions: cards already used, just ensure full width */
+  .pos-card { padding: 14px; }
+  .pos-grid { grid-template-columns: repeat(2, 1fr); }
+  /* Close buttons: row, smaller */
+  .pos-card > div:last-child { gap: 6px; }
+  .pos-card > div:last-child .btn { padding: 5px 8px; font-size: 10px; }
+
+  /* Journal */
+  .journal-wrap { overflow-x: auto; }
+  .journal-wrap table { min-width: 560px; font-size: 11px; }
+  #panel-journal .section-head > div { flex-wrap: wrap; gap: 5px; }
+  #panel-journal .section-head .btn { flex-shrink: 0; }
+
+  /* Journal filter bar */
+  #panel-journal .card[style*="display:flex"] { gap: 8px; }
+
+  /* Alerts: stack vertically */
+  #panel-alerts > div[style*="grid-template-columns:1fr 1fr"] {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  /* Pre-trade modal: full screen */
+  #modal-pretrade .modal { width: 100% !important; max-width: 100% !important; height: 100% !important; max-height: 100% !important; border-radius: 0 !important; padding: 20px !important; }
+  #modal-pretrade.overlay { align-items: flex-start; }
+
+  /* All modals: full screen on mobile */
+  .overlay.open { align-items: flex-end; }
+  .modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: var(--r3) var(--r3) 0 0 !important;
+    max-height: 92vh;
+    overflow-y: auto;
+    animation: modalUp .2s ease;
+  }
+  @keyframes modalUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+
+  /* Toast: full width bottom */
+  #toast { left: 12px; right: 12px; bottom: 16px; max-width: none; }
+
+  /* API layout */
+  .api-layout { grid-template-columns: 1fr; }
+
+  /* Algo admin tables: scrollable */
+  .au-table-wrap { overflow-x: auto; }
 }
 
 /* ── Algo Admin Panel ────────────────────────────────── */
