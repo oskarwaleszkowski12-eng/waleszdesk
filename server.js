@@ -1181,7 +1181,7 @@ app.patch('/api/journal/:id', async (req, res) => {
 initDb()
   .then(() => {
     pollClosedTrades();
-    setInterval(pollClosedTrades, 60_000);
+    setInterval(pollClosedTrades, 15_000);
     startBotEngine({ pool, decrypt });
   })
   .catch(err => console.error('[DB] init failed:', err.message));

@@ -703,6 +703,10 @@ tr:hover td { background: rgba(255,255,255,.015); }
 .bm-launch-btn:active { transform: translateY(0); }
 @keyframes bmFadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
 #bot-tab-strategy[style*="display: none"] ~ *, #bot-tab-account:not([style*="display: none"]) { animation: bmFadeIn .15s ease; }
+/* skeleton loading */
+@keyframes skel-pulse {0%,100%{opacity:.35}50%{opacity:.75}}
+.stat.loading .stat-val { animation: skel-pulse 1.2s ease infinite; color: transparent !important; background: var(--bg3); border-radius: 4px; }
+.stat.loading .stat-sub { animation: skel-pulse 1.2s ease infinite; color: transparent !important; }
 </style>
 </head>
 <body>
@@ -1934,6 +1938,10 @@ async function fetchBalance(silent = false) {
     if (d.ok) {
       backendOnline = true;
       updateConnUI();
+      _last.balance = d.balance;
+      _last.avail   = d.avail;
+      const stat = el?.closest('.stat');
+      if (stat) stat.classList.remove('loading');
       if (el)  el.textContent  = '$' + d.balance;
       if (sub) sub.textContent = 'Available: $' + d.avail;
       const balEl = document.getElementById('balance');
@@ -1944,7 +1952,14 @@ async function fetchBalance(silent = false) {
       if (sub) sub.textContent = d.error || 'Error';
     }
   } catch {
-    if (!silent) { if (el) el.textContent = '—'; if (sub) sub.textContent = 'Backend offline'; }
+    const stat = el?.closest('.stat');
+    if (stat) stat.classList.remove('loading');
+    if (_last.balance !== undefined) {
+      if (el)  el.textContent  = '$' + _last.balance;
+      if (sub) sub.textContent = 'Stale · ' + new Date().toLocaleTimeString();
+    } else {
+      if (!silent) { if (el) el.textContent = '—'; if (sub) sub.textContent = 'Backend offline'; }
+    }
   }
   if (spin) spin.style.display = 'none';
 }
@@ -3407,9 +3422,12 @@ async function fetchPositions() {
         + '</div>'
       + '</div>';
     }).join('');
-    showToast(d.positions.length + ' open position(s) loaded', 'ok');
     const el = document.getElementById('pos-last-refresh');
     if (el) el.textContent = 'Last refreshed ' + new Date().toLocaleTimeString();
+    // Refresh P&L tiles since position count may have changed (closed position)
+    bustCache('/api/pnl/today', '/api/positions');
+    fetchLivePnl();
+    fetchTodayPnl();
   } catch(e) {
     empty.textContent = 'Backend offline — start server.js first';
     empty.style.display = '';
@@ -3496,8 +3514,23 @@ function toggleDashRMode() {
     if (!allJournalTrades.length) fetchJournalDB().then(updateDashboardRValues);
     else updateDashboardRValues();
   } else {
-    fetchLivePnl();
-    fetchTodayPnl();
+    // Re-render instantly from last known values; network fetch will update shortly
+    const fmt = v => (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
+    const cls = v => 'stat-val ' + (v >= 0 ? 'pos' : 'neg');
+    const elPnl  = document.getElementById('s-pnl');
+    const elSub  = document.getElementById('s-pnl-sub');
+    const elToday = document.getElementById('s-today');
+    const elTSub  = document.getElementById('s-todaytrades');
+    if (elPnl && _last.unrealised !== undefined) {
+      elPnl.textContent = fmt(_last.unrealised); elPnl.className = cls(_last.unrealised);
+      if (elSub) elSub.textContent = (_last.posCount || 0) > 0 ? 'Live unrealised' : 'No open positions';
+    }
+    if (elToday && _last.todayPnl !== undefined) {
+      elToday.textContent = fmt(_last.todayPnl); elToday.className = cls(_last.todayPnl);
+      if (elTSub) elTSub.textContent = (_last.tradeCount || 0) + ' trades today';
+    }
+    // Bust cache so next tick fetches fresh data
+    bustCache('/api/positions', '/api/pnl/today');
   }
   if (document.getElementById('panel-pnl')?.classList.contains('active')) {
     fetchPnlHistory();
@@ -3507,28 +3540,31 @@ function toggleDashRMode() {
 async function fetchLivePnl() {
   const totalEl = document.getElementById('s-pnl');
   const sub     = document.getElementById('s-pnl-sub');
+  const stat    = totalEl?.closest('.stat');
   try {
     const ctrl3 = new AbortController(); setTimeout(() => ctrl3.abort(), 5000);
     const r = await apiFetch('/api/positions', { signal: ctrl3.signal });
     const d = await r.json();
-    if (!d.ok) {
-      if (sub) sub.textContent = 'API error';
-      return;
-    }
+    if (!d.ok) { if (sub) sub.textContent = 'API error'; return; }
 
     const unrealised = (d.positions || []).reduce((sum, p) => sum + parseFloat(p.unrealisedPnl || 0), 0);
     currentUnrealisedPnl = unrealised;
+    _last.unrealised = unrealised;
+    _last.posCount   = d.positions.length;
+
     const fmt = v => (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
     const cls = v => 'stat-val ' + (v >= 0 ? 'pos' : 'neg');
-
+    if (stat) stat.classList.remove('loading');
     if (totalEl && !dashRMode) {
       totalEl.textContent = fmt(unrealised);
       totalEl.className   = cls(unrealised);
       if (sub) sub.textContent = d.positions.length ? 'Live unrealised' : 'No open positions';
     }
-
   } catch(e) {
-    if (sub) sub.textContent = 'Offline';
+    if (stat) stat.classList.remove('loading');
+    if (_last.unrealised !== undefined && sub && !dashRMode) {
+      sub.textContent = 'Stale · ' + new Date().toLocaleTimeString();
+    }
   }
 }
 
@@ -3539,19 +3575,25 @@ function startPnlRefresh() {
 }
 
 async function fetchTodayPnl() {
-  const el  = document.getElementById('s-today');
-  const sub = document.getElementById('s-todaytrades');
+  const el   = document.getElementById('s-today');
+  const sub  = document.getElementById('s-todaytrades');
+  const stat = el?.closest('.stat');
   try {
-    const ctrl = new AbortController(); setTimeout(() => ctrl.abort(), 5000);
-    const r = await apiFetch('/api/pnl/today', { signal: ctrl.signal });
-    const d = await r.json();
-    if (!d.ok) { if (sub) sub.textContent = 'API error'; return; }
+    const d = await cachedFetch('/api/pnl/today', 12_000);
+    if (!d?.ok) { if (sub) sub.textContent = 'API error'; return; }
     const fmt = v => (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
     const cls = v => 'stat-val ' + (v >= 0 ? 'pos' : 'neg');
-    if (el && !dashRMode) { el.textContent = fmt(d.pnl); el.className = cls(d.pnl); }
+    _last.todayPnl    = d.pnl;
+    _last.tradeCount  = d.tradeCount;
+    if (stat) stat.classList.remove('loading');
+    if (el  && !dashRMode) { el.textContent = fmt(d.pnl); el.className = cls(d.pnl); }
     if (sub && !dashRMode) sub.textContent = (d.tradeCount || 0) + ' trades today';
   } catch(e) {
-    if (sub) sub.textContent = 'Offline';
+    if (stat) stat.classList.remove('loading');
+    if (_last.todayPnl !== undefined && el && !dashRMode) {
+      el.textContent = ((_last.todayPnl >= 0) ? '+$' : '-$') + Math.abs(_last.todayPnl).toFixed(2);
+      if (sub) sub.textContent = (_last.tradeCount || 0) + ' trades today (cached)';
+    }
   }
 }
 
@@ -3565,11 +3607,12 @@ const TICKER_SYMBOLS = ['BTCUSDT','ETHUSDT','SOLUSDT','XRPUSDT','BNBUSDT','DOGEU
 
 async function fetchStats() {
   try {
-    const r = await apiFetch('/api/stats');
-    const d = await r.json();
-    if (!d.ok) return;
-    const wr  = document.getElementById('s-wr');
-    const wrt = document.getElementById('s-wrtrades');
+    const d = await cachedFetch('/api/stats', 30_000);
+    if (!d?.ok) return;
+    const wr   = document.getElementById('s-wr');
+    const wrt  = document.getElementById('s-wrtrades');
+    const stat = wr?.closest('.stat');
+    if (stat) stat.classList.remove('loading');
     if (wr)  wr.textContent  = d.winRate + '%';
     if (wrt) wrt.textContent = d.totalTrades + ' trades · ' + d.winDays + 'W/' + d.lossDays + 'L days';
   } catch(e) { /* silent */ }
@@ -3952,24 +3995,30 @@ async function toggleTemplate(id) {
 
 function startLiveDashboard() {
   applyDashRToggleUI();
-  fetchLivePnl();
-  fetchTodayPnl();
-  fetchStats();
-  fetchBalance(true);
   startTickerWs();
   initLiveEquityChart();
-  fetchBots();
-  setInterval(fetchBots, 15000);
   updateBtcSpikeToggle();
-  setInterval(checkBtcSpike, 30000);
+
+  // Parallel initial load — skeleton shown until each resolves
+  ['s-pnl','s-today','s-balance','s-wr'].forEach(id => {
+    const stat = document.getElementById(id)?.closest('.stat');
+    if (stat) stat.classList.add('loading');
+  });
+  Promise.all([fetchLivePnl(), fetchTodayPnl(), fetchStats(), fetchBalance(true), fetchBots()]);
+
+  // Single unified 10s ticker
+  let _tick = 0;
   setInterval(() => {
+    _tick++;
     fetchLivePnl();
+    fetchTodayPnl();
     fetchBalance(true);
     updateStats();
     checkAlerts();
-  }, 10000);
-  setInterval(fetchTodayPnl, 60000);
-  setInterval(fetchStats,    60000);
+    if (_tick % 2 === 0) fetchBots();
+    if (_tick % 6 === 0) { bustCache('/api/stats'); fetchStats(); }
+    if (_tick % 3 === 0) checkBtcSpike();
+  }, 10_000);
 }
 
 function initLiveEquityChart() {
@@ -4238,6 +4287,20 @@ function proceedAfterChecklist() {
   resetPreTradeChecklist();
   showToast('Checklist zaliczony — możesz wejść w trade ✓', 'ok');
 }
+
+// ── REQUEST CACHE + LAST KNOWN ────────────────────────
+const _cache = new Map();
+const _last  = {};
+
+async function cachedFetch(url, ttl = 30_000) {
+  const now = Date.now();
+  const hit  = _cache.get(url);
+  if (hit && now - hit.ts < ttl) return hit.data;
+  const d = await apiFetch(url).then(r => r.json());
+  if (d) _cache.set(url, { data: d, ts: now });
+  return d;
+}
+function bustCache(...urls) { urls.forEach(u => _cache.delete(u)); }
 
 // ── AUTH ──────────────────────────────────────────────
 function authToken() { return sessionStorage.getItem('wd_token') || ''; }
