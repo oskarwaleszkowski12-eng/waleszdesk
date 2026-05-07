@@ -4,7 +4,8 @@ const crypto        = require('crypto');
 const axios         = require('axios');
 const path          = require('path');
 const { Pool }      = require('pg');
-const startBotEngine = require('./botEngine');
+const startBotEngine             = require('./botEngine');
+const { createExchangeClient }   = require('./exchanges');
 
 const app = express();
 app.use(express.json());
@@ -42,13 +43,15 @@ async function initDb() {
       created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
     );
   `);
-  // Migration: add subaccount / key columns if missing
+  // Migrations: add columns if missing
   await pool.query(`
     ALTER TABLE bots
-      ADD COLUMN IF NOT EXISTS api_key_enc       TEXT,
-      ADD COLUMN IF NOT EXISTS api_secret_enc    TEXT,
-      ADD COLUMN IF NOT EXISTS subaccount_name   VARCHAR(100),
-      ADD COLUMN IF NOT EXISTS allocated_balance DECIMAL(20,2);
+      ADD COLUMN IF NOT EXISTS api_key_enc        TEXT,
+      ADD COLUMN IF NOT EXISTS api_secret_enc     TEXT,
+      ADD COLUMN IF NOT EXISTS api_passphrase_enc TEXT,
+      ADD COLUMN IF NOT EXISTS subaccount_name    VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS allocated_balance  DECIMAL(20,2),
+      ADD COLUMN IF NOT EXISTS exchange           VARCHAR(20) DEFAULT 'bybit';
   `);
   console.log('[DB] bots tables ready');
   await pool.query(`
@@ -69,7 +72,9 @@ async function initDb() {
       id                SERIAL PRIMARY KEY,
       api_key_enc       TEXT NOT NULL,
       api_secret_enc    TEXT NOT NULL,
+      api_passphrase_enc TEXT,
       uid               VARCHAR(50),
+      exchange          VARCHAR(20) DEFAULT 'bybit',
       balance_at_signup DECIMAL(20,2),
       bot_template_id   INTEGER REFERENCES algo_templates(id),
       allocated_capital DECIMAL(20,2),
@@ -77,6 +82,11 @@ async function initDb() {
       status            VARCHAR(20) DEFAULT 'active',
       created_at        TIMESTAMPTZ DEFAULT NOW()
     );
+  `);
+  await pool.query(`
+    ALTER TABLE algo_users
+      ADD COLUMN IF NOT EXISTS api_passphrase_enc TEXT,
+      ADD COLUMN IF NOT EXISTS exchange           VARCHAR(20) DEFAULT 'bybit';
   `);
   console.log('[DB] algo tables ready');
   await pool.query(`
@@ -262,6 +272,7 @@ app.get('/api/positions', async (req, res) => {
     const positions = (data.result?.list || [])
       .filter(p => parseFloat(p.size) > 0)
       .map(p => ({
+        exchange:      'bybit',
         symbol:        p.symbol,
         side:          p.side,
         size:          p.size,
@@ -654,35 +665,35 @@ app.get('/api/stats', async (req, res) => {
 
 // ── BOTS ──────────────────────────────────────────────
 function botPublic(row) {
-  // Strip encrypted secrets, mask key, return safe object
-  const { api_key_enc, api_secret_enc, ...pub } = row;
+  const { api_key_enc, api_secret_enc, api_passphrase_enc, ...pub } = row;
+  pub.exchange       = row.exchange || 'bybit';
   pub.api_key_masked = api_key_enc ? (() => { try { return decrypt(api_key_enc).slice(0, 4) + '***'; } catch { return '****'; } })() : null;
   return pub;
 }
 
-function botKeys(row) {
-  // Returns { apiKey, apiSecret } — falls back to global env keys
+function botClientDetails(row) {
   try {
-    if (row.api_key_enc && row.api_secret_enc)
-      return { apiKey: decrypt(row.api_key_enc), apiSecret: decrypt(row.api_secret_enc) };
+    if (row.api_key_enc && row.api_secret_enc) {
+      return {
+        exchange:    row.exchange || 'bybit',
+        apiKey:      decrypt(row.api_key_enc),
+        apiSecret:   decrypt(row.api_secret_enc),
+        passphrase:  row.api_passphrase_enc ? decrypt(row.api_passphrase_enc) : undefined,
+      };
+    }
   } catch (e) {
     console.error(`[bots:${row.id}] key decrypt error:`, e.message);
   }
-  return { apiKey: API_KEY, apiSecret: API_SECRET };
+  return { exchange: 'bybit', apiKey: API_KEY, apiSecret: API_SECRET, passphrase: undefined };
 }
 
 app.get('/api/bots/test-connection', async (req, res) => {
-  const { key, secret } = req.query;
+  const { key, secret, exchange, passphrase } = req.query;
   if (!key || !secret) return res.status(400).json({ ok: false, error: 'key and secret required' });
   try {
-    const data = await bybitGetWithKeys(key, secret, '/v5/account/wallet-balance', { accountType: 'UNIFIED' });
-    if (data.retCode !== 0) return res.json({ ok: false, error: data.retMsg });
-    const acc     = data.result?.list?.[0] || {};
-    const usdt    = (acc.coin || []).find(c => c.coin === 'USDT');
-    const balance = usdt
-      ? parseFloat(parseFloat(usdt.walletBalance || 0).toFixed(2))
-      : parseFloat(parseFloat(acc.totalWalletBalance || 0).toFixed(2));
-    res.json({ ok: true, balance });
+    const client  = createExchangeClient(exchange || 'bybit', key, secret, passphrase);
+    const { total } = await client.getBalance();
+    res.json({ ok: true, balance: parseFloat(total.toFixed(2)) });
   } catch (e) {
     res.json({ ok: false, error: e.message });
   }
@@ -690,7 +701,7 @@ app.get('/api/bots/test-connection', async (req, res) => {
 
 app.post('/api/bots', async (req, res) => {
   try {
-    const { name, type, symbol, config, apiKey, apiSecret, subaccountName, allocatedBalance } = req.body;
+    const { name, type, symbol, config, apiKey, apiSecret, apiPassphrase, exchange, subaccountName, allocatedBalance } = req.body;
     if (!name || !type || !symbol || !config)
       return res.status(400).json({ ok: false, error: 'Missing: name, type, symbol, config' });
     if (!['dca', 'grid'].includes(type))
@@ -698,11 +709,14 @@ app.post('/api/bots', async (req, res) => {
     if (!apiKey || !apiSecret)
       return res.status(400).json({ ok: false, error: 'API key and secret are required' });
 
+    const ex = (exchange || 'bybit').toLowerCase();
     const { rows } = await pool.query(
-      `INSERT INTO bots (name, type, symbol, status, config, stats, api_key_enc, api_secret_enc, subaccount_name, allocated_balance)
-       VALUES ($1,$2,$3,'active',$4,'{}', $5, $6, $7, $8) RETURNING *`,
+      `INSERT INTO bots (name, type, symbol, status, config, stats, api_key_enc, api_secret_enc, api_passphrase_enc, exchange, subaccount_name, allocated_balance)
+       VALUES ($1,$2,$3,'active',$4,'{}', $5, $6, $7, $8, $9, $10) RETURNING *`,
       [name.trim(), type, symbol.toUpperCase(), JSON.stringify({ ...config, state: {} }),
-       encrypt(apiKey), encrypt(apiSecret), subaccountName || null, allocatedBalance || null]
+       encrypt(apiKey), encrypt(apiSecret),
+       apiPassphrase ? encrypt(apiPassphrase) : null,
+       ex, subaccountName || null, allocatedBalance || null]
     );
     res.json({ ok: true, bot: botPublic(rows[0]) });
   } catch (err) {
@@ -722,17 +736,10 @@ app.get('/api/bots', async (req, res) => {
       const pub = botPublic(row);
       if (row.status !== 'stopped') {
         try {
-          const { apiKey, apiSecret } = botKeys(row);
-          const data = await bybitGetWithKeys(apiKey, apiSecret, '/v5/account/wallet-balance', { accountType: 'UNIFIED' });
-          if (data.retCode === 0) {
-            const acc  = data.result?.list?.[0] || {};
-            const usdt = (acc.coin || []).find(c => c.coin === 'USDT');
-            pub.live_balance = usdt
-              ? parseFloat(parseFloat(usdt.walletBalance || 0).toFixed(2))
-              : parseFloat(parseFloat(acc.totalWalletBalance || 0).toFixed(2));
-          } else {
-            pub.live_balance = null;
-          }
+          const { exchange, apiKey, apiSecret, passphrase } = botClientDetails(row);
+          const client = createExchangeClient(exchange, apiKey, apiSecret, passphrase);
+          const { total } = await client.getBalance();
+          pub.live_balance = parseFloat(total.toFixed(2));
         } catch {
           pub.live_balance = null;
         }
@@ -765,8 +772,9 @@ app.patch('/api/bots/stop-all', async (req, res) => {
     );
     await Promise.allSettled(rows.map(async bot => {
       try {
-        const { apiKey, apiSecret } = botKeys(bot);
-        await bybitPostWithKeys(apiKey, apiSecret, '/v5/order/cancel-all', { category: 'linear', symbol: bot.symbol });
+        const { exchange, apiKey, apiSecret, passphrase } = botClientDetails(bot);
+        const client = createExchangeClient(exchange, apiKey, apiSecret, passphrase);
+        await client.cancelAllOrders(bot.symbol);
       } catch {}
     }));
     res.json({ ok: true, stopped: rows.length });
@@ -777,7 +785,7 @@ app.patch('/api/bots/stop-all', async (req, res) => {
 
 app.patch('/api/bots/:id', async (req, res) => {
   try {
-    const { name, symbol, config, apiKey, apiSecret, subaccountName, allocatedBalance } = req.body;
+    const { name, symbol, config, apiKey, apiSecret, apiPassphrase, exchange, subaccountName, allocatedBalance } = req.body;
     const { rows: existing } = await pool.query(`SELECT * FROM bots WHERE id=$1`, [req.params.id]);
     if (!existing.length) return res.status(404).json({ ok: false, error: 'Bot not found' });
 
@@ -785,8 +793,9 @@ app.patch('/api/bots/:id', async (req, res) => {
     const vals    = [];
     let   idx     = 1;
 
-    if (name)   { updates.push(`name=$${idx++}`);   vals.push(name.trim()); }
-    if (symbol) { updates.push(`symbol=$${idx++}`); vals.push(symbol.toUpperCase()); }
+    if (name)     { updates.push(`name=$${idx++}`);     vals.push(name.trim()); }
+    if (symbol)   { updates.push(`symbol=$${idx++}`);   vals.push(symbol.toUpperCase()); }
+    if (exchange) { updates.push(`exchange=$${idx++}`); vals.push(exchange.toLowerCase()); }
     if (config) {
       const existingState = (existing[0].config || {}).state || {};
       updates.push(`config=$${idx++}`);
@@ -795,9 +804,13 @@ app.patch('/api/bots/:id', async (req, res) => {
     if (apiKey && apiSecret) {
       updates.push(`api_key_enc=$${idx++}`, `api_secret_enc=$${idx++}`);
       vals.push(encrypt(apiKey), encrypt(apiSecret));
+      if (apiPassphrase !== undefined) {
+        updates.push(`api_passphrase_enc=$${idx++}`);
+        vals.push(apiPassphrase ? encrypt(apiPassphrase) : null);
+      }
     }
-    if (subaccountName !== undefined) { updates.push(`subaccount_name=$${idx++}`);    vals.push(subaccountName || null); }
-    if (allocatedBalance !== undefined) { updates.push(`allocated_balance=$${idx++}`); vals.push(allocatedBalance || null); }
+    if (subaccountName !== undefined)   { updates.push(`subaccount_name=$${idx++}`);    vals.push(subaccountName || null); }
+    if (allocatedBalance !== undefined) { updates.push(`allocated_balance=$${idx++}`);  vals.push(allocatedBalance || null); }
 
     if (!updates.length) return res.status(400).json({ ok: false, error: 'Nothing to update' });
     updates.push(`updated_at=NOW()`);
@@ -860,8 +873,9 @@ app.delete('/api/bots/:id', async (req, res) => {
       await pool.query(`DELETE FROM bots WHERE id=$1`, [req.params.id]);
     } else {
       try {
-        const { apiKey, apiSecret } = botKeys(bot);
-        await bybitPostWithKeys(apiKey, apiSecret, '/v5/order/cancel-all', { category: 'linear', symbol: bot.symbol });
+        const { exchange, apiKey, apiSecret, passphrase } = botClientDetails(bot);
+        const client = createExchangeClient(exchange, apiKey, apiSecret, passphrase);
+        await client.cancelAllOrders(bot.symbol);
       } catch (e) {
         console.error(`[bots] cancel-all failed for ${bot.symbol}:`, e.message);
       }
@@ -887,30 +901,23 @@ app.get('/api/algo/available-bots', async (req, res) => {
 });
 
 app.post('/api/algo/verify-keys', async (req, res) => {
-  const { key, secret } = req.body;
+  const { key, secret, exchange, passphrase } = req.body;
   if (!key || !secret) return res.status(400).json({ ok: false, error: 'key and secret required' });
   try {
-    const data = await bybitGetWithKeys(key, secret, '/v5/account/wallet-balance', { accountType: 'UNIFIED' });
-    if (data.retCode !== 0) return res.json({ ok: false, error: data.retMsg });
-    const acc     = data.result?.list?.[0] || {};
-    const usdt    = (acc.coin || []).find(c => c.coin === 'USDT');
-    const balance = usdt
-      ? parseFloat(parseFloat(usdt.walletBalance || 0).toFixed(2))
-      : parseFloat(parseFloat(acc.totalWalletBalance || 0).toFixed(2));
-    let uid = 'unknown';
-    try {
-      const ui = await bybitGetWithKeys(key, secret, '/v5/user/query-api', {});
-      uid = String(ui.result?.uid || ui.result?.id || 'unknown');
-    } catch {}
-    res.json({ ok: true, balance, uid });
+    const client  = createExchangeClient(exchange || 'bybit', key, secret, passphrase);
+    const { total } = await client.getBalance();
+    const uid     = await client.getUID();
+    res.json({ ok: true, balance: parseFloat(total.toFixed(2)), uid });
   } catch (e) { res.json({ ok: false, error: e.message }); }
 });
 
 app.post('/api/algo/launch', async (req, res) => {
   try {
-    const { apiKey, apiSecret, templateId, allocatedCapital } = req.body;
+    const { apiKey, apiSecret, apiPassphrase, exchange, templateId, allocatedCapital } = req.body;
     if (!apiKey || !apiSecret || !templateId || !allocatedCapital)
       return res.status(400).json({ ok: false, error: 'Missing required fields' });
+
+    const ex = (exchange || 'bybit').toLowerCase();
 
     const { rows: tmplRows } = await pool.query(
       `SELECT * FROM algo_templates WHERE id=$1 AND active=true`, [templateId]
@@ -921,37 +928,34 @@ app.post('/api/algo/launch', async (req, res) => {
     if (allocatedCapital < parseFloat(tmpl.min_capital || 50))
       return res.status(400).json({ ok: false, error: `Minimum capital is $${tmpl.min_capital}` });
 
-    const walletData = await bybitGetWithKeys(apiKey, apiSecret, '/v5/account/wallet-balance', { accountType: 'UNIFIED' });
-    if (walletData.retCode !== 0) return res.json({ ok: false, error: 'Key verification failed: ' + walletData.retMsg });
-    const acc     = walletData.result?.list?.[0] || {};
-    const usdt    = (acc.coin || []).find(c => c.coin === 'USDT');
-    const balance = usdt ? parseFloat(usdt.walletBalance || 0) : parseFloat(acc.totalWalletBalance || 0);
+    const client  = createExchangeClient(ex, apiKey, apiSecret, apiPassphrase);
+    const { total: balance } = await client.getBalance().catch(e => { throw new Error('Key verification failed: ' + e.message); });
     if (allocatedCapital > balance * 0.5)
       return res.status(400).json({ ok: false, error: `Max 50% of balance ($${(balance * 0.5).toFixed(2)})` });
 
-    let uid = 'unknown';
-    try {
-      const ui = await bybitGetWithKeys(apiKey, apiSecret, '/v5/user/query-api', {});
-      uid = String(ui.result?.uid || ui.result?.id || 'unknown');
-    } catch {}
+    const uid = await client.getUID().catch(() => 'unknown');
 
-    const { rows: existing } = await pool.query(`SELECT id FROM algo_users WHERE uid=$1`, [uid]);
+    const { rows: existing } = await pool.query(`SELECT id FROM algo_users WHERE uid=$1 AND exchange=$2`, [uid, ex]);
     if (existing.length) return res.json({ ok: false, error: 'UID already registered. Contact support.' });
 
     const botConfig = { ...tmpl.config, symbol: tmpl.symbol };
     const { rows: botRows } = await pool.query(
-      `INSERT INTO bots (name, type, symbol, status, config, stats, api_key_enc, api_secret_enc, allocated_balance)
-       VALUES ($1,$2,$3,'active',$4,'{}', $5, $6, $7) RETURNING *`,
+      `INSERT INTO bots (name, type, symbol, status, config, stats, api_key_enc, api_secret_enc, api_passphrase_enc, exchange, allocated_balance)
+       VALUES ($1,$2,$3,'active',$4,'{}', $5, $6, $7, $8, $9) RETURNING *`,
       [`[Algo] ${tmpl.name}`, tmpl.type, tmpl.symbol,
        JSON.stringify({ ...botConfig, state: {} }),
-       encrypt(apiKey), encrypt(apiSecret), allocatedCapital]
+       encrypt(apiKey), encrypt(apiSecret),
+       apiPassphrase ? encrypt(apiPassphrase) : null,
+       ex, allocatedCapital]
     );
     const bot = botRows[0];
 
     await pool.query(
-      `INSERT INTO algo_users (api_key_enc, api_secret_enc, uid, balance_at_signup, bot_template_id, allocated_capital, bot_id, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'active')`,
-      [encrypt(apiKey), encrypt(apiSecret), uid, balance, templateId, allocatedCapital, bot.id]
+      `INSERT INTO algo_users (api_key_enc, api_secret_enc, api_passphrase_enc, exchange, uid, balance_at_signup, bot_template_id, allocated_capital, bot_id, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'active')`,
+      [encrypt(apiKey), encrypt(apiSecret),
+       apiPassphrase ? encrypt(apiPassphrase) : null,
+       ex, uid, balance, templateId, allocatedCapital, bot.id]
     );
     res.json({ ok: true, botId: bot.id, uid });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }

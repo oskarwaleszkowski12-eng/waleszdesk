@@ -499,8 +499,20 @@ tr:hover td { background: rgba(255,255,255,.015); }
 .chart-wrap { position: relative; height: 300px; }
 .mini-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
+/* ── Exchange badges ───────────────────── */
+.ex-badge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:700; letter-spacing:.05em; font-family:var(--font-mono); }
+.ex-bybit   { background:rgba(247,166,0,.15);  color:#f7a600; }
+.ex-binance { background:rgba(243,186,47,.15); color:#f3ba2f; }
+.ex-okx     { background:rgba(220,220,220,.12);color:#ddd; }
+.ex-bitget  { background:rgba(0,217,181,.15);  color:#00d9b5; }
+.ex-mexc    { background:rgba(46,186,108,.15); color:#2eba6c; }
+.ex-blofin  { background:rgba(155,89,182,.15); color:#9b59b6; }
+/* ── Bot modal exchange selector ───────── */
+.bm-exchanges { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+.bm-ex-btn { background:var(--bg3); border:1.5px solid var(--border2); border-radius:var(--r); color:var(--muted2); cursor:pointer; font-family:var(--font-mono); font-size:11px; font-weight:700; padding:6px 12px; transition:all .2s; }
+.bm-ex-btn.active { border-color:var(--accent); color:var(--accent); background:rgba(0,200,150,.06); }
 /* ── API ───────────────────────────────── */
-.api-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.api-layout { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
 .api-status {
   display: flex; align-items: center; gap: 8px;
   margin-top: 12px; font-size: 11px;
@@ -557,7 +569,7 @@ tr:hover td { background: rgba(255,255,255,.015); }
 
 @media (max-width: 1100px) {
   .stats-row { grid-template-columns: repeat(3, 1fr); }
-  .risk-layout, .pnl-layout, .api-layout { grid-template-columns: 1fr; }
+  .risk-layout, .pnl-layout { grid-template-columns: 1fr; }
 }
 @media (max-width: 700px) {
   .stats-row { grid-template-columns: repeat(2, 1fr); }
@@ -1088,10 +1100,15 @@ tr:hover td { background: rgba(255,255,255,.015); }
   <!-- API -->
   <div class="panel" id="panel-api">
     <div class="section-head"><div class="section-title">API Configuration</div></div>
-    <div class="warn-box">⚠ Keys are stored in localStorage only — never shared. Use Trade-only keys without withdrawal permissions.</div>
+    <div class="warn-box">⚠ Keys are stored in localStorage only — never shared with the server. Use Trade-only keys without withdrawal permissions.</div>
     <div class="api-layout">
+
+      <!-- Bybit -->
       <div class="card">
-        <div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:16px;">Bybit</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+          <span class="ex-badge ex-bybit">Bybit</span>
+          <span style="font-size:11px;color:var(--muted2);">Futures</span>
+        </div>
         <div class="field"><label>API Key</label><input type="password" id="bybit-key" placeholder="Paste API key"></div>
         <div class="field"><label>API Secret</label><input type="password" id="bybit-secret" placeholder="Paste API secret"></div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
@@ -1099,22 +1116,90 @@ tr:hover td { background: rgba(255,255,255,.015); }
           <label for="bybit-testnet" style="font-size:11px;color:var(--muted2);cursor:pointer;">Testnet mode</label>
         </div>
         <div style="display:flex;gap:8px;">
-          <button class="btn accent sm" onclick="saveKeys('bybit')">Save Keys</button>
+          <button class="btn accent sm" onclick="saveKeys('bybit')">Save</button>
           <button class="btn danger sm" onclick="clearKeys('bybit')">Clear</button>
         </div>
         <div class="api-status"><div class="conn-dot" id="bybit-dot"></div><span id="bybit-label">Not configured</span></div>
       </div>
+
+      <!-- Binance -->
       <div class="card">
-        <div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:16px;">BloFin</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+          <span class="ex-badge ex-binance">Binance</span>
+          <span style="font-size:11px;color:var(--muted2);">USDⓈ-M Futures</span>
+        </div>
+        <div class="field"><label>API Key</label><input type="password" id="binance-key" placeholder="Paste API key"></div>
+        <div class="field"><label>API Secret</label><input type="password" id="binance-secret" placeholder="Paste API secret"></div>
+        <div style="display:flex;gap:8px;margin-top:16px;">
+          <button class="btn accent sm" onclick="saveKeys('binance')">Save</button>
+          <button class="btn danger sm" onclick="clearKeys('binance')">Clear</button>
+        </div>
+        <div class="api-status"><div class="conn-dot" id="binance-dot"></div><span id="binance-label">Not configured</span></div>
+      </div>
+
+      <!-- OKX -->
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+          <span class="ex-badge ex-okx">OKX</span>
+          <span style="font-size:11px;color:var(--muted2);">Perpetual Swaps</span>
+        </div>
+        <div class="field"><label>API Key</label><input type="password" id="okx-key" placeholder="Paste API key"></div>
+        <div class="field"><label>API Secret</label><input type="password" id="okx-secret" placeholder="Paste API secret"></div>
+        <div class="field"><label>Passphrase</label><input type="password" id="okx-pass" placeholder="Paste passphrase"></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn accent sm" onclick="saveKeys('okx')">Save</button>
+          <button class="btn danger sm" onclick="clearKeys('okx')">Clear</button>
+        </div>
+        <div class="api-status"><div class="conn-dot" id="okx-dot"></div><span id="okx-label">Not configured</span></div>
+      </div>
+
+      <!-- Bitget -->
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+          <span class="ex-badge ex-bitget">Bitget</span>
+          <span style="font-size:11px;color:var(--muted2);">USDT-M Futures</span>
+        </div>
+        <div class="field"><label>API Key</label><input type="password" id="bitget-key" placeholder="Paste API key"></div>
+        <div class="field"><label>API Secret</label><input type="password" id="bitget-secret" placeholder="Paste API secret"></div>
+        <div class="field"><label>Passphrase</label><input type="password" id="bitget-pass" placeholder="Paste passphrase"></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn accent sm" onclick="saveKeys('bitget')">Save</button>
+          <button class="btn danger sm" onclick="clearKeys('bitget')">Clear</button>
+        </div>
+        <div class="api-status"><div class="conn-dot" id="bitget-dot"></div><span id="bitget-label">Not configured</span></div>
+      </div>
+
+      <!-- MEXC -->
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+          <span class="ex-badge ex-mexc">MEXC</span>
+          <span style="font-size:11px;color:var(--muted2);">Futures</span>
+        </div>
+        <div class="field"><label>API Key</label><input type="password" id="mexc-key" placeholder="Paste API key"></div>
+        <div class="field"><label>API Secret</label><input type="password" id="mexc-secret" placeholder="Paste API secret"></div>
+        <div style="display:flex;gap:8px;margin-top:16px;">
+          <button class="btn accent sm" onclick="saveKeys('mexc')">Save</button>
+          <button class="btn danger sm" onclick="clearKeys('mexc')">Clear</button>
+        </div>
+        <div class="api-status"><div class="conn-dot" id="mexc-dot"></div><span id="mexc-label">Not configured</span></div>
+      </div>
+
+      <!-- BloFin -->
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+          <span class="ex-badge ex-blofin">BloFin</span>
+          <span style="font-size:11px;color:var(--muted2);">Perpetual Swaps</span>
+        </div>
         <div class="field"><label>API Key</label><input type="password" id="blofin-key" placeholder="Paste API key"></div>
         <div class="field"><label>API Secret</label><input type="password" id="blofin-secret" placeholder="Paste API secret"></div>
         <div class="field"><label>Passphrase</label><input type="password" id="blofin-pass" placeholder="Paste passphrase"></div>
         <div style="display:flex;gap:8px;">
-          <button class="btn accent sm" onclick="saveKeys('blofin')">Save Keys</button>
+          <button class="btn accent sm" onclick="saveKeys('blofin')">Save</button>
           <button class="btn danger sm" onclick="clearKeys('blofin')">Clear</button>
         </div>
         <div class="api-status"><div class="conn-dot" id="blofin-dot"></div><span id="blofin-label">Not configured</span></div>
       </div>
+
     </div>
   </div>
 
@@ -1252,6 +1337,19 @@ tr:hover td { background: rgba(255,255,255,.015); }
         </div>
       </div>
 
+      <!-- Exchange selector -->
+      <div class="field" style="margin-bottom:16px;">
+        <label>Exchange</label>
+        <div class="bm-exchanges">
+          <button class="bm-ex-btn active" id="bm-ex-bybit"   onclick="setBotExchange('bybit')"  ><span class="ex-badge ex-bybit"   style="pointer-events:none;">Bybit</span></button>
+          <button class="bm-ex-btn"        id="bm-ex-binance" onclick="setBotExchange('binance')" ><span class="ex-badge ex-binance" style="pointer-events:none;">Binance</span></button>
+          <button class="bm-ex-btn"        id="bm-ex-okx"     onclick="setBotExchange('okx')"    ><span class="ex-badge ex-okx"     style="pointer-events:none;">OKX</span></button>
+          <button class="bm-ex-btn"        id="bm-ex-bitget"  onclick="setBotExchange('bitget')" ><span class="ex-badge ex-bitget"  style="pointer-events:none;">Bitget</span></button>
+          <button class="bm-ex-btn"        id="bm-ex-mexc"    onclick="setBotExchange('mexc')"   ><span class="ex-badge ex-mexc"    style="pointer-events:none;">MEXC</span></button>
+          <button class="bm-ex-btn"        id="bm-ex-blofin"  onclick="setBotExchange('blofin')" ><span class="ex-badge ex-blofin"  style="pointer-events:none;">BloFin</span></button>
+        </div>
+      </div>
+
       <!-- Pill tab switcher -->
       <div class="bm-tabs">
         <button id="bot-tab-strategy-btn" class="bm-tab active" onclick="setBotTab('strategy')">Strategia</button>
@@ -1335,6 +1433,13 @@ tr:hover td { background: rgba(255,255,255,.015); }
             <span class="bm-icon">🔒</span>
             <input class="bm-input" type="password" id="bot-api-secret" placeholder="Paste API Secret" autocomplete="off" spellcheck="false" style="padding-right:58px;">
             <button class="bm-vis-btn" id="btn-secret-vis" onclick="toggleSecretVis()">Show</button>
+          </div>
+        </div>
+        <div class="field" id="bot-passphrase-wrap" style="display:none;">
+          <label>Passphrase</label>
+          <div class="bm-input-wrap">
+            <span class="bm-icon">🔐</span>
+            <input class="bm-input" type="password" id="bot-api-passphrase" placeholder="Paste API Passphrase" autocomplete="off" spellcheck="false">
           </div>
         </div>
         <div class="field">
@@ -1790,9 +1895,22 @@ async function fetchBalance(silent = false) {
 }
 
 // ── BOTS ───────────────────────────────────────────────
-let currentBotType = 'dca';
+let currentBotType     = 'dca';
+let currentBotExchange = 'bybit';
 let botsData = [];
 let botEditId = null;
+
+function setBotExchange(ex) {
+  currentBotExchange = ex;
+  (typeof ALL_EXCHANGES !== 'undefined' ? ALL_EXCHANGES : ['bybit','binance','okx','bitget','mexc','blofin']).forEach(e => {
+    const btn = document.getElementById('bm-ex-' + e);
+    if (btn) btn.classList.toggle('active', e === ex);
+  });
+  const passWrap = document.getElementById('bot-passphrase-wrap');
+  if (passWrap) passWrap.style.display = ['okx','bitget','blofin'].includes(ex) ? '' : 'none';
+  const kEl = document.getElementById('bot-api-key');
+  if (kEl) kEl.placeholder = `Paste ${ex.charAt(0).toUpperCase()+ex.slice(1)} API Key`;
+}
 
 function setBotType(t) {
   currentBotType = t;
@@ -1828,7 +1946,9 @@ async function testBotConnection() {
   if (spinner) spinner.style.display = 'inline-block';
   res.textContent = '';
   try {
-    const d = await (await fetch(`/api/bots/test-connection?key=${encodeURIComponent(key)}&secret=${encodeURIComponent(secret)}`)).json();
+    const pass = document.getElementById('bot-api-passphrase')?.value.trim() || '';
+    const url  = `/api/bots/test-connection?key=${encodeURIComponent(key)}&secret=${encodeURIComponent(secret)}&exchange=${encodeURIComponent(currentBotExchange)}` + (pass ? `&passphrase=${encodeURIComponent(pass)}` : '');
+    const d = await (await fetch(url)).json();
     if (d.ok) {
       res.textContent = `✓ Połączono — Saldo: $${parseFloat(d.balance).toFixed(2)}`;
       res.style.color = 'var(--green)';
@@ -1850,7 +1970,7 @@ function closeBotModal() {
   document.querySelector('.bm-launch-btn').textContent   = '🚀 Launch Bot';
   document.getElementById('btn-type-dca').style.pointerEvents  = '';
   document.getElementById('btn-type-grid').style.pointerEvents = '';
-  document.getElementById('bot-api-key').placeholder    = 'Paste Bybit API Key';
+  document.getElementById('bot-api-key').placeholder    = 'Paste API Key';
   document.getElementById('bot-api-secret').placeholder = 'Paste API Secret';
   closeModal('modal-bot');
 }
@@ -1860,7 +1980,7 @@ function openAddBot() {
   currentBotType = 'dca';
   setBotType('dca');
   setBotTab('strategy');
-  ['bot-name','bot-api-key','bot-api-secret','bot-subaccount','bot-allocated'].forEach(id => {
+  ['bot-name','bot-api-key','bot-api-secret','bot-api-passphrase','bot-subaccount','bot-allocated'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   document.getElementById('bot-sym').value = 'BTCUSDT';
@@ -1875,6 +1995,9 @@ function openAddBot() {
   document.querySelector('.bm-header-title').textContent = 'New Trading Bot';
   document.querySelector('.bm-header-sub').textContent   = 'Configure your automated strategy';
   document.querySelector('.bm-launch-btn').textContent   = '🚀 Launch Bot';
+  // Default exchange: Bybit (or first connected exchange)
+  const defaultEx = ['bybit','binance','okx','bitget','mexc','blofin'].find(ex => state.apiKeys[ex+'_key']) || 'bybit';
+  setBotExchange(defaultEx);
   document.getElementById('modal-bot').classList.add('open');
   setTimeout(() => document.getElementById('bot-name').focus(), 100);
 }
@@ -1909,7 +2032,12 @@ function openEditBot(id) {
   document.getElementById('bot-subaccount').value = bot.subaccount_name || '';
   document.getElementById('bot-api-key').value    = bot.api_key_masked  || '';
   document.getElementById('bot-api-secret').value = '';
+  const ppEl = document.getElementById('bot-api-passphrase');
+  if (ppEl) ppEl.value = '';
   document.getElementById('bot-allocated').value  = bot.allocated_balance || '';
+
+  // Restore exchange
+  setBotExchange(bot.exchange || 'bybit');
 
   // Lock type cards in edit mode
   document.getElementById('btn-type-dca').style.pointerEvents  = 'none';
@@ -1959,17 +2087,20 @@ async function saveEditBot() {
     config = { symbol, side, upper_price: upper, lower_price: lower, grid_levels: levels, order_size: ordSz };
   }
 
-  const apiKey    = document.getElementById('bot-api-key').value.trim();
-  const apiSecret = document.getElementById('bot-api-secret').value.trim();
+  const apiKey        = document.getElementById('bot-api-key').value.trim();
+  const apiSecret     = document.getElementById('bot-api-secret').value.trim();
+  const apiPassphrase = document.getElementById('bot-api-passphrase')?.value.trim() || '';
   const body = {
     name, symbol, config,
+    exchange:         currentBotExchange,
     subaccountName:   document.getElementById('bot-subaccount').value.trim(),
     allocatedBalance: parseFloat(document.getElementById('bot-allocated').value) || null,
   };
   if (apiSecret) {
     if (!apiKey || apiKey.includes('***')) { setBotTab('account'); showToast('Wklej pełny API Key aby zaktualizować klucze', 'err'); return; }
-    body.apiKey    = apiKey;
-    body.apiSecret = apiSecret;
+    body.apiKey        = apiKey;
+    body.apiSecret     = apiSecret;
+    body.apiPassphrase = apiPassphrase || undefined;
   }
 
   document.getElementById('bot-cap-warn').style.display = 'none';
@@ -2016,6 +2147,7 @@ async function addBot() {
   // Collect account data
   const apiKey         = document.getElementById('bot-api-key').value.trim();
   const apiSecret      = document.getElementById('bot-api-secret').value.trim();
+  const apiPassphrase  = document.getElementById('bot-api-passphrase')?.value.trim() || '';
   const subaccountName = document.getElementById('bot-subaccount').value.trim();
   const allocatedBal   = parseFloat(document.getElementById('bot-allocated').value) || null;
   if (!apiKey || !apiSecret) { setBotTab('account'); showToast('Wpisz API Key i Secret', 'err'); return; }
@@ -2025,7 +2157,7 @@ async function addBot() {
     const r = await fetch('/api/bots', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, type: currentBotType, symbol, config, apiKey, apiSecret, subaccountName, allocatedBalance: allocatedBal }),
+      body: JSON.stringify({ name, type: currentBotType, symbol, config, apiKey, apiSecret, apiPassphrase: apiPassphrase || undefined, exchange: currentBotExchange, subaccountName, allocatedBalance: allocatedBal }),
     });
     const d = await r.json();
     if (!d.ok) {
@@ -2168,6 +2300,8 @@ function renderBots() {
     const sInfo  = b.type === 'dca'
       ? `SO ${cfg.state?.safety_orders_placed || 0}/${cfg.max_safety_orders || '?'} · TP ${cfg.take_profit || '?'}%`
       : `${cfg.grid_levels || '?'} levels · $${cfg.lower_price}–$${cfg.upper_price}`;
+    const ex      = b.exchange || 'bybit';
+    const exBadge = `<span class="ex-badge ex-${ex}" style="font-size:9px;padding:1px 6px;">${ex.toUpperCase()}</span>`;
     const subLine = b.subaccount_name || b.api_key_masked
       ? `<div style="font-size:10px;color:var(--muted2);margin-top:2px;">${b.subaccount_name || ''}${b.api_key_masked ? ' · ' + b.api_key_masked : ''}</div>`
       : '';
@@ -2190,7 +2324,7 @@ function renderBots() {
       <div class="bot-header">
         <div style="flex:1;min-width:0;">
           <div class="bot-name">${b.name}</div>
-          <div class="bot-pair">${b.symbol} · ${tLabel} · ${(cfg.side||'').toUpperCase()}</div>
+          <div class="bot-pair">${exBadge} ${b.symbol} · ${tLabel} · ${(cfg.side||'').toUpperCase()}</div>
           ${subLine}
         </div>
         <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
@@ -3033,40 +3167,67 @@ function renderCharts() {
 }
 
 // ── API KEYS ───────────────────────────────────────────
-function saveKeys(ex) {
+const PASS_EXCHANGES = ['okx', 'bitget', 'blofin'];
+const ALL_EXCHANGES  = ['bybit', 'binance', 'okx', 'bitget', 'mexc', 'blofin'];
+const EX_LABELS      = { bybit:'Bybit', binance:'Binance', okx:'OKX', bitget:'Bitget', mexc:'MEXC', blofin:'BloFin' };
+
+async function saveKeys(ex) {
   const key = document.getElementById(ex+'-key').value.trim();
   const sec = document.getElementById(ex+'-secret').value.trim();
   if (!key||!sec) { showToast('Enter key and secret', 'err'); return; }
-  state.apiKeys[ex+'_key'] = key;
+  state.apiKeys[ex+'_key']    = key;
   state.apiKeys[ex+'_secret'] = sec;
-  if (ex==='blofin') state.apiKeys['blofin_pass'] = document.getElementById('blofin-pass').value.trim();
-  if (ex==='bybit')  state.apiKeys['bybit_testnet'] = document.getElementById('bybit-testnet').checked;
+  const passEl = document.getElementById(ex+'-pass');
+  if (passEl) state.apiKeys[ex+'_pass'] = passEl.value.trim();
+  if (ex==='bybit') state.apiKeys['bybit_testnet'] = document.getElementById('bybit-testnet').checked;
   localStorage.setItem('wd_keys', JSON.stringify(state.apiKeys));
-  updateApiDot(ex, true);
-  showToast((ex==='bybit'?'Bybit':'BloFin') + ' keys saved', 'ok');
+  updateApiDot(ex, true, null);
+  showToast(EX_LABELS[ex] + ' keys saved', 'ok');
+  // Verify balance in background
+  try {
+    const pass = state.apiKeys[ex+'_pass'] || '';
+    const url  = `/api/bots/test-connection?key=${encodeURIComponent(key)}&secret=${encodeURIComponent(sec)}&exchange=${ex}` + (pass ? `&passphrase=${encodeURIComponent(pass)}` : '');
+    const d = await (await fetch(url)).json();
+    if (d.ok) updateApiDot(ex, true, `$${parseFloat(d.balance).toFixed(2)}`);
+    else      updateApiDot(ex, false, d.error || 'Invalid keys');
+  } catch { /* leave as saved */ }
 }
 
 function clearKeys(ex) {
   delete state.apiKeys[ex+'_key'];
   delete state.apiKeys[ex+'_secret'];
+  delete state.apiKeys[ex+'_pass'];
   localStorage.setItem('wd_keys', JSON.stringify(state.apiKeys));
-  document.getElementById(ex+'-key').value = '';
-  document.getElementById(ex+'-secret').value = '';
+  const keyEl  = document.getElementById(ex+'-key');
+  const secEl  = document.getElementById(ex+'-secret');
+  const passEl = document.getElementById(ex+'-pass');
+  if (keyEl)  keyEl.value  = '';
+  if (secEl)  secEl.value  = '';
+  if (passEl) passEl.value = '';
   updateApiDot(ex, false);
-  showToast(ex + ' keys cleared');
+  showToast(EX_LABELS[ex] + ' keys cleared');
 }
 
-function updateApiDot(ex, on) {
+function updateApiDot(ex, on, extra) {
   const dot = document.getElementById(ex+'-dot');
   const lbl = document.getElementById(ex+'-label');
-  dot.className = 'conn-dot' + (on?' live':'');
-  lbl.textContent = on ? 'Keys saved' : 'Not configured';
+  if (!dot || !lbl) return;
+  dot.className = 'conn-dot' + (on ? ' live' : '');
+  if (on && extra)          lbl.textContent = 'Connected · ' + extra;
+  else if (on)              lbl.textContent = 'Keys saved';
+  else if (extra)           lbl.textContent = extra;
+  else                      lbl.textContent = 'Not configured';
 }
 
 function loadApiUI() {
   const k = state.apiKeys;
-  if (k.bybit_key)  { document.getElementById('bybit-key').value  = '••••••••••••'; updateApiDot('bybit', true); }
-  if (k.blofin_key) { document.getElementById('blofin-key').value = '••••••••••••'; updateApiDot('blofin', true); }
+  ALL_EXCHANGES.forEach(ex => {
+    if (k[ex+'_key']) {
+      const el = document.getElementById(ex+'-key');
+      if (el) el.value = '••••••••••••';
+      updateApiDot(ex, true, null);
+    }
+  });
 }
 
 // ── UTILS ──────────────────────────────────────────────

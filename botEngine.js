@@ -1,10 +1,5 @@
 'use strict';
-const axios  = require('axios');
-const crypto = require('crypto');
-
-const BASE_URL = process.env.BYBIT_TESTNET === 'true'
-  ? 'https://api-testnet.bybit.com'
-  : 'https://api.bybit.com';
+const { createExchangeClient } = require('./exchanges');
 
 module.exports = function startBotEngine({ pool, decrypt }) {
   const botLocks = new Set();
@@ -17,106 +12,40 @@ module.exports = function startBotEngine({ pool, decrypt }) {
     const f = Math.pow(10, qtyPrec(sym));
     return Math.floor((usd / price) * f) / f;
   }
-  function fmtQty(sym, qty)     { return qty.toFixed(qtyPrec(sym)); }
-  function fmtPrice(sym, price) { return price.toFixed(pricePrec(sym)); }
+  function fmtQty(sym, qty)     { return parseFloat(qty.toFixed(qtyPrec(sym))); }
+  function fmtPrice(sym, price) { return parseFloat(price.toFixed(pricePrec(sym))); }
 
-  // ── Market data (public) ───────────────────────────────────────────────────
-  async function getMarkPrice(sym) {
-    const { data } = await axios.get(`${BASE_URL}/v5/market/tickers`, {
-      params: { category: 'linear', symbol: sym },
-    });
-    const t = data.result?.list?.[0];
-    return t ? parseFloat(t.markPrice) : null;
-  }
-
-  // ── Per-bot signed Bybit client ────────────────────────────────────────────
-  function makeBotClient(apiKey, apiSecret) {
-    function sign(payload) {
-      return crypto.createHmac('sha256', apiSecret).update(payload).digest('hex');
-    }
-    async function botGet(endpoint, params = {}) {
-      const ts  = Date.now().toString();
-      const rw  = '20000';
-      const qs  = Object.keys(params).sort().map(k => `${k}=${params[k]}`).join('&');
-      const sig = sign(ts + apiKey + rw + qs);
-      const res = await axios.get(`${BASE_URL}${endpoint}${qs ? '?' + qs : ''}`, {
-        headers: { 'X-BAPI-API-KEY': apiKey, 'X-BAPI-SIGN': sig, 'X-BAPI-TIMESTAMP': ts, 'X-BAPI-RECV-WINDOW': rw, 'X-BAPI-SIGN-TYPE': '2' },
-        timeout: 8000,
-      });
-      return res.data;
-    }
-    async function botPost(endpoint, params = {}) {
-      const ts   = Date.now().toString();
-      const rw   = '20000';
-      const body = JSON.stringify(params);
-      const sig  = sign(ts + apiKey + rw + body);
-      const res  = await axios.post(`${BASE_URL}${endpoint}`, body, {
-        headers: { 'X-BAPI-API-KEY': apiKey, 'X-BAPI-SIGN': sig, 'X-BAPI-TIMESTAMP': ts, 'X-BAPI-RECV-WINDOW': rw, 'X-BAPI-SIGN-TYPE': '2', 'Content-Type': 'application/json' },
-        timeout: 8000,
-      });
-      return res.data;
-    }
-    return { botGet, botPost };
-  }
-
-  // ── Resolve per-bot keys (fallback to global env) ─────────────────────────
+  // ── Build exchange client for bot ─────────────────────────────────────────
   function getBotClient(bot) {
     try {
       if (bot.api_key_enc && bot.api_secret_enc) {
-        return makeBotClient(decrypt(bot.api_key_enc), decrypt(bot.api_secret_enc));
+        const apiKey     = decrypt(bot.api_key_enc);
+        const apiSecret  = decrypt(bot.api_secret_enc);
+        const passphrase = bot.api_passphrase_enc ? decrypt(bot.api_passphrase_enc) : undefined;
+        return createExchangeClient(bot.exchange || 'bybit', apiKey, apiSecret, passphrase);
       }
     } catch (e) {
       console.error(`[bot:${bot.id}] key decrypt failed:`, e.message);
     }
-    // Fallback to global keys
+    // Fallback to global Bybit env keys
     const apiKey    = process.env.BYBIT_API_KEY;
     const apiSecret = process.env.BYBIT_API_SECRET;
     if (!apiKey || !apiSecret) return null;
-    return makeBotClient(apiKey, apiSecret);
+    return createExchangeClient('bybit', apiKey, apiSecret);
   }
 
   // ── Capital guard ─────────────────────────────────────────────────────────
-  async function checkCapital(botGet, orderUsd) {
-    for (const accountType of ['UNIFIED', 'CONTRACT']) {
-      try {
-        const d = await botGet('/v5/account/wallet-balance', { accountType });
-        if (d.retCode !== 0) continue;
-        const acc  = d.result?.list?.[0] || {};
-        const usdt = (acc.coin || []).find(c => c.coin === 'USDT');
-        const avail = usdt
-          ? parseFloat(usdt.availableToWithdraw || usdt.walletBalance || 0)
-          : parseFloat(acc.totalAvailableBalance || 0);
-        if (avail > 0) return orderUsd <= avail * 0.5;
-      } catch {}
-    }
-    return false;
+  async function checkCapital(client, orderUsd) {
+    try {
+      const { available } = await client.getBalance();
+      return orderUsd <= available * 0.5;
+    } catch { return false; }
   }
 
-  // ── Bybit position / orders ────────────────────────────────────────────────
-  async function getPosition(botGet, sym) {
-    const d = await botGet('/v5/position/list', { category: 'linear', symbol: sym });
-    if (d.retCode !== 0) return null;
-    return (d.result?.list || []).find(p => parseFloat(p.size) > 0) || null;
-  }
-
-  async function getOpenOrders(botGet, sym) {
-    const d = await botGet('/v5/order/realtime', { category: 'linear', symbol: sym });
-    if (d.retCode !== 0) return [];
-    return d.result?.list || [];
-  }
-
-  async function placeOrder(botPost, { symbol, side, qty, price, reduceOnly }) {
-    const params = {
-      category: 'linear', symbol, side,
-      orderType:   price ? 'Limit' : 'Market',
-      qty:         fmtQty(symbol, qty),
-      timeInForce: price ? 'GTC' : 'IOC',
-    };
-    if (price)      params.price      = fmtPrice(symbol, price);
-    if (reduceOnly) params.reduceOnly = true;
-    const d = await botPost('/v5/order/create', params);
-    if (d.retCode !== 0) throw new Error(`Bybit: ${d.retMsg}`);
-    return d.result?.orderId;
+  // ── Position helpers ──────────────────────────────────────────────────────
+  async function getPosition(client, sym) {
+    const positions = await client.getPositions();
+    return positions.find(p => p.symbol === sym) || null;
   }
 
   // ── DB helpers ────────────────────────────────────────────────────────────
@@ -157,7 +86,7 @@ module.exports = function startBotEngine({ pool, decrypt }) {
   }
 
   // ── DCA Bot ───────────────────────────────────────────────────────────────
-  async function tickDca(bot, { botGet, botPost }) {
+  async function tickDca(bot, client) {
     const cfg     = bot.config;
     const state   = cfg.state || {};
     const sym     = cfg.symbol;
@@ -165,32 +94,33 @@ module.exports = function startBotEngine({ pool, decrypt }) {
     const enter   = isShort ? 'Sell' : 'Buy';
     const exit    = isShort ? 'Buy'  : 'Sell';
 
-    const price = await getMarkPrice(sym);
+    const ticker = await client.getTicker(sym);
+    const price  = ticker.markPrice;
     if (!price) return;
 
-    const pos      = await getPosition(botGet, sym);
-    const posSize  = pos ? parseFloat(pos.size)          : 0;
-    const avgEntry = pos ? parseFloat(pos.avgPrice)      : 0;
-    const unreal   = pos ? parseFloat(pos.unrealisedPnl) : 0;
+    const pos      = await getPosition(client, sym);
+    const posSize  = pos ? pos.size          : 0;
+    const avgEntry = pos ? pos.entryPrice    : 0;
+    const unreal   = pos ? pos.unrealisedPnl : 0;
 
     await mergeStats(bot.id, { unrealised_pnl: unreal });
 
     if (!posSize) {
       if (state.base_order_placed) {
-        // Position closed externally — reset cycle
+        // Position was closed externally — reset cycle
         state.base_order_placed    = false;
         state.safety_orders_placed = 0;
         state.initial_entry        = null;
         await saveState(bot.id, { ...cfg, state });
         return;
       }
-      if (!(await checkCapital(botGet, cfg.base_order_size))) {
+      if (!(await checkCapital(client, cfg.base_order_size))) {
         await setBotStatus(bot.id, 'paused', 'Insufficient capital (>50% balance)');
         return;
       }
-      const qty = calcQty(sym, cfg.base_order_size, price);
+      const qty = fmtQty(sym, calcQty(sym, cfg.base_order_size, price));
       if (qty <= 0) return;
-      const orderId = await placeOrder(botPost, { symbol: sym, side: enter, qty });
+      const { orderId } = await client.placeOrder({ symbol: sym, side: enter, type: 'Market', qty });
       await recordTrade(bot.id, { orderId, side: enter, qty, price, status: 'filled', meta: { type: 'base' } });
       state.base_order_placed    = true;
       state.safety_orders_placed = 0;
@@ -207,7 +137,7 @@ module.exports = function startBotEngine({ pool, decrypt }) {
       : (price - avgEntry) / avgEntry * 100;
 
     if (pnlPct >= cfg.take_profit) {
-      const orderId = await placeOrder(botPost, { symbol: sym, side: exit, qty: posSize, reduceOnly: true });
+      const { orderId } = await client.closePosition(sym, enter, posSize);
       await recordTrade(bot.id, { orderId, side: exit, qty: posSize, price, status: 'filled', meta: { type: 'tp', pnl: unreal } });
       await mergeStats(bot.id, { total_pnl: unreal, trades: 1, unrealised_pnl: 0 });
       state.base_order_placed    = false;
@@ -228,13 +158,13 @@ module.exports = function startBotEngine({ pool, decrypt }) {
     const trigger   = isShort ? initEntry * (1 + dev) : initEntry * (1 - dev);
     if (isShort ? price < trigger : price > trigger) return;
 
-    if (!(await checkCapital(botGet, cfg.safety_order_size))) {
+    if (!(await checkCapital(client, cfg.safety_order_size))) {
       await setBotStatus(bot.id, 'paused', 'Insufficient capital for safety order');
       return;
     }
-    const qty = calcQty(sym, cfg.safety_order_size, price);
+    const qty = fmtQty(sym, calcQty(sym, cfg.safety_order_size, price));
     if (qty <= 0) return;
-    const orderId = await placeOrder(botPost, { symbol: sym, side: enter, qty });
+    const { orderId } = await client.placeOrder({ symbol: sym, side: enter, type: 'Market', qty });
     await recordTrade(bot.id, { orderId, side: enter, qty, price, status: 'filled', meta: { type: 'safety', n: placed + 1 } });
     state.safety_orders_placed = placed + 1;
     state.last_safety_ts       = Date.now();
@@ -243,12 +173,13 @@ module.exports = function startBotEngine({ pool, decrypt }) {
   }
 
   // ── Grid Bot ──────────────────────────────────────────────────────────────
-  async function tickGrid(bot, { botGet, botPost }) {
+  async function tickGrid(bot, client) {
     const cfg   = bot.config;
     const state = cfg.state || {};
     const sym   = cfg.symbol;
 
-    const price = await getMarkPrice(sym);
+    const ticker = await client.getTicker(sym);
+    const price  = ticker.markPrice;
     if (!price) return;
 
     if (!state.grid_prices || !state.grid_prices.length) {
@@ -261,17 +192,17 @@ module.exports = function startBotEngine({ pool, decrypt }) {
     const step = parseFloat(((cfg.upper_price - cfg.lower_price) / cfg.grid_levels).toFixed(pricePrec(sym)));
 
     if (!state.initialized) {
-      if (!(await checkCapital(botGet, cfg.order_size))) {
+      if (!(await checkCapital(client, cfg.order_size))) {
         await setBotStatus(bot.id, 'paused', 'Insufficient capital for grid init');
         return;
       }
       for (const lvl of state.grid_prices) {
         if (lvl <= cfg.lower_price || lvl >= cfg.upper_price) continue;
         const side = lvl < price ? 'Buy' : 'Sell';
-        const qty  = calcQty(sym, cfg.order_size, lvl);
+        const qty  = fmtQty(sym, calcQty(sym, cfg.order_size, lvl));
         if (qty <= 0) continue;
         try {
-          const orderId = await placeOrder(botPost, { symbol: sym, side, qty, price: lvl });
+          const { orderId } = await client.placeOrder({ symbol: sym, side, type: 'Limit', qty, price: fmtPrice(sym, lvl) });
           await recordTrade(bot.id, { orderId, side, qty, price: lvl, status: 'open', meta: { type: 'grid', level: lvl, step } });
         } catch (e) {
           console.error(`[grid:${bot.id}] init @ ${lvl} failed:`, e.message);
@@ -283,13 +214,14 @@ module.exports = function startBotEngine({ pool, decrypt }) {
       return;
     }
 
-    const liveIds = new Set((await getOpenOrders(botGet, sym)).map(o => o.orderId));
+    const openOrders = await client.getOpenOrders(sym);
+    const liveIds    = new Set(openOrders.map(o => String(o.orderId)));
     const { rows: openTrades } = await pool.query(
       `SELECT * FROM bot_trades WHERE bot_id=$1 AND status='open'`, [bot.id]
     );
 
     for (const trade of openTrades) {
-      if (liveIds.has(trade.order_id)) continue;
+      if (liveIds.has(String(trade.order_id))) continue;
       await pool.query(`UPDATE bot_trades SET status='filled' WHERE id=$1`, [trade.id]);
 
       const fp    = parseFloat(trade.price);
@@ -300,11 +232,11 @@ module.exports = function startBotEngine({ pool, decrypt }) {
       const newP  = parseFloat((isBuy ? fp + tStep : fp - tStep).toFixed(pricePrec(sym)));
       const newS  = isBuy ? 'Sell' : 'Buy';
 
-      if (newP > cfg.lower_price && newP < cfg.upper_price && (await checkCapital(botGet, cfg.order_size))) {
+      if (newP > cfg.lower_price && newP < cfg.upper_price && (await checkCapital(client, cfg.order_size))) {
         try {
-          const qty = calcQty(sym, cfg.order_size, newP);
+          const qty = fmtQty(sym, calcQty(sym, cfg.order_size, newP));
           if (qty > 0) {
-            const orderId = await placeOrder(botPost, { symbol: sym, side: newS, qty, price: newP });
+            const { orderId } = await client.placeOrder({ symbol: sym, side: newS, type: 'Limit', qty, price: fmtPrice(sym, newP) });
             await recordTrade(bot.id, { orderId, side: newS, qty, price: newP, status: 'open', meta: { type: 'grid', level: newP, step: tStep } });
             const profit = isBuy ? (newP - fp) * fq : (fp - newP) * fq;
             await mergeStats(bot.id, { total_pnl: profit, trades: 1 });

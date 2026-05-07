@@ -140,18 +140,40 @@ input.has-btn{border-radius:var(--r) 0 0 var(--r)}
 
   <div id="step-1" class="algo-step">
     <div class="card">
-      <div class="card-title">🔗 Connect Bybit</div>
-      <div class="card-sub">Enter your Bybit API credentials. Read-only access is sufficient to verify. Trading permissions are required to launch bots.</div>
+      <div class="card-title">🔗 Connect Exchange</div>
+      <div class="card-sub">Select your exchange and enter your API credentials. Trading permissions are required to launch bots.</div>
+
+      <!-- Exchange selector -->
+      <div style="margin-bottom:20px;">
+        <div class="field-label" style="margin-bottom:8px;">Exchange</div>
+        <div id="s1-ex-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+          <button class="s1-ex-btn active" id="s1-ex-bybit"   onclick="selectExchange('bybit')"   style="background:rgba(247,166,0,.15);border:1.5px solid #f7a600;border-radius:8px;color:#f7a600;cursor:pointer;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:8px 4px;transition:all .2s;text-align:center;">Bybit</button>
+          <button class="s1-ex-btn"        id="s1-ex-binance" onclick="selectExchange('binance')"  style="background:var(--bg3);border:1.5px solid var(--border2);border-radius:8px;color:var(--muted2);cursor:pointer;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:8px 4px;transition:all .2s;text-align:center;">Binance</button>
+          <button class="s1-ex-btn"        id="s1-ex-okx"     onclick="selectExchange('okx')"      style="background:var(--bg3);border:1.5px solid var(--border2);border-radius:8px;color:var(--muted2);cursor:pointer;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:8px 4px;transition:all .2s;text-align:center;">OKX</button>
+          <button class="s1-ex-btn"        id="s1-ex-bitget"  onclick="selectExchange('bitget')"   style="background:var(--bg3);border:1.5px solid var(--border2);border-radius:8px;color:var(--muted2);cursor:pointer;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:8px 4px;transition:all .2s;text-align:center;">Bitget</button>
+          <button class="s1-ex-btn"        id="s1-ex-mexc"    onclick="selectExchange('mexc')"     style="background:var(--bg3);border:1.5px solid var(--border2);border-radius:8px;color:var(--muted2);cursor:pointer;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:8px 4px;transition:all .2s;text-align:center;">MEXC</button>
+          <button class="s1-ex-btn"        id="s1-ex-blofin"  onclick="selectExchange('blofin')"   style="background:var(--bg3);border:1.5px solid var(--border2);border-radius:8px;color:var(--muted2);cursor:pointer;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:8px 4px;transition:all .2s;text-align:center;">BloFin</button>
+        </div>
+        <div id="s1-ex-hint" style="font-size:11px;color:var(--muted2);margin-top:8px;font-family:'DM Mono',monospace;">API Keys → API Keys → Create New Key</div>
+      </div>
+
       <div class="field-group">
         <div class="field-wrap">
           <div class="field-label">API Key</div>
-          <input type="text" id="s1-key" placeholder="Enter your Bybit API key" autocomplete="off" spellcheck="false"/>
+          <input type="text" id="s1-key" placeholder="Enter your API key" autocomplete="off" spellcheck="false"/>
         </div>
         <div class="field-wrap">
           <div class="field-label">API Secret</div>
           <div class="field-row">
             <input type="password" id="s1-secret" class="has-btn" placeholder="Enter your API secret" autocomplete="off" spellcheck="false"/>
             <button class="vis-btn" id="s1-vis" type="button" onclick="toggleVis('s1-secret','s1-vis')">👁</button>
+          </div>
+        </div>
+        <div class="field-wrap" id="s1-pass-wrap" style="display:none;">
+          <div class="field-label">Passphrase</div>
+          <div class="field-row">
+            <input type="password" id="s1-pass" class="has-btn" placeholder="Enter your passphrase" autocomplete="off" spellcheck="false"/>
+            <button class="vis-btn" id="s1-pass-vis" type="button" onclick="toggleVis('s1-pass','s1-pass-vis')">👁</button>
           </div>
         </div>
       </div>
@@ -224,13 +246,54 @@ input.has-btn{border-radius:var(--r) 0 0 var(--r)}
 <script>
 let algoState = {
   step: 1,
+  exchange: 'bybit',
   apiKey: null,
   apiSecret: null,
+  apiPassphrase: null,
   balance: null,
   uid: null,
   selectedTemplateId: null,
   templates: []
 };
+
+const EX_COLORS = { bybit:'#f7a600', binance:'#f3ba2f', okx:'#ddd', bitget:'#00d9b5', mexc:'#2eba6c', blofin:'#9b59b6' };
+const EX_HINTS  = {
+  bybit:   'API Keys → API Keys → Create New Key',
+  binance: 'Account → API Management → Create API',
+  okx:     'Trading → API Management → Create API Key',
+  bitget:  'Account → API Management → Create API Key',
+  mexc:    'Account → API → Create API Key',
+  blofin:  'Account → API Keys → Create',
+};
+
+function selectExchange(ex) {
+  algoState.exchange = ex;
+  ['bybit','binance','okx','bitget','mexc','blofin'].forEach(e => {
+    const btn = document.getElementById('s1-ex-' + e);
+    if (!btn) return;
+    const isActive = e === ex;
+    const col = EX_COLORS[e] || '#ccc';
+    if (isActive) {
+      btn.style.background = `rgba(${hexToRgb(col)},0.15)`;
+      btn.style.borderColor = col;
+      btn.style.color = col;
+    } else {
+      btn.style.background  = 'var(--bg3)';
+      btn.style.borderColor = 'rgba(255,255,255,0.11)';
+      btn.style.color       = 'var(--muted2)';
+    }
+  });
+  const hint = document.getElementById('s1-ex-hint');
+  if (hint) hint.textContent = EX_HINTS[ex] || '';
+  // Show passphrase field for exchanges that require it
+  const passWrap = document.getElementById('s1-pass-wrap');
+  if (passWrap) passWrap.style.display = ['okx','bitget','blofin'].includes(ex) ? '' : 'none';
+}
+
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return `${r},${g},${b}`;
+}
 
 async function deriveKey(pw) {
   const enc = new TextEncoder();
@@ -307,8 +370,9 @@ function hideErr(id) {
 }
 
 async function verifyKeys() {
-  const key = document.getElementById('s1-key').value.trim();
-  const secret = document.getElementById('s1-secret').value.trim();
+  const key        = document.getElementById('s1-key').value.trim();
+  const secret     = document.getElementById('s1-secret').value.trim();
+  const passphrase = document.getElementById('s1-pass')?.value.trim() || '';
   hideErr('s1-error');
   document.getElementById('s1-success').classList.remove('show');
   if (!key || !secret) {
@@ -323,14 +387,15 @@ async function verifyKeys() {
     const res = await fetch('/api/algo/verify-keys', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({key, secret})
+      body: JSON.stringify({ key, secret, exchange: algoState.exchange, passphrase: passphrase || undefined })
     });
     const d = await res.json();
     if (!res.ok || d.error) throw new Error(d.error || 'Verification failed');
-    algoState.apiKey = key;
-    algoState.apiSecret = secret;
-    algoState.balance = d.balance;
-    algoState.uid = d.uid;
+    algoState.apiKey       = key;
+    algoState.apiSecret    = secret;
+    algoState.apiPassphrase = passphrase || null;
+    algoState.balance      = d.balance;
+    algoState.uid          = d.uid;
     const sBox = document.getElementById('s1-success');
     sBox.textContent = `✓ Connected — Balance: $${Number(d.balance).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} | UID: ${d.uid}`;
     sBox.classList.add('show');
@@ -458,7 +523,7 @@ async function launchBot() {
     const res = await fetch('/api/algo/launch', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({apiKey: algoState.apiKey, apiSecret: algoState.apiSecret, templateId: algoState.selectedTemplateId, allocatedCapital: capital})
+      body: JSON.stringify({ apiKey: algoState.apiKey, apiSecret: algoState.apiSecret, apiPassphrase: algoState.apiPassphrase || undefined, exchange: algoState.exchange, templateId: algoState.selectedTemplateId, allocatedCapital: capital })
     });
     const d = await res.json();
     if (!res.ok || d.error) throw new Error(d.error || 'Launch failed');
@@ -517,6 +582,7 @@ function escHtml(s) {
 }
 
 window.addEventListener('load', () => {
+  selectExchange('bybit');
   try {
     const raw = localStorage.getItem('wd_algo_session');
     if (raw) {
