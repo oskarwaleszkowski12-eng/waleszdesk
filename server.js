@@ -206,9 +206,9 @@ app.post('/api/auth/login', (req, res) => {
   res.json({ ok: true, token });
 });
 
-// Protect all /api/* routes except /api/auth/* and /api/algo/*
+// Protect all /api/* routes except /api/auth/*, /api/algo/*, and /api/status
 app.use('/api', (req, res, next) => {
-  if (req.path.startsWith('/auth/') || req.path.startsWith('/algo/') || req.path === '/algo') return next();
+  if (req.path === '/status' || req.path.startsWith('/auth/') || req.path.startsWith('/algo/') || req.path === '/algo') return next();
   requireAuth(req, res, next);
 });
 
