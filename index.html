@@ -754,7 +754,7 @@ tr:hover td { background: rgba(255,255,255,.015); }
   <!-- STATS -->
   <div class="stats-row">
     <div class="stat"><div class="stat-label">Total P&L <span id="pnl-live-dot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--muted);margin-left:4px;vertical-align:middle;"></span></div><div class="stat-val" id="s-pnl">$0.00</div><div class="stat-sub" id="s-pnl-sub">Fetching...</div></div>
-    <div class="stat"><div class="stat-label">Win Rate</div><div class="stat-val acc" id="s-wr">0%</div><div class="stat-sub" id="s-wrtrades">0 trades</div></div>
+    <div class="stat"><div class="stat-label">Win Rate</div><div class="stat-val acc" id="s-wr">—</div><div class="stat-sub" id="s-wrtrades">loading</div></div>
     <div class="stat"><div class="stat-label">Active Bots</div><div class="stat-val" id="s-bots">0</div><div class="stat-sub" id="s-botstotal">0 total</div></div>
     <div class="stat"><div class="stat-label">Avg R:R</div><div class="stat-val acc" id="s-rr">—</div><div class="stat-sub">Journal</div></div>
     <div class="stat"><div class="stat-label">Today P&L</div><div class="stat-val" id="s-today">$0.00</div><div class="stat-sub" id="s-todaytrades">0 today</div></div>
@@ -3003,6 +3003,8 @@ async function fetchJournalDB() {
     if (!d.ok) throw new Error(d.error);
     if (loading) loading.style.display = 'none';
     allJournalTrades = d.trades;
+    _last.wrComputedAt = 0; // reset debounce so Win Rate updates immediately with fresh data
+    updateWinRate();
     applyJournalFilters();
     if (dashRMode) updateDashboardRValues();
   } catch (e) {
@@ -3209,18 +3211,10 @@ async function saveJournalNotes(id) {
 // ── STATS ──────────────────────────────────────────────
 function updateStats() {
   const trades = state.trades;
-  const totalPnl = trades.reduce((a,t) => a + (t.pnl||0), 0);
-  const wins = trades.filter(t => t.pnl > 0).length;
-  const wr = trades.length ? Math.round(wins/trades.length*100) : 0;
-  const today = new Date().toISOString().slice(0,10);
-  const todayT = trades.filter(t => t.date === today);
-  const todayPnl = todayT.reduce((a,t) => a + (t.pnl||0), 0);
-  const rrs = trades.map(t=>t.rr).filter(r=>r&&!isNaN(r));
+  const rrs  = trades.map(t=>t.rr).filter(r=>r&&!isNaN(r));
   const avgRR = rrs.length ? (rrs.reduce((a,b)=>a+b,0)/rrs.length).toFixed(2) : '—';
   const active = botsData.filter(b => b.status === 'active').length;
-
-  document.getElementById('s-wr').textContent = wr + '%';
-  document.getElementById('s-wrtrades').textContent = trades.length + ' trades';
+  // Win Rate is owned by refreshAll/updateWinRate — do NOT write s-wr here
   document.getElementById('s-bots').textContent = active;
   document.getElementById('s-botstotal').textContent = botsData.length + ' total';
   document.getElementById('s-rr').textContent = avgRR === '—' ? '—' : avgRR + ':1';
@@ -3638,12 +3632,9 @@ async function fetchStats() {
   try {
     const d = await cachedFetch('/api/stats', 30_000);
     if (!d?.ok) return;
-    const wr   = document.getElementById('s-wr');
-    const wrt  = document.getElementById('s-wrtrades');
-    const stat = wr?.closest('.stat');
+    // Win Rate is owned by updateWinRate() — only remove skeleton here, don't overwrite the tile
+    const stat = document.getElementById('s-wr')?.closest('.stat');
     if (stat) stat.classList.remove('loading');
-    if (wr)  wr.textContent  = d.winRate + '%';
-    if (wrt) wrt.textContent = d.totalTrades + ' trades · ' + d.winDays + 'W/' + d.lossDays + 'L days';
   } catch(e) { /* silent */ }
 }
 
@@ -4338,20 +4329,32 @@ function flashStat(id, newText, newClass) {
   el.addEventListener('animationend', () => el.classList.remove('val-pop'), { once: true });
 }
 
+function updateWinRate() {
+  // Only allJournalTrades is the authoritative source — never fall back to state.trades
+  if (!allJournalTrades.length) return;              // not loaded yet → preserve existing tile
+  const now = Date.now();
+  if (_last.wrComputedAt && now - _last.wrComputedAt < 10_000) return; // debounce 10s
+  _last.wrComputedAt = now;
+  const wins = allJournalTrades.filter(t => parseFloat(t.pnl) > 0).length;
+  const wr   = Math.round(wins / allJournalTrades.length * 100);
+  if (_last.winRate === wr && _last.wrTrades === allJournalTrades.length) return; // unchanged
+  _last.winRate  = wr;
+  _last.wrTrades = allJournalTrades.length;
+  flashStat('s-wr',       wr + '%',                            'stat-val acc');
+  flashStat('s-wrtrades', allJournalTrades.length + ' trades', null);
+}
+
 function refreshAll() {
-  // P&L tiles — network fetch (cached 12s / 9s so won't hammer)
+  // P&L tiles — network fetch (cached, won't hammer)
   fetchLivePnl();
   fetchTodayPnl();
   fetchBalance(true);
-  // Win Rate & Bots — instant from in-memory data, no fetch
-  const src    = allJournalTrades.length ? allJournalTrades : state.trades;
-  const wins   = src.filter(t => parseFloat(t.pnl) > 0).length;
-  const wr     = src.length ? Math.round(wins / src.length * 100) : 0;
+  // Win Rate — debounced, allJournalTrades-only, never shows 0% from empty state
+  updateWinRate();
+  // Active Bots — from in-memory botsData
   const active = botsData.filter(b => b.status === 'active').length;
-  flashStat('s-wr',      wr + '%',                      'stat-val acc');
-  flashStat('s-wrtrades', src.length + ' trades',        null);
-  flashStat('s-bots',    String(active),                 'stat-val');
-  flashStat('s-botstotal', botsData.length + ' total',   null);
+  flashStat('s-bots',      String(active),              'stat-val');
+  flashStat('s-botstotal', botsData.length + ' total',  null);
 }
 
 // ── AUTH ──────────────────────────────────────────────
