@@ -699,7 +699,11 @@ tr:hover td { background: rgba(255,255,255,.015); }
   <div class="panel active" id="panel-bots">
     <div class="section-head">
       <div class="section-title">Trading Bots</div>
-      <button class="btn accent" onclick="openAddBot()">+ New Bot</button>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn sm" onclick="pauseAllBots()">⏸ Pause All</button>
+        <button class="btn sm danger" onclick="stopAllBots()">⏹ Stop All</button>
+        <button class="btn accent" onclick="openAddBot()">+ New Bot</button>
+      </div>
     </div>
     <div class="bots-grid" id="bots-grid"></div>
   </div>
@@ -1116,7 +1120,7 @@ tr:hover td { background: rgba(255,255,255,.015); }
         <div class="bm-header-title">New Trading Bot</div>
         <div class="bm-header-sub">Configure your automated strategy</div>
       </div>
-      <button class="bm-close" onclick="closeModal('modal-bot')">✕</button>
+      <button class="bm-close" onclick="closeBotModal()">✕</button>
     </div>
 
     <div class="bm-body">
@@ -1244,6 +1248,20 @@ tr:hover td { background: rgba(255,255,255,.015); }
       <button class="bm-launch-btn" onclick="addBot()">🚀 Launch Bot</button>
 
     </div>
+  </div>
+</div>
+
+<!-- BOT LOGS MODAL -->
+<div class="overlay" id="modal-bot-logs">
+  <div class="modal" style="width:min(780px,96vw);max-height:90vh;overflow-y:auto;padding:0;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border2);">
+      <div>
+        <div style="font-size:15px;font-weight:700;color:var(--text);" id="logs-modal-title">Bot Logs</div>
+        <div style="font-size:11px;color:var(--muted2);margin-top:2px;" id="logs-modal-sub"></div>
+      </div>
+      <button class="btn sm" onclick="closeModal('modal-bot-logs')">✕ Close</button>
+    </div>
+    <div style="padding:16px 22px;" id="bot-logs-content"></div>
   </div>
 </div>
 
@@ -1664,6 +1682,7 @@ async function fetchBalance(silent = false) {
 // ── BOTS ───────────────────────────────────────────────
 let currentBotType = 'dca';
 let botsData = [];
+let botEditId = null;
 
 function setBotType(t) {
   currentBotType = t;
@@ -1714,7 +1733,20 @@ async function testBotConnection() {
   }
 }
 
+function closeBotModal() {
+  botEditId = null;
+  document.querySelector('.bm-header-title').textContent = 'New Trading Bot';
+  document.querySelector('.bm-header-sub').textContent   = 'Configure your automated strategy';
+  document.querySelector('.bm-launch-btn').textContent   = '🚀 Launch Bot';
+  document.getElementById('btn-type-dca').style.pointerEvents  = '';
+  document.getElementById('btn-type-grid').style.pointerEvents = '';
+  document.getElementById('bot-api-key').placeholder    = 'Paste Bybit API Key';
+  document.getElementById('bot-api-secret').placeholder = 'Paste API Secret';
+  closeModal('modal-bot');
+}
+
 function openAddBot() {
+  botEditId = null;
   currentBotType = 'dca';
   setBotType('dca');
   setBotTab('strategy');
@@ -1725,14 +1757,126 @@ function openAddBot() {
   document.getElementById('bot-cap-warn').style.display = 'none';
   document.getElementById('bot-conn-result').textContent = '';
   const secInp = document.getElementById('bot-api-secret');
-  if (secInp) secInp.type = 'password';
+  if (secInp) { secInp.type = 'password'; secInp.placeholder = 'Paste API Secret'; }
   const secBtn = document.getElementById('btn-secret-vis');
   if (secBtn) secBtn.textContent = 'Show';
+  document.getElementById('btn-type-dca').style.pointerEvents  = '';
+  document.getElementById('btn-type-grid').style.pointerEvents = '';
+  document.querySelector('.bm-header-title').textContent = 'New Trading Bot';
+  document.querySelector('.bm-header-sub').textContent   = 'Configure your automated strategy';
+  document.querySelector('.bm-launch-btn').textContent   = '🚀 Launch Bot';
   document.getElementById('modal-bot').classList.add('open');
   setTimeout(() => document.getElementById('bot-name').focus(), 100);
 }
 
+function openEditBot(id) {
+  const bot = botsData.find(b => b.id === id);
+  if (!bot) return;
+  botEditId = id;
+  const cfg = bot.config || {};
+
+  document.getElementById('bot-name').value = bot.name;
+  document.getElementById('bot-sym').value  = bot.symbol;
+
+  currentBotType = bot.type;
+  setBotType(bot.type);
+
+  if (bot.type === 'dca') {
+    document.getElementById('dca-side').value   = cfg.side || 'LONG';
+    document.getElementById('dca-base').value   = cfg.base_order_size   || 100;
+    document.getElementById('dca-safety').value = cfg.safety_order_size || 150;
+    document.getElementById('dca-max-so').value = cfg.max_safety_orders || 5;
+    document.getElementById('dca-dev').value    = cfg.price_deviation   || 2;
+    document.getElementById('dca-tp').value     = cfg.take_profit       || 1.5;
+  } else {
+    document.getElementById('grid-side').value       = cfg.side        || 'LONG';
+    document.getElementById('grid-upper').value      = cfg.upper_price || '';
+    document.getElementById('grid-lower').value      = cfg.lower_price || '';
+    document.getElementById('grid-levels').value     = cfg.grid_levels || 10;
+    document.getElementById('grid-order-size').value = cfg.order_size  || 50;
+  }
+
+  document.getElementById('bot-subaccount').value = bot.subaccount_name || '';
+  document.getElementById('bot-api-key').value    = bot.api_key_masked  || '';
+  document.getElementById('bot-api-secret').value = '';
+  document.getElementById('bot-allocated').value  = bot.allocated_balance || '';
+
+  // Lock type cards in edit mode
+  document.getElementById('btn-type-dca').style.pointerEvents  = 'none';
+  document.getElementById('btn-type-grid').style.pointerEvents = 'none';
+
+  document.querySelector('.bm-header-title').textContent = `Edit Bot — ${bot.name}`;
+  document.querySelector('.bm-header-sub').textContent   = 'Update strategy configuration';
+  document.querySelector('.bm-launch-btn').textContent   = '💾 Save Changes';
+  document.getElementById('bot-api-key').placeholder     = 'Paste new key to replace';
+  document.getElementById('bot-api-secret').placeholder  = 'Leave blank to keep current';
+
+  const secInp = document.getElementById('bot-api-secret');
+  if (secInp) secInp.type = 'password';
+  const secBtn = document.getElementById('btn-secret-vis');
+  if (secBtn) secBtn.textContent = 'Show';
+
+  document.getElementById('bot-cap-warn').style.display  = 'none';
+  document.getElementById('bot-conn-result').textContent = '';
+  setBotTab('strategy');
+  document.getElementById('modal-bot').classList.add('open');
+  setTimeout(() => document.getElementById('bot-name').focus(), 100);
+}
+
+async function saveEditBot() {
+  const name   = document.getElementById('bot-name').value.trim();
+  const symbol = (document.getElementById('bot-sym').value || 'BTCUSDT').toUpperCase().trim();
+  if (!name) { setBotTab('strategy'); showToast('Enter bot name', 'err'); return; }
+
+  let config;
+  if (currentBotType === 'dca') {
+    const base   = parseFloat(document.getElementById('dca-base').value);
+    const safety = parseFloat(document.getElementById('dca-safety').value);
+    const maxSO  = parseInt(document.getElementById('dca-max-so').value);
+    const dev    = parseFloat(document.getElementById('dca-dev').value);
+    const tp     = parseFloat(document.getElementById('dca-tp').value);
+    const side   = document.getElementById('dca-side').value;
+    if (!base || !safety || !maxSO || !dev || !tp) { setBotTab('strategy'); showToast('Uzupełnij pola DCA', 'err'); return; }
+    config = { symbol, side, base_order_size: base, safety_order_size: safety, max_safety_orders: maxSO, price_deviation: dev, take_profit: tp };
+  } else {
+    const upper  = parseFloat(document.getElementById('grid-upper').value);
+    const lower  = parseFloat(document.getElementById('grid-lower').value);
+    const levels = parseInt(document.getElementById('grid-levels').value);
+    const ordSz  = parseFloat(document.getElementById('grid-order-size').value);
+    const side   = document.getElementById('grid-side').value;
+    if (!upper || !lower || !levels || !ordSz) { setBotTab('strategy'); showToast('Uzupełnij pola Grid', 'err'); return; }
+    if (upper <= lower) { setBotTab('strategy'); showToast('Upper > Lower', 'err'); return; }
+    config = { symbol, side, upper_price: upper, lower_price: lower, grid_levels: levels, order_size: ordSz };
+  }
+
+  const apiKey    = document.getElementById('bot-api-key').value.trim();
+  const apiSecret = document.getElementById('bot-api-secret').value.trim();
+  const body = {
+    name, symbol, config,
+    subaccountName:   document.getElementById('bot-subaccount').value.trim(),
+    allocatedBalance: parseFloat(document.getElementById('bot-allocated').value) || null,
+  };
+  if (apiSecret) {
+    if (!apiKey || apiKey.includes('***')) { setBotTab('account'); showToast('Wklej pełny API Key aby zaktualizować klucze', 'err'); return; }
+    body.apiKey    = apiKey;
+    body.apiSecret = apiSecret;
+  }
+
+  document.getElementById('bot-cap-warn').style.display = 'none';
+  try {
+    const r = await fetch(`/api/bots/${botEditId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (!d.ok) { const w = document.getElementById('bot-cap-warn'); w.textContent = d.error; w.style.display = ''; return; }
+    closeBotModal();
+    showToast(`Bot "${name}" updated!`, 'ok');
+    fetchBots();
+  } catch { showToast('Network error', 'err'); }
+}
+
 async function addBot() {
+  if (botEditId !== null) { saveEditBot(); return; }
   const name   = document.getElementById('bot-name').value.trim();
   const symbol = (document.getElementById('bot-sym').value || 'BTCUSDT').toUpperCase().trim();
   if (!name) { setBotTab('strategy'); showToast('Enter bot name', 'err'); return; }
@@ -1810,6 +1954,73 @@ async function stopBot(id, name) {
   } catch { showToast('Network error', 'err'); }
 }
 
+async function deleteBotPermanent(id, name) {
+  if (!confirm(`Czy na pewno chcesz usunąć bota "${name}"? Tej akcji nie można cofnąć.`)) return;
+  try {
+    const d = await (await fetch(`/api/bots/${id}`, { method: 'DELETE' })).json();
+    if (!d.ok) { showToast(d.error, 'err'); return; }
+    showToast(`Bot "${name}" deleted`, 'ok'); fetchBots();
+  } catch { showToast('Network error', 'err'); }
+}
+
+async function pauseAllBots() {
+  try {
+    const d = await (await fetch('/api/bots/pause-all', { method: 'PATCH' })).json();
+    if (!d.ok) { showToast(d.error, 'err'); return; }
+    showToast(`Paused ${d.paused} bot(s)`, 'ok'); fetchBots();
+  } catch { showToast('Network error', 'err'); }
+}
+
+async function stopAllBots() {
+  if (!confirm('Zatrzymać wszystkie boty? Ta akcja anuluje wszystkie zlecenia.')) return;
+  try {
+    const d = await (await fetch('/api/bots/stop-all', { method: 'PATCH' })).json();
+    if (!d.ok) { showToast(d.error, 'err'); return; }
+    showToast(`Stopped ${d.stopped} bot(s)`, 'ok'); fetchBots();
+  } catch { showToast('Network error', 'err'); }
+}
+
+async function openBotLogs(id) {
+  const bot     = botsData.find(b => b.id === id);
+  const title   = document.getElementById('logs-modal-title');
+  const sub     = document.getElementById('logs-modal-sub');
+  const content = document.getElementById('bot-logs-content');
+  if (title)   title.textContent = `Logs — ${bot ? bot.name : 'Bot ' + id}`;
+  if (sub)     sub.textContent   = bot ? `${bot.symbol} · ${bot.type.toUpperCase()} · ${bot.status}` : '';
+  if (content) content.innerHTML = `<div style="text-align:center;color:var(--muted2);padding:40px 0;font-size:13px;">Loading...</div>`;
+  document.getElementById('modal-bot-logs').classList.add('open');
+  try {
+    const d = await (await fetch(`/api/bots/${id}/trades`)).json();
+    if (!d.ok || !d.trades.length) {
+      content.innerHTML = `<div style="text-align:center;color:var(--muted2);padding:40px 0;font-size:13px;">No trades yet — bot hasn't executed any orders</div>`;
+      return;
+    }
+    const th = `<tr style="border-bottom:1px solid var(--border2);">
+      ${['Timestamp','Action','Side','Qty','Price','Status'].map((h,i) =>
+        `<th style="padding:8px 10px;color:var(--muted2);font-size:10px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;text-align:${i>=3&&i<=4?'right':'left'};">${h}</th>`
+      ).join('')}
+    </tr>`;
+    const rows = d.trades.map(t => {
+      const meta   = t.meta || {};
+      const action = meta.type ? meta.type.toUpperCase() + (meta.n ? ' #' + meta.n : '') : '—';
+      const dt     = new Date(t.created_at).toLocaleString('pl-PL',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      const sc     = t.side === 'Buy' ? 'var(--green)' : 'var(--red)';
+      const stc    = t.status === 'filled' ? 'var(--green)' : t.status === 'open' ? 'var(--amber)' : 'var(--muted2)';
+      return `<tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:8px 10px;color:var(--muted2);font-family:var(--font-mono);font-size:11px;white-space:nowrap;">${dt}</td>
+        <td style="padding:8px 10px;font-size:11px;font-weight:700;">${action}</td>
+        <td style="padding:8px 10px;"><span style="color:${sc};font-weight:700;font-size:11px;">${t.side}</span></td>
+        <td style="padding:8px 10px;text-align:right;font-family:var(--font-mono);font-size:11px;">${parseFloat(t.qty).toFixed(4)}</td>
+        <td style="padding:8px 10px;text-align:right;font-family:var(--font-mono);font-size:11px;">$${parseFloat(t.price).toFixed(2)}</td>
+        <td style="padding:8px 10px;"><span style="color:${stc};font-size:11px;font-weight:700;">${t.status}</span></td>
+      </tr>`;
+    }).join('');
+    content.innerHTML = `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead>${th}</thead><tbody>${rows}</tbody></table></div>`;
+  } catch {
+    content.innerHTML = `<div style="text-align:center;color:var(--red);padding:40px 0;font-size:13px;">Error loading trades</div>`;
+  }
+}
+
 async function fetchBots() {
   try {
     const d = await (await fetch('/api/bots')).json();
@@ -1827,22 +2038,20 @@ function renderBots() {
     return;
   }
   g.innerHTML = botsData.map(b => {
-    const cfg      = b.config || {};
-    const stats    = b.stats  || {};
-    const tradePnl = parseFloat(stats.total_pnl      || 0);
-    const unreal   = parseFloat(stats.unrealised_pnl || 0);
-    const sLabel   = b.status === 'active' ? 'running' : b.status;
-    const tLabel   = b.type === 'dca' ? 'DCA' : 'Grid';
-    const tc       = parseInt(b.trade_count || 0);
-    const oo       = parseInt(b.open_orders || 0);
+    const cfg    = b.config || {};
+    const stats  = b.stats  || {};
+    const unreal = parseFloat(stats.unrealised_pnl || 0);
+    const sLabel = b.status === 'active' ? 'running' : b.status;
+    const tLabel = b.type === 'dca' ? 'DCA' : 'Grid';
+    const tc     = parseInt(b.trade_count || 0);
+    const oo     = parseInt(b.open_orders || 0);
 
-    // Live balance & Bot PnL (live_balance − allocated)
     const liveBal  = b.live_balance != null ? parseFloat(b.live_balance) : null;
     const allocBal = b.allocated_balance    ? parseFloat(b.allocated_balance) : null;
     const botPnl   = liveBal != null && allocBal != null ? liveBal - allocBal : null;
     const liveStr  = liveBal  != null ? '$' + liveBal.toFixed(2) : '—';
     const allocStr = allocBal != null ? '$' + allocBal.toFixed(2) : '—';
-    const pnlStr   = botPnl   != null
+    const pnlStr   = botPnl != null
       ? `<span class="${botPnl >= 0 ? 'pos' : 'neg'}">${botPnl >= 0 ? '+' : ''}$${Math.abs(botPnl).toFixed(2)}</span>`
       : '—';
 
@@ -1857,17 +2066,30 @@ function renderBots() {
       : '';
 
     const safeName = b.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+
+    const actions = b.status === 'stopped'
+      ? `<button class="btn sm success" onclick="resumeBot(${b.id})">▶ Resume</button>
+         <button class="btn sm danger"  onclick="deleteBotPermanent(${b.id},'${safeName}')">🗑 Delete</button>`
+      : b.status === 'active'
+      ? `<button class="btn sm" onclick="pauseBot(${b.id})">⏸ Pause</button>
+         <button class="btn sm danger" onclick="stopBot(${b.id},'${safeName}')">⏹ Stop</button>`
+      : `<button class="btn sm success" onclick="resumeBot(${b.id})">▶ Resume</button>
+         <button class="btn sm danger"  onclick="stopBot(${b.id},'${safeName}')">⏹ Stop</button>`;
+
     return `<div class="bot-card ${sLabel}">
       <div class="bot-header">
-        <div>
+        <div style="flex:1;min-width:0;">
           <div class="bot-name">${b.name}</div>
           <div class="bot-pair">${b.symbol} · ${tLabel} · ${(cfg.side||'').toUpperCase()}</div>
           ${subLine}
         </div>
-        <span class="badge ${sLabel}">${sLabel}</span>
+        <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+          <button class="btn sm" style="padding:4px 7px;font-size:13px;line-height:1;" onclick="openEditBot(${b.id})" title="Edit">✏️</button>
+          <button class="btn sm" style="padding:4px 7px;font-size:13px;line-height:1;" onclick="openBotLogs(${b.id})" title="Logs">📋</button>
+          <span class="badge ${sLabel}">${sLabel}</span>
+        </div>
       </div>
 
-      <!-- Balance row -->
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:10px 0;padding:8px;background:var(--bg2);border-radius:var(--r);border:1px solid var(--border);">
         <div>
           <div style="font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);">Live</div>
@@ -1887,16 +2109,7 @@ function renderBots() {
       <div class="bot-strat" style="margin-top:-8px;display:flex;gap:8px;align-items:center;">
         <span>${tc} trades · ${oo} open orders</span>${unrealLine ? ' · ' + unrealLine : ''}
       </div>
-      <div class="bot-actions">
-        ${b.status === 'active'
-          ? `<button class="btn sm" onclick="pauseBot(${b.id})">⏸ Pause</button>`
-          : (b.status === 'paused' || b.status === 'error')
-          ? `<button class="btn sm success" onclick="resumeBot(${b.id})">▶ Resume</button>`
-          : ''}
-        ${b.status !== 'stopped'
-          ? `<button class="btn sm danger" onclick="stopBot(${b.id},'${safeName}')">⏹ Stop</button>`
-          : ''}
-      </div>
+      <div class="bot-actions">${actions}</div>
     </div>`;
   }).join('') + `<div class="add-card" onclick="openAddBot()"><div class="add-icon">+</div><div>Add Bot</div></div>`;
 }

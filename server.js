@@ -719,6 +719,84 @@ app.get('/api/bots', async (req, res) => {
   }
 });
 
+app.patch('/api/bots/pause-all', async (req, res) => {
+  try {
+    const { rowCount } = await pool.query(
+      `UPDATE bots SET status='paused', updated_at=NOW() WHERE status='active'`
+    );
+    res.json({ ok: true, paused: rowCount });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.patch('/api/bots/stop-all', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `UPDATE bots SET status='stopped', updated_at=NOW() WHERE status IN ('active','paused') RETURNING *`
+    );
+    await Promise.allSettled(rows.map(async bot => {
+      try {
+        const { apiKey, apiSecret } = botKeys(bot);
+        await bybitPostWithKeys(apiKey, apiSecret, '/v5/order/cancel-all', { category: 'linear', symbol: bot.symbol });
+      } catch {}
+    }));
+    res.json({ ok: true, stopped: rows.length });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.patch('/api/bots/:id', async (req, res) => {
+  try {
+    const { name, symbol, config, apiKey, apiSecret, subaccountName, allocatedBalance } = req.body;
+    const { rows: existing } = await pool.query(`SELECT * FROM bots WHERE id=$1`, [req.params.id]);
+    if (!existing.length) return res.status(404).json({ ok: false, error: 'Bot not found' });
+
+    const updates = [];
+    const vals    = [];
+    let   idx     = 1;
+
+    if (name)   { updates.push(`name=$${idx++}`);   vals.push(name.trim()); }
+    if (symbol) { updates.push(`symbol=$${idx++}`); vals.push(symbol.toUpperCase()); }
+    if (config) {
+      const existingState = (existing[0].config || {}).state || {};
+      updates.push(`config=$${idx++}`);
+      vals.push(JSON.stringify({ ...config, state: existingState }));
+    }
+    if (apiKey && apiSecret) {
+      updates.push(`api_key_enc=$${idx++}`, `api_secret_enc=$${idx++}`);
+      vals.push(encrypt(apiKey), encrypt(apiSecret));
+    }
+    if (subaccountName !== undefined) { updates.push(`subaccount_name=$${idx++}`);    vals.push(subaccountName || null); }
+    if (allocatedBalance !== undefined) { updates.push(`allocated_balance=$${idx++}`); vals.push(allocatedBalance || null); }
+
+    if (!updates.length) return res.status(400).json({ ok: false, error: 'Nothing to update' });
+    updates.push(`updated_at=NOW()`);
+    vals.push(req.params.id);
+
+    const { rows } = await pool.query(
+      `UPDATE bots SET ${updates.join(',')} WHERE id=$${idx} RETURNING *`,
+      vals
+    );
+    res.json({ ok: true, bot: botPublic(rows[0]) });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/api/bots/:id/trades', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM bot_trades WHERE bot_id=$1 ORDER BY created_at DESC LIMIT 50`,
+      [req.params.id]
+    );
+    res.json({ ok: true, trades: rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 app.patch('/api/bots/:id/pause', async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -750,13 +828,17 @@ app.delete('/api/bots/:id', async (req, res) => {
     const { rows } = await pool.query(`SELECT * FROM bots WHERE id=$1`, [req.params.id]);
     if (!rows.length) return res.status(404).json({ ok: false, error: 'Bot not found' });
     const bot = rows[0];
-    try {
-      const { apiKey, apiSecret } = botKeys(bot);
-      await bybitPostWithKeys(apiKey, apiSecret, '/v5/order/cancel-all', { category: 'linear', symbol: bot.symbol });
-    } catch (e) {
-      console.error(`[bots] cancel-all failed for ${bot.symbol}:`, e.message);
+    if (bot.status === 'stopped') {
+      await pool.query(`DELETE FROM bots WHERE id=$1`, [req.params.id]);
+    } else {
+      try {
+        const { apiKey, apiSecret } = botKeys(bot);
+        await bybitPostWithKeys(apiKey, apiSecret, '/v5/order/cancel-all', { category: 'linear', symbol: bot.symbol });
+      } catch (e) {
+        console.error(`[bots] cancel-all failed for ${bot.symbol}:`, e.message);
+      }
+      await pool.query(`UPDATE bots SET status='stopped', updated_at=NOW() WHERE id=$1`, [req.params.id]);
     }
-    await pool.query(`UPDATE bots SET status='stopped', updated_at=NOW() WHERE id=$1`, [req.params.id]);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
