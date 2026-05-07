@@ -1,11 +1,12 @@
 'use strict';
-const axios = require('axios');
+const axios  = require('axios');
+const crypto = require('crypto');
 
 const BASE_URL = process.env.BYBIT_TESTNET === 'true'
   ? 'https://api-testnet.bybit.com'
   : 'https://api.bybit.com';
 
-module.exports = function startBotEngine({ pool, bybitGet, bybitPost }) {
+module.exports = function startBotEngine({ pool, decrypt }) {
   const botLocks = new Set();
 
   // ── Precision helpers ──────────────────────────────────────────────────────
@@ -19,7 +20,7 @@ module.exports = function startBotEngine({ pool, bybitGet, bybitPost }) {
   function fmtQty(sym, qty)     { return qty.toFixed(qtyPrec(sym)); }
   function fmtPrice(sym, price) { return price.toFixed(pricePrec(sym)); }
 
-  // ── Market data (public, no auth needed) ───────────────────────────────────
+  // ── Market data (public) ───────────────────────────────────────────────────
   async function getMarkPrice(sym) {
     const { data } = await axios.get(`${BASE_URL}/v5/market/tickers`, {
       params: { category: 'linear', symbol: sym },
@@ -28,11 +29,57 @@ module.exports = function startBotEngine({ pool, bybitGet, bybitPost }) {
     return t ? parseFloat(t.markPrice) : null;
   }
 
-  // ── Capital guard: order must be ≤ 50% of available balance ───────────────
-  async function checkCapital(orderUsd) {
+  // ── Per-bot signed Bybit client ────────────────────────────────────────────
+  function makeBotClient(apiKey, apiSecret) {
+    function sign(payload) {
+      return crypto.createHmac('sha256', apiSecret).update(payload).digest('hex');
+    }
+    async function botGet(endpoint, params = {}) {
+      const ts  = Date.now().toString();
+      const rw  = '20000';
+      const qs  = Object.keys(params).sort().map(k => `${k}=${params[k]}`).join('&');
+      const sig = sign(ts + apiKey + rw + qs);
+      const res = await axios.get(`${BASE_URL}${endpoint}${qs ? '?' + qs : ''}`, {
+        headers: { 'X-BAPI-API-KEY': apiKey, 'X-BAPI-SIGN': sig, 'X-BAPI-TIMESTAMP': ts, 'X-BAPI-RECV-WINDOW': rw, 'X-BAPI-SIGN-TYPE': '2' },
+        timeout: 8000,
+      });
+      return res.data;
+    }
+    async function botPost(endpoint, params = {}) {
+      const ts   = Date.now().toString();
+      const rw   = '20000';
+      const body = JSON.stringify(params);
+      const sig  = sign(ts + apiKey + rw + body);
+      const res  = await axios.post(`${BASE_URL}${endpoint}`, body, {
+        headers: { 'X-BAPI-API-KEY': apiKey, 'X-BAPI-SIGN': sig, 'X-BAPI-TIMESTAMP': ts, 'X-BAPI-RECV-WINDOW': rw, 'X-BAPI-SIGN-TYPE': '2', 'Content-Type': 'application/json' },
+        timeout: 8000,
+      });
+      return res.data;
+    }
+    return { botGet, botPost };
+  }
+
+  // ── Resolve per-bot keys (fallback to global env) ─────────────────────────
+  function getBotClient(bot) {
+    try {
+      if (bot.api_key_enc && bot.api_secret_enc) {
+        return makeBotClient(decrypt(bot.api_key_enc), decrypt(bot.api_secret_enc));
+      }
+    } catch (e) {
+      console.error(`[bot:${bot.id}] key decrypt failed:`, e.message);
+    }
+    // Fallback to global keys
+    const apiKey    = process.env.BYBIT_API_KEY;
+    const apiSecret = process.env.BYBIT_API_SECRET;
+    if (!apiKey || !apiSecret) return null;
+    return makeBotClient(apiKey, apiSecret);
+  }
+
+  // ── Capital guard ─────────────────────────────────────────────────────────
+  async function checkCapital(botGet, orderUsd) {
     for (const accountType of ['UNIFIED', 'CONTRACT']) {
       try {
-        const d = await bybitGet('/v5/account/wallet-balance', { accountType });
+        const d = await botGet('/v5/account/wallet-balance', { accountType });
         if (d.retCode !== 0) continue;
         const acc  = d.result?.list?.[0] || {};
         const usdt = (acc.coin || []).find(c => c.coin === 'USDT');
@@ -46,30 +93,28 @@ module.exports = function startBotEngine({ pool, bybitGet, bybitPost }) {
   }
 
   // ── Bybit position / orders ────────────────────────────────────────────────
-  async function getPosition(sym) {
-    const d = await bybitGet('/v5/position/list', { category: 'linear', symbol: sym });
+  async function getPosition(botGet, sym) {
+    const d = await botGet('/v5/position/list', { category: 'linear', symbol: sym });
     if (d.retCode !== 0) return null;
     return (d.result?.list || []).find(p => parseFloat(p.size) > 0) || null;
   }
 
-  async function getOpenOrders(sym) {
-    const d = await bybitGet('/v5/order/realtime', { category: 'linear', symbol: sym });
+  async function getOpenOrders(botGet, sym) {
+    const d = await botGet('/v5/order/realtime', { category: 'linear', symbol: sym });
     if (d.retCode !== 0) return [];
     return d.result?.list || [];
   }
 
-  async function placeOrder({ symbol, side, qty, price, reduceOnly }) {
+  async function placeOrder(botPost, { symbol, side, qty, price, reduceOnly }) {
     const params = {
-      category:    'linear',
-      symbol,
-      side,
+      category: 'linear', symbol, side,
       orderType:   price ? 'Limit' : 'Market',
       qty:         fmtQty(symbol, qty),
       timeInForce: price ? 'GTC' : 'IOC',
     };
     if (price)      params.price      = fmtPrice(symbol, price);
     if (reduceOnly) params.reduceOnly = true;
-    const d = await bybitPost('/v5/order/create', params);
+    const d = await botPost('/v5/order/create', params);
     if (d.retCode !== 0) throw new Error(`Bybit: ${d.retMsg}`);
     return d.result?.orderId;
   }
@@ -77,43 +122,42 @@ module.exports = function startBotEngine({ pool, bybitGet, bybitPost }) {
   // ── DB helpers ────────────────────────────────────────────────────────────
   async function setBotStatus(id, status, msg) {
     await pool.query(
-      `UPDATE bots SET status = $1, stats = stats || $2::jsonb, updated_at = NOW() WHERE id = $3`,
+      `UPDATE bots SET status=$1, stats=stats||$2::jsonb, updated_at=NOW() WHERE id=$3`,
       [status, JSON.stringify({ status_msg: msg || status }), id]
     );
   }
 
   async function saveState(id, cfg) {
     await pool.query(
-      `UPDATE bots SET config = $1, updated_at = NOW() WHERE id = $2`,
+      `UPDATE bots SET config=$1, updated_at=NOW() WHERE id=$2`,
       [JSON.stringify(cfg), id]
     );
   }
 
   async function mergeStats(id, delta) {
-    const { rows } = await pool.query(`SELECT stats FROM bots WHERE id = $1`, [id]);
+    const { rows } = await pool.query(`SELECT stats FROM bots WHERE id=$1`, [id]);
     if (!rows.length) return;
     const s = rows[0].stats || {};
     await pool.query(
-      `UPDATE bots SET stats = $1, updated_at = NOW() WHERE id = $2`,
+      `UPDATE bots SET stats=$1, updated_at=NOW() WHERE id=$2`,
       [JSON.stringify({
         ...s,
         total_pnl:      (parseFloat(s.total_pnl      || 0) + (delta.total_pnl      || 0)),
         trades:         (parseInt(  s.trades          || 0) + (delta.trades         || 0)),
-        unrealised_pnl: delta.unrealised_pnl !== undefined ? delta.unrealised_pnl : (parseFloat(s.unrealised_pnl || 0)),
+        unrealised_pnl: delta.unrealised_pnl !== undefined ? delta.unrealised_pnl : parseFloat(s.unrealised_pnl || 0),
       }), id]
     );
   }
 
   async function recordTrade(botId, { orderId, side, qty, price, status = 'open', meta = {} }) {
     await pool.query(
-      `INSERT INTO bot_trades (bot_id, order_id, side, qty, price, status, meta)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      `INSERT INTO bot_trades (bot_id,order_id,side,qty,price,status,meta) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
       [botId, orderId, side, qty, price, status, JSON.stringify(meta)]
     );
   }
 
   // ── DCA Bot ───────────────────────────────────────────────────────────────
-  async function tickDca(bot) {
+  async function tickDca(bot, { botGet, botPost }) {
     const cfg     = bot.config;
     const state   = cfg.state || {};
     const sym     = cfg.symbol;
@@ -124,31 +168,29 @@ module.exports = function startBotEngine({ pool, bybitGet, bybitPost }) {
     const price = await getMarkPrice(sym);
     if (!price) return;
 
-    const pos      = await getPosition(sym);
-    const posSize  = pos ? parseFloat(pos.size)         : 0;
-    const avgEntry = pos ? parseFloat(pos.avgPrice)     : 0;
-    const unreal   = pos ? parseFloat(pos.unrealisedPnl): 0;
+    const pos      = await getPosition(botGet, sym);
+    const posSize  = pos ? parseFloat(pos.size)          : 0;
+    const avgEntry = pos ? parseFloat(pos.avgPrice)      : 0;
+    const unreal   = pos ? parseFloat(pos.unrealisedPnl) : 0;
 
     await mergeStats(bot.id, { unrealised_pnl: unreal });
 
-    // No open position
     if (!posSize) {
       if (state.base_order_placed) {
-        // Closed externally / SL hit — reset cycle
+        // Position closed externally — reset cycle
         state.base_order_placed    = false;
         state.safety_orders_placed = 0;
         state.initial_entry        = null;
         await saveState(bot.id, { ...cfg, state });
         return;
       }
-      // Place base order
-      if (!(await checkCapital(cfg.base_order_size))) {
+      if (!(await checkCapital(botGet, cfg.base_order_size))) {
         await setBotStatus(bot.id, 'paused', 'Insufficient capital (>50% balance)');
         return;
       }
       const qty = calcQty(sym, cfg.base_order_size, price);
       if (qty <= 0) return;
-      const orderId = await placeOrder({ symbol: sym, side: enter, qty });
+      const orderId = await placeOrder(botPost, { symbol: sym, side: enter, qty });
       await recordTrade(bot.id, { orderId, side: enter, qty, price, status: 'filled', meta: { type: 'base' } });
       state.base_order_placed    = true;
       state.safety_orders_placed = 0;
@@ -165,7 +207,7 @@ module.exports = function startBotEngine({ pool, bybitGet, bybitPost }) {
       : (price - avgEntry) / avgEntry * 100;
 
     if (pnlPct >= cfg.take_profit) {
-      const orderId = await placeOrder({ symbol: sym, side: exit, qty: posSize, reduceOnly: true });
+      const orderId = await placeOrder(botPost, { symbol: sym, side: exit, qty: posSize, reduceOnly: true });
       await recordTrade(bot.id, { orderId, side: exit, qty: posSize, price, status: 'filled', meta: { type: 'tp', pnl: unreal } });
       await mergeStats(bot.id, { total_pnl: unreal, trades: 1, unrealised_pnl: 0 });
       state.base_order_placed    = false;
@@ -179,21 +221,20 @@ module.exports = function startBotEngine({ pool, bybitGet, bybitPost }) {
     // Safety order check
     const placed = state.safety_orders_placed || 0;
     if (placed >= cfg.max_safety_orders) return;
-    if (Date.now() - (state.last_safety_ts || 0) < 30_000) return; // 30s cooldown
+    if (Date.now() - (state.last_safety_ts || 0) < 30_000) return;
 
     const initEntry = state.initial_entry || avgEntry;
     const dev       = (placed + 1) * cfg.price_deviation / 100;
     const trigger   = isShort ? initEntry * (1 + dev) : initEntry * (1 - dev);
-    const hit       = isShort ? price >= trigger : price <= trigger;
-    if (!hit) return;
+    if (isShort ? price < trigger : price > trigger) return;
 
-    if (!(await checkCapital(cfg.safety_order_size))) {
+    if (!(await checkCapital(botGet, cfg.safety_order_size))) {
       await setBotStatus(bot.id, 'paused', 'Insufficient capital for safety order');
       return;
     }
     const qty = calcQty(sym, cfg.safety_order_size, price);
     if (qty <= 0) return;
-    const orderId = await placeOrder({ symbol: sym, side: enter, qty });
+    const orderId = await placeOrder(botPost, { symbol: sym, side: enter, qty });
     await recordTrade(bot.id, { orderId, side: enter, qty, price, status: 'filled', meta: { type: 'safety', n: placed + 1 } });
     state.safety_orders_placed = placed + 1;
     state.last_safety_ts       = Date.now();
@@ -202,7 +243,7 @@ module.exports = function startBotEngine({ pool, bybitGet, bybitPost }) {
   }
 
   // ── Grid Bot ──────────────────────────────────────────────────────────────
-  async function tickGrid(bot) {
+  async function tickGrid(bot, { botGet, botPost }) {
     const cfg   = bot.config;
     const state = cfg.state || {};
     const sym   = cfg.symbol;
@@ -210,7 +251,6 @@ module.exports = function startBotEngine({ pool, bybitGet, bybitPost }) {
     const price = await getMarkPrice(sym);
     if (!price) return;
 
-    // Build grid levels once
     if (!state.grid_prices || !state.grid_prices.length) {
       const step = (cfg.upper_price - cfg.lower_price) / cfg.grid_levels;
       state.grid_prices = Array.from({ length: cfg.grid_levels + 1 }, (_, i) =>
@@ -220,9 +260,8 @@ module.exports = function startBotEngine({ pool, bybitGet, bybitPost }) {
 
     const step = parseFloat(((cfg.upper_price - cfg.lower_price) / cfg.grid_levels).toFixed(pricePrec(sym)));
 
-    // First run — place initial limit orders
     if (!state.initialized) {
-      if (!(await checkCapital(cfg.order_size))) {
+      if (!(await checkCapital(botGet, cfg.order_size))) {
         await setBotStatus(bot.id, 'paused', 'Insufficient capital for grid init');
         return;
       }
@@ -232,7 +271,7 @@ module.exports = function startBotEngine({ pool, bybitGet, bybitPost }) {
         const qty  = calcQty(sym, cfg.order_size, lvl);
         if (qty <= 0) continue;
         try {
-          const orderId = await placeOrder({ symbol: sym, side, qty, price: lvl });
+          const orderId = await placeOrder(botPost, { symbol: sym, side, qty, price: lvl });
           await recordTrade(bot.id, { orderId, side, qty, price: lvl, status: 'open', meta: { type: 'grid', level: lvl, step } });
         } catch (e) {
           console.error(`[grid:${bot.id}] init @ ${lvl} failed:`, e.message);
@@ -244,30 +283,28 @@ module.exports = function startBotEngine({ pool, bybitGet, bybitPost }) {
       return;
     }
 
-    // Check for filled orders (missing from live Bybit orders)
-    const liveIds    = new Set((await getOpenOrders(sym)).map(o => o.orderId));
+    const liveIds = new Set((await getOpenOrders(botGet, sym)).map(o => o.orderId));
     const { rows: openTrades } = await pool.query(
-      `SELECT * FROM bot_trades WHERE bot_id = $1 AND status = 'open'`, [bot.id]
+      `SELECT * FROM bot_trades WHERE bot_id=$1 AND status='open'`, [bot.id]
     );
 
     for (const trade of openTrades) {
       if (liveIds.has(trade.order_id)) continue;
+      await pool.query(`UPDATE bot_trades SET status='filled' WHERE id=$1`, [trade.id]);
 
-      await pool.query(`UPDATE bot_trades SET status = 'filled' WHERE id = $1`, [trade.id]);
+      const fp    = parseFloat(trade.price);
+      const fq    = parseFloat(trade.qty);
+      const meta  = trade.meta || {};
+      const tStep = parseFloat(meta.step) || step;
+      const isBuy = trade.side === 'Buy';
+      const newP  = parseFloat((isBuy ? fp + tStep : fp - tStep).toFixed(pricePrec(sym)));
+      const newS  = isBuy ? 'Sell' : 'Buy';
 
-      const fp     = parseFloat(trade.price);
-      const fq     = parseFloat(trade.qty);
-      const meta   = trade.meta || {};
-      const tStep  = parseFloat(meta.step) || step;
-      const isBuy  = trade.side === 'Buy';
-      const newP   = parseFloat((isBuy ? fp + tStep : fp - tStep).toFixed(pricePrec(sym)));
-      const newS   = isBuy ? 'Sell' : 'Buy';
-
-      if (newP > cfg.lower_price && newP < cfg.upper_price && (await checkCapital(cfg.order_size))) {
+      if (newP > cfg.lower_price && newP < cfg.upper_price && (await checkCapital(botGet, cfg.order_size))) {
         try {
           const qty = calcQty(sym, cfg.order_size, newP);
           if (qty > 0) {
-            const orderId = await placeOrder({ symbol: sym, side: newS, qty, price: newP });
+            const orderId = await placeOrder(botPost, { symbol: sym, side: newS, qty, price: newP });
             await recordTrade(bot.id, { orderId, side: newS, qty, price: newP, status: 'open', meta: { type: 'grid', level: newP, step: tStep } });
             const profit = isBuy ? (newP - fp) * fq : (fp - newP) * fq;
             await mergeStats(bot.id, { total_pnl: profit, trades: 1 });
@@ -284,7 +321,7 @@ module.exports = function startBotEngine({ pool, bybitGet, bybitPost }) {
   async function tick() {
     let bots;
     try {
-      const { rows } = await pool.query(`SELECT * FROM bots WHERE status = 'active'`);
+      const { rows } = await pool.query(`SELECT * FROM bots WHERE status='active'`);
       bots = rows;
     } catch (e) {
       console.error('[botEngine] DB error:', e.message);
@@ -292,8 +329,13 @@ module.exports = function startBotEngine({ pool, bybitGet, bybitPost }) {
     }
     for (const bot of bots) {
       if (botLocks.has(bot.id)) continue;
+      const client = getBotClient(bot);
+      if (!client) {
+        await setBotStatus(bot.id, 'error', 'No API keys configured').catch(() => {});
+        continue;
+      }
       botLocks.add(bot.id);
-      (bot.type === 'dca' ? tickDca(bot) : tickGrid(bot))
+      (bot.type === 'dca' ? tickDca(bot, client) : tickGrid(bot, client))
         .catch(e => {
           console.error(`[bot:${bot.id}] uncaught:`, e.message);
           setBotStatus(bot.id, 'error', e.message).catch(() => {});

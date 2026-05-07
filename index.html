@@ -1014,53 +1014,87 @@ tr:hover td { background: rgba(255,255,255,.015); }
 
 <!-- MODAL -->
 <div class="overlay" id="modal-bot">
-  <div class="modal" style="width:480px;max-height:90vh;overflow-y:auto;">
+  <div class="modal" style="width:500px;max-height:92vh;overflow-y:auto;">
     <div class="modal-title">New Trading Bot</div>
 
-    <!-- Type toggle -->
-    <div style="display:flex;gap:8px;margin-bottom:18px;">
-      <button id="btn-type-dca"  class="btn sm active" onclick="setBotType('dca')"  style="flex:1;">DCA Bot</button>
-      <button id="btn-type-grid" class="btn sm"         onclick="setBotType('grid')" style="flex:1;">Grid Bot</button>
+    <!-- Common: Name + Symbol always visible -->
+    <div class="fields-2" style="margin-bottom:14px;">
+      <div class="field" style="margin:0;"><label>Bot Name</label><input type="text" id="bot-name" placeholder="e.g. BTC DCA Long"></div>
+      <div class="field" style="margin:0;"><label>Symbol</label><input type="text" id="bot-sym" value="BTCUSDT" style="text-transform:uppercase;"></div>
     </div>
 
-    <!-- Common -->
-    <div class="fields-2">
-      <div class="field"><label>Bot Name</label><input type="text" id="bot-name" placeholder="e.g. BTC DCA Long"></div>
-      <div class="field"><label>Symbol</label><input type="text" id="bot-sym" value="BTCUSDT" style="text-transform:uppercase;"></div>
+    <!-- Tab bar -->
+    <div style="display:flex;border-bottom:1px solid var(--border);margin-bottom:16px;">
+      <button id="bot-tab-strategy-btn" onclick="setBotTab('strategy')"
+        style="flex:1;background:none;border:none;border-bottom:2px solid var(--accent);color:var(--text);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:8px 0;cursor:pointer;">Strategia</button>
+      <button id="bot-tab-account-btn"  onclick="setBotTab('account')"
+        style="flex:1;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted2);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:8px 0;cursor:pointer;">Subkonto &amp; Kapitał</button>
     </div>
 
-    <!-- DCA fields -->
-    <div id="bot-dca-fields">
-      <div class="field"><label>Side</label>
-        <select id="dca-side" style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:12px;padding:7px 10px;outline:none;width:100%;">
-          <option value="LONG">LONG</option><option value="SHORT">SHORT</option>
-        </select>
+    <!-- ── TAB: Strategia ── -->
+    <div id="bot-tab-strategy">
+      <!-- Type toggle -->
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        <button id="btn-type-dca"  class="btn sm active" onclick="setBotType('dca')"  style="flex:1;">DCA Bot</button>
+        <button id="btn-type-grid" class="btn sm"         onclick="setBotType('grid')" style="flex:1;">Grid Bot</button>
       </div>
-      <div class="fields-2">
-        <div class="field"><label>Base Order ($)</label><input type="number" id="dca-base"       value="100"  min="1"></div>
-        <div class="field"><label>Safety Order ($)</label><input type="number" id="dca-safety"   value="150"  min="1"></div>
+
+      <!-- DCA fields -->
+      <div id="bot-dca-fields">
+        <div class="field"><label>Side</label>
+          <select id="dca-side" style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:12px;padding:7px 10px;outline:none;width:100%;">
+            <option value="LONG">LONG</option><option value="SHORT">SHORT</option>
+          </select>
+        </div>
+        <div class="fields-2">
+          <div class="field"><label>Base Order ($)</label><input type="number" id="dca-base"    value="100" min="1"></div>
+          <div class="field"><label>Safety Order ($)</label><input type="number" id="dca-safety" value="150" min="1"></div>
+        </div>
+        <div class="fields-2">
+          <div class="field"><label>Max Safety Orders</label><input type="number" id="dca-max-so" value="5" min="1" max="10"></div>
+          <div class="field"><label>Price Deviation (%)</label><input type="number" id="dca-dev" value="2" min="0.1" max="20" step="0.1"></div>
+        </div>
+        <div class="field"><label>Take Profit (%)</label><input type="number" id="dca-tp" value="1.5" min="0.1" step="0.1"></div>
       </div>
-      <div class="fields-2">
-        <div class="field"><label>Max Safety Orders</label><input type="number" id="dca-max-so"  value="5"    min="1" max="10"></div>
-        <div class="field"><label>Price Deviation (%)</label><input type="number" id="dca-dev"   value="2"    min="0.1" max="20" step="0.1"></div>
+
+      <!-- Grid fields -->
+      <div id="bot-grid-fields" style="display:none;">
+        <div class="field"><label>Side</label>
+          <select id="grid-side" style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:12px;padding:7px 10px;outline:none;width:100%;">
+            <option value="LONG">LONG</option><option value="SHORT">SHORT</option><option value="NEUTRAL">NEUTRAL</option>
+          </select>
+        </div>
+        <div class="fields-2">
+          <div class="field"><label>Upper Price ($)</label><input type="number" id="grid-upper" placeholder="e.g. 70000" min="0"></div>
+          <div class="field"><label>Lower Price ($)</label><input type="number" id="grid-lower" placeholder="e.g. 60000" min="0"></div>
+        </div>
+        <div class="fields-2">
+          <div class="field"><label>Grid Levels</label><input type="number" id="grid-levels" value="10" min="2" max="50"></div>
+          <div class="field"><label>Order Size ($)</label><input type="number" id="grid-order-size" value="50" min="1"></div>
+        </div>
       </div>
-      <div class="field"><label>Take Profit (%)</label><input type="number" id="dca-tp" value="1.5" min="0.1" step="0.1"></div>
     </div>
 
-    <!-- Grid fields -->
-    <div id="bot-grid-fields" style="display:none;">
-      <div class="field"><label>Side</label>
-        <select id="grid-side" style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:12px;padding:7px 10px;outline:none;width:100%;">
-          <option value="LONG">LONG</option><option value="SHORT">SHORT</option><option value="NEUTRAL">NEUTRAL</option>
-        </select>
+    <!-- ── TAB: Subkonto & Kapitał ── -->
+    <div id="bot-tab-account" style="display:none;">
+      <div class="field"><label>Subaccount Name (label)</label>
+        <input type="text" id="bot-subaccount" placeholder="e.g. Bot Account 1">
       </div>
-      <div class="fields-2">
-        <div class="field"><label>Upper Price ($)</label><input type="number" id="grid-upper"     placeholder="e.g. 70000" min="0"></div>
-        <div class="field"><label>Lower Price ($)</label><input type="number" id="grid-lower"     placeholder="e.g. 60000" min="0"></div>
+      <div class="field"><label>API Key (Bybit subaccount)</label>
+        <input type="text" id="bot-api-key" placeholder="Wklej API Key subkonta" autocomplete="off" spellcheck="false">
       </div>
-      <div class="fields-2">
-        <div class="field"><label>Grid Levels</label><input type="number"    id="grid-levels"     value="10" min="2" max="50"></div>
-        <div class="field"><label>Order Size ($)</label><input type="number" id="grid-order-size" value="50" min="1"></div>
+      <div class="field"><label>API Secret</label>
+        <div style="display:flex;gap:8px;">
+          <input type="password" id="bot-api-secret" placeholder="Wklej API Secret" autocomplete="off" spellcheck="false" style="flex:1;">
+          <button class="btn sm" id="btn-secret-vis" onclick="toggleSecretVis()" style="min-width:48px;">Show</button>
+        </div>
+      </div>
+      <div class="field"><label>Allocated Balance ($)</label>
+        <input type="number" id="bot-allocated" placeholder="np. 500" min="0" step="0.01">
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+        <button class="btn sm" onclick="testBotConnection()">🔗 Test Connection</button>
+        <span id="bot-conn-result" style="font-size:11px;font-family:var(--font-mono);"></span>
       </div>
     </div>
 
@@ -1499,11 +1533,57 @@ function setBotType(t) {
   document.getElementById('bot-grid-fields').style.display = t === 'grid' ? '' : 'none';
 }
 
+function setBotTab(tab) {
+  const isStrat = tab === 'strategy';
+  document.getElementById('bot-tab-strategy').style.display = isStrat ? '' : 'none';
+  document.getElementById('bot-tab-account').style.display  = isStrat ? 'none' : '';
+  const sBtn = document.getElementById('bot-tab-strategy-btn');
+  const aBtn = document.getElementById('bot-tab-account-btn');
+  sBtn.style.borderBottomColor = isStrat ? 'var(--accent)' : 'transparent';
+  sBtn.style.color             = isStrat ? 'var(--text)'   : 'var(--muted2)';
+  aBtn.style.borderBottomColor = isStrat ? 'transparent'   : 'var(--accent)';
+  aBtn.style.color             = isStrat ? 'var(--muted2)' : 'var(--text)';
+}
+
+function toggleSecretVis() {
+  const inp = document.getElementById('bot-api-secret');
+  const btn = document.getElementById('btn-secret-vis');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+  btn.textContent = inp.type === 'password' ? 'Show' : 'Hide';
+}
+
+async function testBotConnection() {
+  const key    = document.getElementById('bot-api-key').value.trim();
+  const secret = document.getElementById('bot-api-secret').value.trim();
+  const res    = document.getElementById('bot-conn-result');
+  if (!key || !secret) { res.textContent = '⚠ Wpisz key i secret'; res.style.color = 'var(--amber)'; return; }
+  res.textContent = '⏳ Łączenie...'; res.style.color = 'var(--muted2)';
+  try {
+    const d = await (await fetch(`/api/bots/test-connection?key=${encodeURIComponent(key)}&secret=${encodeURIComponent(secret)}`)).json();
+    if (d.ok) {
+      res.textContent = `✓ Połączono — Saldo: $${parseFloat(d.balance).toFixed(2)}`;
+      res.style.color = 'var(--green)';
+    } else {
+      res.textContent = `✗ ${d.error}`;
+      res.style.color = 'var(--red)';
+    }
+  } catch { res.textContent = '✗ Błąd sieci'; res.style.color = 'var(--red)'; }
+}
+
 function openAddBot() {
   currentBotType = 'dca';
   setBotType('dca');
-  document.getElementById('bot-name').value = '';
+  setBotTab('strategy');
+  ['bot-name','bot-api-key','bot-api-secret','bot-subaccount','bot-allocated'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.getElementById('bot-sym').value = 'BTCUSDT';
   document.getElementById('bot-cap-warn').style.display = 'none';
+  document.getElementById('bot-conn-result').textContent = '';
+  const secInp = document.getElementById('bot-api-secret');
+  if (secInp) secInp.type = 'password';
+  const secBtn = document.getElementById('btn-secret-vis');
+  if (secBtn) secBtn.textContent = 'Show';
   document.getElementById('modal-bot').classList.add('open');
   setTimeout(() => document.getElementById('bot-name').focus(), 100);
 }
@@ -1511,8 +1591,9 @@ function openAddBot() {
 async function addBot() {
   const name   = document.getElementById('bot-name').value.trim();
   const symbol = (document.getElementById('bot-sym').value || 'BTCUSDT').toUpperCase().trim();
-  if (!name) { showToast('Enter bot name', 'err'); return; }
+  if (!name) { setBotTab('strategy'); showToast('Enter bot name', 'err'); return; }
 
+  // Collect strategy config
   let config;
   if (currentBotType === 'dca') {
     const base   = parseFloat(document.getElementById('dca-base').value);
@@ -1521,7 +1602,7 @@ async function addBot() {
     const dev    = parseFloat(document.getElementById('dca-dev').value);
     const tp     = parseFloat(document.getElementById('dca-tp').value);
     const side   = document.getElementById('dca-side').value;
-    if (!base || !safety || !maxSO || !dev || !tp) { showToast('Fill all DCA fields', 'err'); return; }
+    if (!base || !safety || !maxSO || !dev || !tp) { setBotTab('strategy'); showToast('Uzupełnij pola DCA', 'err'); return; }
     config = { symbol, side, base_order_size: base, safety_order_size: safety, max_safety_orders: maxSO, price_deviation: dev, take_profit: tp };
   } else {
     const upper  = parseFloat(document.getElementById('grid-upper').value);
@@ -1529,29 +1610,35 @@ async function addBot() {
     const levels = parseInt(document.getElementById('grid-levels').value);
     const ordSz  = parseFloat(document.getElementById('grid-order-size').value);
     const side   = document.getElementById('grid-side').value;
-    if (!upper || !lower || !levels || !ordSz) { showToast('Fill all Grid fields', 'err'); return; }
-    if (upper <= lower) { showToast('Upper price must be > Lower price', 'err'); return; }
+    if (!upper || !lower || !levels || !ordSz) { setBotTab('strategy'); showToast('Uzupełnij pola Grid', 'err'); return; }
+    if (upper <= lower) { setBotTab('strategy'); showToast('Upper > Lower', 'err'); return; }
     config = { symbol, side, upper_price: upper, lower_price: lower, grid_levels: levels, order_size: ordSz };
   }
+
+  // Collect account data
+  const apiKey         = document.getElementById('bot-api-key').value.trim();
+  const apiSecret      = document.getElementById('bot-api-secret').value.trim();
+  const subaccountName = document.getElementById('bot-subaccount').value.trim();
+  const allocatedBal   = parseFloat(document.getElementById('bot-allocated').value) || null;
+  if (!apiKey || !apiSecret) { setBotTab('account'); showToast('Wpisz API Key i Secret', 'err'); return; }
 
   document.getElementById('bot-cap-warn').style.display = 'none';
   try {
     const r = await fetch('/api/bots', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, type: currentBotType, symbol, config }),
+      body: JSON.stringify({ name, type: currentBotType, symbol, config, apiKey, apiSecret, subaccountName, allocatedBalance: allocatedBal }),
     });
     const d = await r.json();
     if (!d.ok) {
       const w = document.getElementById('bot-cap-warn');
-      w.textContent = d.error;
-      w.style.display = '';
+      w.textContent = d.error; w.style.display = '';
       return;
     }
     closeModal('modal-bot');
     showToast(`Bot "${name}" launched!`, 'ok');
     fetchBots();
-  } catch (e) { showToast('Network error', 'err'); }
+  } catch { showToast('Network error', 'err'); }
 }
 
 async function pauseBot(id) {
@@ -1596,31 +1683,66 @@ function renderBots() {
     return;
   }
   g.innerHTML = botsData.map(b => {
-    const cfg    = b.config || {};
-    const stats  = b.stats  || {};
-    const pnl    = parseFloat(stats.total_pnl      || 0);
-    const unreal = parseFloat(stats.unrealised_pnl || 0);
-    const pnlStr = (pnl >= 0 ? '+' : '') + '$' + Math.abs(pnl).toFixed(2);
-    const pnlCls = pnl >= 0 ? 'pos' : 'neg';
-    const tc     = parseInt(b.trade_count || 0);
-    const oo     = parseInt(b.open_orders || 0);
-    const sLabel = b.status === 'active' ? 'running' : b.status;
-    const tLabel = b.type === 'dca' ? 'DCA' : 'Grid';
+    const cfg      = b.config || {};
+    const stats    = b.stats  || {};
+    const tradePnl = parseFloat(stats.total_pnl      || 0);
+    const unreal   = parseFloat(stats.unrealised_pnl || 0);
+    const sLabel   = b.status === 'active' ? 'running' : b.status;
+    const tLabel   = b.type === 'dca' ? 'DCA' : 'Grid';
+    const tc       = parseInt(b.trade_count || 0);
+    const oo       = parseInt(b.open_orders || 0);
+
+    // Live balance & Bot PnL (live_balance − allocated)
+    const liveBal  = b.live_balance != null ? parseFloat(b.live_balance) : null;
+    const allocBal = b.allocated_balance    ? parseFloat(b.allocated_balance) : null;
+    const botPnl   = liveBal != null && allocBal != null ? liveBal - allocBal : null;
+    const liveStr  = liveBal  != null ? '$' + liveBal.toFixed(2) : '—';
+    const allocStr = allocBal != null ? '$' + allocBal.toFixed(2) : '—';
+    const pnlStr   = botPnl   != null
+      ? `<span class="${botPnl >= 0 ? 'pos' : 'neg'}">${botPnl >= 0 ? '+' : ''}$${Math.abs(botPnl).toFixed(2)}</span>`
+      : '—';
+
     const sInfo  = b.type === 'dca'
       ? `SO ${cfg.state?.safety_orders_placed || 0}/${cfg.max_safety_orders || '?'} · TP ${cfg.take_profit || '?'}%`
       : `${cfg.grid_levels || '?'} levels · $${cfg.lower_price}–$${cfg.upper_price}`;
-    const unrealStr = unreal !== 0
-      ? ` · <span class="${unreal >= 0 ? 'pos' : 'neg'}">${unreal >= 0 ? '+' : ''}$${Math.abs(unreal).toFixed(2)} unreal</span>`
+    const subLine = b.subaccount_name || b.api_key_masked
+      ? `<div style="font-size:10px;color:var(--muted2);margin-top:2px;">${b.subaccount_name || ''}${b.api_key_masked ? ' · ' + b.api_key_masked : ''}</div>`
       : '';
+    const unrealLine = unreal !== 0
+      ? `<span class="${unreal >= 0 ? 'pos' : 'neg'}" style="font-size:10px;">${unreal >= 0 ? '+' : ''}$${Math.abs(unreal).toFixed(2)} unreal</span>`
+      : '';
+
     const safeName = b.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     return `<div class="bot-card ${sLabel}">
       <div class="bot-header">
-        <div><div class="bot-name">${b.name}</div><div class="bot-pair">${b.symbol} · ${tLabel} · ${(cfg.side||'').toUpperCase()}</div></div>
+        <div>
+          <div class="bot-name">${b.name}</div>
+          <div class="bot-pair">${b.symbol} · ${tLabel} · ${(cfg.side||'').toUpperCase()}</div>
+          ${subLine}
+        </div>
         <span class="badge ${sLabel}">${sLabel}</span>
       </div>
+
+      <!-- Balance row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:10px 0;padding:8px;background:var(--bg2);border-radius:var(--r);border:1px solid var(--border);">
+        <div>
+          <div style="font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);">Live</div>
+          <div style="font-size:12px;font-family:var(--font-mono);font-weight:700;color:${liveBal != null ? 'var(--green)' : 'var(--muted2)'};">${liveStr}</div>
+        </div>
+        <div>
+          <div style="font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);">Alloc</div>
+          <div style="font-size:12px;font-family:var(--font-mono);font-weight:700;">${allocStr}</div>
+        </div>
+        <div>
+          <div style="font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);">Bot P&amp;L</div>
+          <div style="font-size:12px;font-family:var(--font-mono);font-weight:700;">${pnlStr}</div>
+        </div>
+      </div>
+
       <div class="bot-strat">${sInfo}</div>
-      <div class="bot-strat" style="margin-top:-8px;">${tc} trades · ${oo} open orders${unrealStr}</div>
-      <div class="bot-pnl ${pnlCls}">${pnlStr}</div>
+      <div class="bot-strat" style="margin-top:-8px;display:flex;gap:8px;align-items:center;">
+        <span>${tc} trades · ${oo} open orders</span>${unrealLine ? ' · ' + unrealLine : ''}
+      </div>
       <div class="bot-actions">
         ${b.status === 'active'
           ? `<button class="btn sm" onclick="pauseBot(${b.id})">⏸ Pause</button>`
