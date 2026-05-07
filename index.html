@@ -593,6 +593,7 @@ tr:hover td { background: rgba(255,255,255,.015); }
   .nav-btn { padding: 5px 10px; font-size: 11px; flex-shrink: 0; }
   .conn-badge { display: none; }
   #dash-r-toggle { padding: 4px 9px; font-size: 10px; flex-shrink: 0; }
+  #theme-toggle { padding: 4px 7px; font-size: 12px; flex-shrink: 0; }
 
   /* Main layout */
   .main { padding: 60px 12px 24px; }
@@ -806,6 +807,71 @@ tr:hover td { background: rgba(255,255,255,.015); }
 /* value-changed flash */
 @keyframes val-pop {0%{opacity:1}30%{opacity:.45;transform:scale(.97)}100%{opacity:1;transform:none}}
 .val-pop { animation: val-pop .35s ease; }
+
+/* ── THEME TRANSITION ───────────────────── */
+*, *::before, *::after { transition: background-color 0.3s, color 0.3s, border-color 0.3s, box-shadow 0.3s; }
+/* but preserve animation-only transitions on interactive elements */
+.nav-btn, .btn, .conn-dot { transition: background-color 0.3s, color 0.3s, border-color 0.3s, box-shadow 0.3s, opacity 0.2s, transform 0.2s; }
+
+/* ── LIGHT MODE ─────────────────────────── */
+body.light-mode {
+  --bg0: #f0f2f5;
+  --bg1: #ffffff;
+  --bg2: #f5f7fa;
+  --bg3: #eaecef;
+  --bg4: #e1e4e8;
+  --border: rgba(0,0,0,0.07);
+  --border2: rgba(0,0,0,0.13);
+  --border3: rgba(0,0,0,0.20);
+  --text: #0d1117;
+  --muted: #9ca3af;
+  --muted2: #6b7280;
+  --accent-dim: rgba(0,200,150,0.10);
+  --accent-glow: rgba(0,200,150,0.18);
+  --red-dim: rgba(245,101,101,0.10);
+  --green-dim: rgba(72,187,120,0.10);
+}
+body.light-mode .topbar {
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 1px 12px rgba(0,0,0,0.08);
+}
+body.light-mode .nav {
+  background: var(--bg3);
+}
+body.light-mode .nav-btn.active {
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+}
+body.light-mode .card, body.light-mode .stat, body.light-mode .pnl-tile,
+body.light-mode .bot-card, body.light-mode .alert-card, body.light-mode .position-card {
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+body.light-mode .modal-box {
+  background: #ffffff;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+}
+body.light-mode .pnl-tile-label { color: #9ca3af; }
+body.light-mode .pnl-tile-sub   { color: #9ca3af; }
+body.light-mode input, body.light-mode select, body.light-mode textarea {
+  background: var(--bg2) !important;
+  color: var(--text) !important;
+  border-color: var(--border2) !important;
+}
+body.light-mode #login-overlay { background: var(--bg0); }
+
+/* theme toggle button */
+#theme-toggle {
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: var(--r);
+  padding: 5px 9px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text);
+  margin-left: 6px;
+  line-height: 1;
+}
+#theme-toggle:hover { border-color: var(--border3); }
 </style>
 </head>
 <body>
@@ -843,6 +909,7 @@ tr:hover td { background: rgba(255,255,255,.015); }
     <span id="conn-label">Offline</span>
   </div>
   <button class="btn sm" id="dash-r-toggle" onclick="toggleDashRMode()" style="margin-left:8px;font-size:11px;">$ mode</button>
+  <button id="theme-toggle" title="Toggle light/dark mode">🌙</button>
 </div>
 
 <div class="main">
@@ -1687,6 +1754,17 @@ function bootApp() {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
+  // theme
+  const _themeBtn = document.getElementById('theme-toggle');
+  if (localStorage.getItem('wd_theme') === 'light') {
+    document.body.classList.add('light-mode');
+    _themeBtn.textContent = '☀️';
+  }
+  _themeBtn.addEventListener('click', () => {
+    const isLight = document.body.classList.toggle('light-mode');
+    _themeBtn.textContent = isLight ? '☀️' : '🌙';
+    localStorage.setItem('wd_theme', isLight ? 'light' : 'dark');
+  });
   if (checkAuth()) bootApp();
 });
 
