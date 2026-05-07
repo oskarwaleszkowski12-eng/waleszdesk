@@ -1,9 +1,10 @@
-const express  = require('express');
-const cors     = require('cors');
-const crypto   = require('crypto');
-const axios    = require('axios');
-const path     = require('path');
-const { Pool } = require('pg');
+const express       = require('express');
+const cors          = require('cors');
+const crypto        = require('crypto');
+const axios         = require('axios');
+const path          = require('path');
+const { Pool }      = require('pg');
+const startBotEngine = require('./botEngine');
 
 const app = express();
 app.use(express.json());
@@ -17,6 +18,31 @@ const pool = new Pool({
 });
 
 async function initDb() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS bots (
+      id         SERIAL      PRIMARY KEY,
+      name       VARCHAR(100) NOT NULL,
+      type       VARCHAR(10)  NOT NULL,
+      symbol     VARCHAR(20)  NOT NULL,
+      status     VARCHAR(20)  NOT NULL DEFAULT 'active',
+      config     JSONB        NOT NULL DEFAULT '{}',
+      stats      JSONB        NOT NULL DEFAULT '{}',
+      created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS bot_trades (
+      id         SERIAL       PRIMARY KEY,
+      bot_id     INTEGER      NOT NULL REFERENCES bots(id) ON DELETE CASCADE,
+      order_id   VARCHAR(100),
+      side       VARCHAR(10),
+      qty        DECIMAL(20,8),
+      price      DECIMAL(20,8),
+      status     VARCHAR(20)  DEFAULT 'open',
+      meta       JSONB        DEFAULT '{}',
+      created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    );
+  `);
+  console.log('[DB] bots tables ready');
   await pool.query(`
     CREATE TABLE IF NOT EXISTS trades (
       id          SERIAL PRIMARY KEY,
@@ -549,6 +575,88 @@ app.get('/api/stats', async (req, res) => {
   }
 });
 
+// ── BOTS ──────────────────────────────────────────────
+app.post('/api/bots', async (req, res) => {
+  try {
+    const { name, type, symbol, config } = req.body;
+    if (!name || !type || !symbol || !config)
+      return res.status(400).json({ ok: false, error: 'Missing: name, type, symbol, config' });
+    if (!['dca', 'grid'].includes(type))
+      return res.status(400).json({ ok: false, error: 'type must be dca or grid' });
+
+    const { rows } = await pool.query(
+      `INSERT INTO bots (name, type, symbol, status, config, stats)
+       VALUES ($1,$2,$3,'active',$4,'{}') RETURNING *`,
+      [name.trim(), type, symbol.toUpperCase(), JSON.stringify({ ...config, state: {} })]
+    );
+    res.json({ ok: true, bot: rows[0] });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/api/bots', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT b.*,
+        (SELECT COUNT(*)            FROM bot_trades WHERE bot_id = b.id)::int               AS trade_count,
+        (SELECT COUNT(*)            FROM bot_trades WHERE bot_id = b.id AND status='open')::int AS open_orders
+      FROM bots b ORDER BY b.created_at DESC
+    `);
+    res.json({ ok: true, bots: rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.patch('/api/bots/:id/pause', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `UPDATE bots SET status='paused', updated_at=NOW() WHERE id=$1 RETURNING *`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ ok: false, error: 'Bot not found' });
+    res.json({ ok: true, bot: rows[0] });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.patch('/api/bots/:id/resume', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `UPDATE bots SET status='active', updated_at=NOW() WHERE id=$1 RETURNING *`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ ok: false, error: 'Bot not found' });
+    res.json({ ok: true, bot: rows[0] });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.delete('/api/bots/:id', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT * FROM bots WHERE id=$1`, [req.params.id]);
+    if (!rows.length) return res.status(404).json({ ok: false, error: 'Bot not found' });
+    const bot = rows[0];
+
+    // Cancel all open orders on Bybit for this symbol
+    try {
+      await bybitPost('/v5/order/cancel-all', { category: 'linear', symbol: bot.symbol });
+    } catch (e) {
+      console.error(`[bots] cancel-all failed for ${bot.symbol}:`, e.message);
+    }
+
+    await pool.query(
+      `UPDATE bots SET status='stopped', updated_at=NOW() WHERE id=$1`, [req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // ── JOURNAL ───────────────────────────────────────────
 app.get('/api/journal', async (req, res) => {
   try {
@@ -582,6 +690,7 @@ initDb()
   .then(() => {
     pollClosedTrades();
     setInterval(pollClosedTrades, 60_000);
+    startBotEngine({ pool, bybitGet, bybitPost });
   })
   .catch(err => console.error('[DB] init failed:', err.message));
 

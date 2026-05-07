@@ -1014,18 +1014,61 @@ tr:hover td { background: rgba(255,255,255,.015); }
 
 <!-- MODAL -->
 <div class="overlay" id="modal-bot">
-  <div class="modal">
+  <div class="modal" style="width:480px;max-height:90vh;overflow-y:auto;">
     <div class="modal-title">New Trading Bot</div>
-    <div class="field"><label>Bot Name</label><input type="text" id="bot-name" placeholder="e.g. BTC Scalper"></div>
-    <div class="field"><label>Trading Pair</label><input type="text" id="bot-pair" value="BTCUSDT"></div>
-    <div class="field"><label>Strategy</label><input type="text" id="bot-strat" placeholder="e.g. BOS + OB confluence"></div>
-    <div class="fields-2">
-      <div class="field"><label>Timeframe</label><select id="bot-tf"><option>1m</option><option>5m</option><option>15m</option><option selected>1h</option><option>4h</option><option>1d</option></select></div>
-      <div class="field"><label>Exchange</label><select id="bot-ex"><option value="bybit">Bybit</option><option value="blofin">BloFin</option></select></div>
+
+    <!-- Type toggle -->
+    <div style="display:flex;gap:8px;margin-bottom:18px;">
+      <button id="btn-type-dca"  class="btn sm active" onclick="setBotType('dca')"  style="flex:1;">DCA Bot</button>
+      <button id="btn-type-grid" class="btn sm"         onclick="setBotType('grid')" style="flex:1;">Grid Bot</button>
     </div>
+
+    <!-- Common -->
+    <div class="fields-2">
+      <div class="field"><label>Bot Name</label><input type="text" id="bot-name" placeholder="e.g. BTC DCA Long"></div>
+      <div class="field"><label>Symbol</label><input type="text" id="bot-sym" value="BTCUSDT" style="text-transform:uppercase;"></div>
+    </div>
+
+    <!-- DCA fields -->
+    <div id="bot-dca-fields">
+      <div class="field"><label>Side</label>
+        <select id="dca-side" style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:12px;padding:7px 10px;outline:none;width:100%;">
+          <option value="LONG">LONG</option><option value="SHORT">SHORT</option>
+        </select>
+      </div>
+      <div class="fields-2">
+        <div class="field"><label>Base Order ($)</label><input type="number" id="dca-base"       value="100"  min="1"></div>
+        <div class="field"><label>Safety Order ($)</label><input type="number" id="dca-safety"   value="150"  min="1"></div>
+      </div>
+      <div class="fields-2">
+        <div class="field"><label>Max Safety Orders</label><input type="number" id="dca-max-so"  value="5"    min="1" max="10"></div>
+        <div class="field"><label>Price Deviation (%)</label><input type="number" id="dca-dev"   value="2"    min="0.1" max="20" step="0.1"></div>
+      </div>
+      <div class="field"><label>Take Profit (%)</label><input type="number" id="dca-tp" value="1.5" min="0.1" step="0.1"></div>
+    </div>
+
+    <!-- Grid fields -->
+    <div id="bot-grid-fields" style="display:none;">
+      <div class="field"><label>Side</label>
+        <select id="grid-side" style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:12px;padding:7px 10px;outline:none;width:100%;">
+          <option value="LONG">LONG</option><option value="SHORT">SHORT</option><option value="NEUTRAL">NEUTRAL</option>
+        </select>
+      </div>
+      <div class="fields-2">
+        <div class="field"><label>Upper Price ($)</label><input type="number" id="grid-upper"     placeholder="e.g. 70000" min="0"></div>
+        <div class="field"><label>Lower Price ($)</label><input type="number" id="grid-lower"     placeholder="e.g. 60000" min="0"></div>
+      </div>
+      <div class="fields-2">
+        <div class="field"><label>Grid Levels</label><input type="number"    id="grid-levels"     value="10" min="2" max="50"></div>
+        <div class="field"><label>Order Size ($)</label><input type="number" id="grid-order-size" value="50" min="1"></div>
+      </div>
+    </div>
+
+    <div id="bot-cap-warn" style="display:none;color:var(--red);font-size:11px;margin-bottom:12px;padding:8px;background:rgba(245,101,101,.06);border-radius:var(--r);border:1px solid rgba(245,101,101,.2);"></div>
+
     <div class="modal-actions">
       <button class="btn sm" onclick="closeModal('modal-bot')">Cancel</button>
-      <button class="btn accent sm" onclick="addBot()">Add Bot</button>
+      <button class="btn accent sm" onclick="addBot()">🚀 Launch Bot</button>
     </div>
   </div>
 </div>
@@ -1089,6 +1132,7 @@ function showPanel(id, el) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   const panelEl = document.getElementById('panel-' + id); if(panelEl) panelEl.classList.add('active');
   if (el) el.classList.add('active');
+  if (id === 'bots')    fetchBots();
   if (id === 'pnl')     { setTimeout(renderCharts, 50); fetchPnlHistory(); fetchPnlWeekdays(); }
   if (id === 'alerts')  { renderAlertsList(); requestAlertPermission(); }
   if (id === 'journal') fetchJournalDB();
@@ -1444,58 +1488,151 @@ async function fetchBalance(silent = false) {
 }
 
 // ── BOTS ───────────────────────────────────────────────
+let currentBotType = 'dca';
+let botsData = [];
+
+function setBotType(t) {
+  currentBotType = t;
+  document.getElementById('btn-type-dca').classList.toggle('active', t === 'dca');
+  document.getElementById('btn-type-grid').classList.toggle('active', t === 'grid');
+  document.getElementById('bot-dca-fields').style.display  = t === 'dca'  ? '' : 'none';
+  document.getElementById('bot-grid-fields').style.display = t === 'grid' ? '' : 'none';
+}
+
 function openAddBot() {
+  currentBotType = 'dca';
+  setBotType('dca');
   document.getElementById('bot-name').value = '';
+  document.getElementById('bot-cap-warn').style.display = 'none';
   document.getElementById('modal-bot').classList.add('open');
   setTimeout(() => document.getElementById('bot-name').focus(), 100);
 }
 
-function addBot() {
-  const name = document.getElementById('bot-name').value.trim();
+async function addBot() {
+  const name   = document.getElementById('bot-name').value.trim();
+  const symbol = (document.getElementById('bot-sym').value || 'BTCUSDT').toUpperCase().trim();
   if (!name) { showToast('Enter bot name', 'err'); return; }
-  state.bots.push({ id: Date.now(), name, pair: document.getElementById('bot-pair').value.toUpperCase(), strat: document.getElementById('bot-strat').value || 'Custom', tf: document.getElementById('bot-tf').value, exchange: document.getElementById('bot-ex').value, status: 'stopped', pnl: 0, trades: 0 });
-  save(); renderBots(); closeModal('modal-bot');
-  showToast('Bot "' + name + '" added', 'ok');
+
+  let config;
+  if (currentBotType === 'dca') {
+    const base   = parseFloat(document.getElementById('dca-base').value);
+    const safety = parseFloat(document.getElementById('dca-safety').value);
+    const maxSO  = parseInt(document.getElementById('dca-max-so').value);
+    const dev    = parseFloat(document.getElementById('dca-dev').value);
+    const tp     = parseFloat(document.getElementById('dca-tp').value);
+    const side   = document.getElementById('dca-side').value;
+    if (!base || !safety || !maxSO || !dev || !tp) { showToast('Fill all DCA fields', 'err'); return; }
+    config = { symbol, side, base_order_size: base, safety_order_size: safety, max_safety_orders: maxSO, price_deviation: dev, take_profit: tp };
+  } else {
+    const upper  = parseFloat(document.getElementById('grid-upper').value);
+    const lower  = parseFloat(document.getElementById('grid-lower').value);
+    const levels = parseInt(document.getElementById('grid-levels').value);
+    const ordSz  = parseFloat(document.getElementById('grid-order-size').value);
+    const side   = document.getElementById('grid-side').value;
+    if (!upper || !lower || !levels || !ordSz) { showToast('Fill all Grid fields', 'err'); return; }
+    if (upper <= lower) { showToast('Upper price must be > Lower price', 'err'); return; }
+    config = { symbol, side, upper_price: upper, lower_price: lower, grid_levels: levels, order_size: ordSz };
+  }
+
+  document.getElementById('bot-cap-warn').style.display = 'none';
+  try {
+    const r = await fetch('/api/bots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, type: currentBotType, symbol, config }),
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      const w = document.getElementById('bot-cap-warn');
+      w.textContent = d.error;
+      w.style.display = '';
+      return;
+    }
+    closeModal('modal-bot');
+    showToast(`Bot "${name}" launched!`, 'ok');
+    fetchBots();
+  } catch (e) { showToast('Network error', 'err'); }
 }
 
-function toggleBot(id, status) {
-  const b = state.bots.find(b => b.id === id);
-  if (b) { b.status = status; save(); renderBots(); updateStats(); }
+async function pauseBot(id) {
+  try {
+    const d = await (await fetch(`/api/bots/${id}/pause`, { method: 'PATCH' })).json();
+    if (!d.ok) { showToast(d.error, 'err'); return; }
+    showToast('Bot paused', 'ok'); fetchBots();
+  } catch { showToast('Network error', 'err'); }
 }
 
-function removeBot(id) {
-  if (!confirm('Remove this bot?')) return;
-  state.bots = state.bots.filter(b => b.id !== id);
-  save(); renderBots(); updateStats();
+async function resumeBot(id) {
+  try {
+    const d = await (await fetch(`/api/bots/${id}/resume`, { method: 'PATCH' })).json();
+    if (!d.ok) { showToast(d.error, 'err'); return; }
+    showToast('Bot resumed', 'ok'); fetchBots();
+  } catch { showToast('Network error', 'err'); }
+}
+
+async function stopBot(id, name) {
+  if (!confirm(`Stop "${name}" and cancel all open orders?`)) return;
+  try {
+    const d = await (await fetch(`/api/bots/${id}`, { method: 'DELETE' })).json();
+    if (!d.ok) { showToast(d.error, 'err'); return; }
+    showToast('Bot stopped', 'ok'); fetchBots();
+  } catch { showToast('Network error', 'err'); }
+}
+
+async function fetchBots() {
+  try {
+    const d = await (await fetch('/api/bots')).json();
+    if (!d.ok) return;
+    botsData = d.bots;
+    renderBots();
+    updateStats();
+  } catch {}
 }
 
 function renderBots() {
   const g = document.getElementById('bots-grid');
-  if (!state.bots.length) {
+  if (!botsData.length) {
     g.innerHTML = `<div class="add-card" onclick="openAddBot()"><div class="add-icon">+</div><div>Add First Bot</div></div>`;
     return;
   }
-  g.innerHTML = state.bots.map(b => {
-    const pnl = b.pnl || 0;
+  g.innerHTML = botsData.map(b => {
+    const cfg    = b.config || {};
+    const stats  = b.stats  || {};
+    const pnl    = parseFloat(stats.total_pnl      || 0);
+    const unreal = parseFloat(stats.unrealised_pnl || 0);
     const pnlStr = (pnl >= 0 ? '+' : '') + '$' + Math.abs(pnl).toFixed(2);
-    const pnlClass = pnl >= 0 ? 'pos' : 'neg';
-    return `<div class="bot-card ${b.status}">
+    const pnlCls = pnl >= 0 ? 'pos' : 'neg';
+    const tc     = parseInt(b.trade_count || 0);
+    const oo     = parseInt(b.open_orders || 0);
+    const sLabel = b.status === 'active' ? 'running' : b.status;
+    const tLabel = b.type === 'dca' ? 'DCA' : 'Grid';
+    const sInfo  = b.type === 'dca'
+      ? `SO ${cfg.state?.safety_orders_placed || 0}/${cfg.max_safety_orders || '?'} · TP ${cfg.take_profit || '?'}%`
+      : `${cfg.grid_levels || '?'} levels · $${cfg.lower_price}–$${cfg.upper_price}`;
+    const unrealStr = unreal !== 0
+      ? ` · <span class="${unreal >= 0 ? 'pos' : 'neg'}">${unreal >= 0 ? '+' : ''}$${Math.abs(unreal).toFixed(2)} unreal</span>`
+      : '';
+    const safeName = b.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return `<div class="bot-card ${sLabel}">
       <div class="bot-header">
-        <div><div class="bot-name">${b.name}</div><div class="bot-pair">${b.pair} · ${b.tf} · ${b.exchange}</div></div>
-        <span class="badge ${b.status}">${b.status}</span>
+        <div><div class="bot-name">${b.name}</div><div class="bot-pair">${b.symbol} · ${tLabel} · ${(cfg.side||'').toUpperCase()}</div></div>
+        <span class="badge ${sLabel}">${sLabel}</span>
       </div>
-      <div class="bot-strat">${b.strat}</div>
-      <div class="bot-pnl ${pnlClass}">${pnlStr}</div>
+      <div class="bot-strat">${sInfo}</div>
+      <div class="bot-strat" style="margin-top:-8px;">${tc} trades · ${oo} open orders${unrealStr}</div>
+      <div class="bot-pnl ${pnlCls}">${pnlStr}</div>
       <div class="bot-actions">
-        ${b.status !== 'running'
-          ? `<button class="btn sm success" onclick="toggleBot(${b.id},'running')">▶ Start</button>`
-          : `<button class="btn sm" onclick="toggleBot(${b.id},'paused')">⏸ Pause</button>`}
-        ${b.status === 'running' ? `<button class="btn sm danger" onclick="toggleBot(${b.id},'stopped')">⏹ Stop</button>` : ''}
-        <button class="btn sm danger" onclick="removeBot(${b.id})">Remove</button>
+        ${b.status === 'active'
+          ? `<button class="btn sm" onclick="pauseBot(${b.id})">⏸ Pause</button>`
+          : (b.status === 'paused' || b.status === 'error')
+          ? `<button class="btn sm success" onclick="resumeBot(${b.id})">▶ Resume</button>`
+          : ''}
+        ${b.status !== 'stopped'
+          ? `<button class="btn sm danger" onclick="stopBot(${b.id},'${safeName}')">⏹ Stop</button>`
+          : ''}
       </div>
     </div>`;
   }).join('') + `<div class="add-card" onclick="openAddBot()"><div class="add-icon">+</div><div>Add Bot</div></div>`;
-  updateStats();
 }
 
 // ── JOURNAL ────────────────────────────────────────────
@@ -2259,12 +2396,12 @@ function updateStats() {
   const todayPnl = todayT.reduce((a,t) => a + (t.pnl||0), 0);
   const rrs = trades.map(t=>t.rr).filter(r=>r&&!isNaN(r));
   const avgRR = rrs.length ? (rrs.reduce((a,b)=>a+b,0)/rrs.length).toFixed(2) : '—';
-  const active = state.bots.filter(b=>b.status==='running').length;
+  const active = botsData.filter(b => b.status === 'active').length;
 
   document.getElementById('s-wr').textContent = wr + '%';
   document.getElementById('s-wrtrades').textContent = trades.length + ' trades';
   document.getElementById('s-bots').textContent = active;
-  document.getElementById('s-botstotal').textContent = state.bots.length + ' total';
+  document.getElementById('s-botstotal').textContent = botsData.length + ' total';
   document.getElementById('s-rr').textContent = avgRR === '—' ? '—' : avgRR + ':1';
 }
 
@@ -2806,6 +2943,8 @@ function startLiveDashboard() {
   fetchBalance(true);
   startTickerWs();
   initLiveEquityChart();
+  fetchBots();
+  setInterval(fetchBots, 15000);
   updateBtcSpikeToggle();
   setInterval(checkBtcSpike, 30000);
   setInterval(() => {
