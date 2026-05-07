@@ -565,6 +565,40 @@ tr:hover td { background: rgba(255,255,255,.015); }
   .nav-btn { padding: 5px 10px; font-size: 11px; }
 }
 
+/* ── Algo Admin Panel ────────────────────────────────── */
+.algo-section-label {
+  font-size: 10px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--muted2); margin-bottom: 12px;
+}
+.at-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); gap: 12px; margin-bottom: 24px; }
+.at-card {
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: var(--r2); padding: 16px;
+}
+.at-card.inactive { opacity: .5; }
+.at-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.at-card-name { font-size: 13px; font-weight: 700; }
+.at-card-badges { display: flex; gap: 5px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+.at-badge { font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 2px 7px; border-radius: 20px; }
+.at-badge-type { background: var(--bg4); color: var(--muted2); }
+.at-badge-active { background: rgba(0,200,150,.1); color: var(--accent); }
+.at-badge-paused { background: rgba(237,137,54,.1); color: var(--amber); }
+.at-desc { font-size: 11px; color: var(--muted2); line-height: 1.5; margin-bottom: 10px; }
+.at-stats { display: flex; gap: 14px; margin-bottom: 12px; }
+.at-stat-label { font-size: 9px; color: var(--muted2); text-transform: uppercase; letter-spacing: .04em; }
+.at-stat-val { font-size: 12px; font-family: var(--font-mono); font-weight: 700; }
+.at-actions { display: flex; gap: 6px; }
+.risk-pill { font-size: 9px; font-weight: 700; border-radius: 20px; padding: 2px 8px; letter-spacing: .04em; text-transform: uppercase; }
+.risk-Low  { background: rgba(72,187,120,.1);  color: var(--green); }
+.risk-Medium { background: rgba(237,137,54,.1); color: var(--amber); }
+.risk-High { background: rgba(245,101,101,.1); color: var(--red); }
+.au-table-wrap { overflow-x: auto; }
+.au-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.au-table th { padding: 8px 12px; text-align: left; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted2); border-bottom: 1px solid var(--border2); white-space: nowrap; }
+.au-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.au-table tr:last-child td { border-bottom: none; }
+.au-table tr:hover td { background: rgba(255,255,255,.02); }
+
 /* ── Bot Modal Redesign (bm-) ─────────────────────────── */
 .bm-modal { width: min(600px, 96vw); max-height: 92vh; overflow-y: auto; padding: 0; }
 .bm-header {
@@ -671,6 +705,7 @@ tr:hover td { background: rgba(255,255,255,.015); }
     <button class="nav-btn" onclick="showPanel('pnl',this)">P&amp;L</button>
     <button class="nav-btn" onclick="showPanel('alerts',this)">🔔 Alerts</button>
     <button class="nav-btn" onclick="showPanel('api',this)">API</button>
+    <button class="nav-btn" onclick="showPanel('algo',this)">Algo</button>
   </nav>
   <div class="conn-badge">
     <div class="conn-dot" id="conn-dot"></div>
@@ -1083,6 +1118,80 @@ tr:hover td { background: rgba(255,255,255,.015); }
     </div>
   </div>
 
+  <!-- ALGO ADMIN -->
+  <div class="panel" id="panel-algo">
+    <div class="section-head">
+      <div class="section-title">Algo Access</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn sm" onclick="fetchAlgoAdmin()">↻ Refresh</button>
+        <a href="/algo" target="_blank" class="btn sm" style="text-decoration:none;">↗ Client Page</a>
+        <button class="btn accent" onclick="openAddTemplate()">+ Template</button>
+      </div>
+    </div>
+
+    <div class="algo-section-label">Bot Templates</div>
+    <div class="at-grid" id="algo-templates-grid">
+      <div style="color:var(--muted2);font-size:12px;grid-column:1/-1;">Loading...</div>
+    </div>
+
+    <div class="algo-section-label" style="margin-top:8px;">Connected Clients</div>
+    <div class="card" style="padding:0;overflow:hidden;">
+      <div class="au-table-wrap">
+        <table class="au-table" id="algo-users-table">
+          <thead><tr>
+            <th>UID</th><th>Template</th><th>Capital</th><th>Bot Status</th>
+            <th style="text-align:right;">P&amp;L</th><th style="text-align:right;">Trades</th><th>Joined</th>
+          </tr></thead>
+          <tbody id="algo-users-body">
+            <tr><td colspan="7" style="text-align:center;color:var(--muted2);padding:24px 0;">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ALGO TEMPLATE MODAL -->
+<div class="overlay" id="modal-algo-template">
+  <div class="modal" style="width:min(520px,96vw);max-height:92vh;overflow-y:auto;">
+    <div class="modal-title" id="tmpl-modal-title">Add Template</div>
+
+    <div class="fields-2">
+      <div class="field"><label>Name</label><input type="text" id="tmpl-name" placeholder="e.g. BTC DCA Conservative"></div>
+      <div class="field"><label>Symbol</label><input type="text" id="tmpl-symbol" value="BTCUSDT" style="text-transform:uppercase;"></div>
+    </div>
+    <div class="field"><label>Description</label>
+      <textarea id="tmpl-desc" rows="2" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:12px;padding:8px 10px;outline:none;resize:vertical;font-family:var(--font-display);" placeholder="Describe strategy for clients..."></textarea>
+    </div>
+    <div class="fields-2">
+      <div class="field"><label>Type</label>
+        <select id="tmpl-type" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:12px;padding:8px 10px;outline:none;">
+          <option value="dca">DCA</option><option value="grid">Grid</option>
+        </select>
+      </div>
+      <div class="field"><label>Risk Level</label>
+        <select id="tmpl-risk" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:12px;padding:8px 10px;outline:none;">
+          <option value="Low">Low</option><option value="Medium" selected>Medium</option><option value="High">High</option>
+        </select>
+      </div>
+    </div>
+    <div class="fields-2">
+      <div class="field"><label>Est. Monthly Return (%)</label><input type="number" id="tmpl-monthly" placeholder="e.g. 8.5" step="0.1" min="0"></div>
+      <div class="field"><label>Min Capital ($)</label><input type="number" id="tmpl-mincap" value="50" min="1"></div>
+    </div>
+    <div class="field"><label>Bot Config (JSON)</label>
+      <textarea id="tmpl-config" rows="5" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:11px;padding:8px 10px;outline:none;resize:vertical;font-family:var(--font-mono);" placeholder='{"base_order_size":100,"safety_order_size":150,"max_safety_orders":5,"price_deviation":2,"take_profit":1.5,"side":"LONG"}'></textarea>
+      <div style="font-size:10px;color:var(--muted2);margin-top:4px;">DCA keys: base_order_size, safety_order_size, max_safety_orders, price_deviation, take_profit, side · Grid keys: upper_price, lower_price, grid_levels, order_size, side</div>
+    </div>
+
+    <div id="tmpl-err" style="display:none;color:var(--red);font-size:11px;margin-bottom:12px;padding:8px;background:rgba(245,101,101,.06);border-radius:var(--r);border:1px solid rgba(245,101,101,.2);"></div>
+
+    <div class="modal-actions">
+      <button class="btn sm" onclick="closeModal('modal-algo-template')">Cancel</button>
+      <button class="btn accent sm" onclick="saveTemplate()">Save Template</button>
+    </div>
+  </div>
 </div>
 
 <!-- TP/SL MODAL -->
@@ -1328,6 +1437,7 @@ function showPanel(id, el) {
   if (id === 'pnl')     { setTimeout(renderCharts, 50); fetchPnlHistory(); fetchPnlWeekdays(); }
   if (id === 'alerts')  { renderAlertsList(); requestAlertPermission(); }
   if (id === 'journal') fetchJournalDB();
+  if (id === 'algo')    fetchAlgoAdmin();
   if (id === 'positions') startPositionsRefresh();
   else stopPositionsRefresh();
 }
@@ -3412,6 +3522,163 @@ async function checkBtcSpike() {
       showToast(msg, diff > 0 ? 'ok' : 'err');
     }
   } catch(e) {}
+}
+
+// ── ALGO ADMIN ─────────────────────────────────────────
+let algoTemplateEditId = null;
+
+async function fetchAlgoAdmin() {
+  try {
+    const [td, ud] = await Promise.all([
+      fetch('/api/algo/admin/templates').then(r => r.json()),
+      fetch('/api/algo/admin/users').then(r => r.json()),
+    ]);
+    if (td.ok) renderAlgoTemplates(td.templates);
+    if (ud.ok) renderAlgoUsers(ud.users);
+  } catch { showToast('Failed to load algo data', 'err'); }
+}
+
+function renderAlgoTemplates(templates) {
+  const g = document.getElementById('algo-templates-grid');
+  if (!templates.length) {
+    g.innerHTML = `<div style="color:var(--muted2);font-size:12px;grid-column:1/-1;">No templates yet — click + Template to add one.</div>`;
+    return;
+  }
+  g.innerHTML = templates.map(t => {
+    const riskClass = `risk-${t.risk_level || 'Medium'}`;
+    const monthly   = t.est_monthly_pct != null ? `+${parseFloat(t.est_monthly_pct).toFixed(1)}%` : '—';
+    const activeLabel = t.active ? 'active' : 'paused';
+    return `<div class="at-card ${t.active ? '' : 'inactive'}">
+      <div class="at-card-head">
+        <div class="at-card-name">${t.name}</div>
+        <div class="at-card-badges">
+          <span class="risk-pill ${riskClass}">${t.risk_level||'Med'}</span>
+          <span class="at-badge at-badge-type">${t.type.toUpperCase()}</span>
+          <span class="at-badge ${t.active ? 'at-badge-active' : 'at-badge-paused'}">${activeLabel}</span>
+        </div>
+      </div>
+      <div class="at-desc">${t.description || '<em style="color:var(--muted)">No description</em>'}</div>
+      <div class="at-stats">
+        <div class="at-stat"><div class="at-stat-label">Symbol</div><div class="at-stat-val">${t.symbol}</div></div>
+        <div class="at-stat"><div class="at-stat-label">Monthly</div><div class="at-stat-val" style="color:var(--green);">${monthly}</div></div>
+        <div class="at-stat"><div class="at-stat-label">Min $</div><div class="at-stat-val">$${parseFloat(t.min_capital||50).toFixed(0)}</div></div>
+      </div>
+      <div class="at-actions">
+        <button class="btn sm" onclick="openEditTemplate(${t.id})">✏️ Edit</button>
+        <button class="btn sm ${t.active ? 'danger' : 'success'}" onclick="toggleTemplate(${t.id})">${t.active ? '⏸ Disable' : '▶ Enable'}</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderAlgoUsers(users) {
+  const tbody = document.getElementById('algo-users-body');
+  if (!users.length) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted2);padding:24px 0;">No clients connected yet.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = users.map(u => {
+    const pnl     = parseFloat(u.pnl || 0);
+    const pnlCls  = pnl >= 0 ? 'pos' : 'neg';
+    const pnlStr  = `<span class="${pnlCls}">${pnl >= 0 ? '+' : ''}$${Math.abs(pnl).toFixed(2)}</span>`;
+    const botSt   = u.bot_status || u.status || '—';
+    const stColor = botSt === 'active' ? 'var(--green)' : botSt === 'stopped' ? 'var(--muted2)' : 'var(--amber)';
+    const joined  = u.created_at ? new Date(u.created_at).toLocaleDateString('pl-PL') : '—';
+    const uid     = u.uid || '—';
+    return `<tr>
+      <td style="font-family:var(--font-mono);font-size:11px;color:var(--muted2);">${uid}</td>
+      <td>${u.template_name || '—'}<span style="font-size:10px;color:var(--muted2);margin-left:6px;">${u.symbol||''}</span></td>
+      <td style="font-family:var(--font-mono);">$${parseFloat(u.allocated_capital||0).toFixed(2)}</td>
+      <td><span style="color:${stColor};font-weight:700;font-size:11px;">● ${botSt}</span></td>
+      <td style="text-align:right;font-family:var(--font-mono);">${pnlStr}</td>
+      <td style="text-align:right;font-family:var(--font-mono);">${u.trade_count||0}</td>
+      <td style="font-size:11px;color:var(--muted2);">${joined}</td>
+    </tr>`;
+  }).join('');
+}
+
+function openAddTemplate() {
+  algoTemplateEditId = null;
+  document.getElementById('tmpl-modal-title').textContent = 'Add Template';
+  ['tmpl-name','tmpl-symbol','tmpl-desc','tmpl-monthly','tmpl-config'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.getElementById('tmpl-symbol').value = 'BTCUSDT';
+  document.getElementById('tmpl-mincap').value  = '50';
+  document.getElementById('tmpl-type').value    = 'dca';
+  document.getElementById('tmpl-risk').value    = 'Medium';
+  document.getElementById('tmpl-err').style.display = 'none';
+  document.getElementById('modal-algo-template').classList.add('open');
+  setTimeout(() => document.getElementById('tmpl-name').focus(), 100);
+}
+
+function openEditTemplate(id) {
+  fetchAlgoAdmin().then(() => {
+    const grid = document.getElementById('algo-templates-grid');
+    if (!grid) return;
+  });
+  fetch('/api/algo/admin/templates').then(r => r.json()).then(d => {
+    if (!d.ok) return;
+    const t = d.templates.find(x => x.id === id);
+    if (!t) return;
+    algoTemplateEditId = id;
+    document.getElementById('tmpl-modal-title').textContent = `Edit Template — ${t.name}`;
+    document.getElementById('tmpl-name').value    = t.name;
+    document.getElementById('tmpl-symbol').value  = t.symbol;
+    document.getElementById('tmpl-desc').value    = t.description || '';
+    document.getElementById('tmpl-type').value    = t.type;
+    document.getElementById('tmpl-risk').value    = t.risk_level || 'Medium';
+    document.getElementById('tmpl-monthly').value = t.est_monthly_pct != null ? t.est_monthly_pct : '';
+    document.getElementById('tmpl-mincap').value  = t.min_capital || 50;
+    document.getElementById('tmpl-config').value  = JSON.stringify(t.config || {}, null, 2);
+    document.getElementById('tmpl-err').style.display = 'none';
+    document.getElementById('modal-algo-template').classList.add('open');
+  });
+}
+
+async function saveTemplate() {
+  const name        = document.getElementById('tmpl-name').value.trim();
+  const symbol      = document.getElementById('tmpl-symbol').value.trim().toUpperCase();
+  const description = document.getElementById('tmpl-desc').value.trim();
+  const type        = document.getElementById('tmpl-type').value;
+  const risk_level  = document.getElementById('tmpl-risk').value;
+  const monthly     = document.getElementById('tmpl-monthly').value;
+  const mincap      = document.getElementById('tmpl-mincap').value;
+  const configRaw   = document.getElementById('tmpl-config').value.trim();
+  const errEl       = document.getElementById('tmpl-err');
+  errEl.style.display = 'none';
+
+  if (!name || !symbol) { errEl.textContent = 'Name and Symbol are required'; errEl.style.display = ''; return; }
+  let config = {};
+  if (configRaw) {
+    try { config = JSON.parse(configRaw); }
+    catch { errEl.textContent = 'Config JSON is invalid'; errEl.style.display = ''; return; }
+  }
+
+  const body = {
+    name, symbol, description, type, config, risk_level,
+    est_monthly_pct: monthly ? parseFloat(monthly) : null,
+    min_capital:     mincap  ? parseFloat(mincap)  : 50,
+  };
+
+  try {
+    const url    = algoTemplateEditId ? `/api/algo/admin/templates/${algoTemplateEditId}` : '/api/algo/admin/templates';
+    const method = algoTemplateEditId ? 'PATCH' : 'POST';
+    const d = await (await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
+    if (!d.ok) { errEl.textContent = d.error; errEl.style.display = ''; return; }
+    closeModal('modal-algo-template');
+    showToast(algoTemplateEditId ? 'Template updated' : 'Template created', 'ok');
+    fetchAlgoAdmin();
+  } catch { errEl.textContent = 'Network error'; errEl.style.display = ''; }
+}
+
+async function toggleTemplate(id) {
+  try {
+    const d = await (await fetch(`/api/algo/admin/templates/${id}/toggle`, { method: 'PATCH' })).json();
+    if (!d.ok) { showToast(d.error, 'err'); return; }
+    showToast(d.template.active ? 'Template enabled' : 'Template disabled', 'ok');
+    fetchAlgoAdmin();
+  } catch { showToast('Network error', 'err'); }
 }
 
 function startLiveDashboard() {

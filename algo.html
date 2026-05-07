@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>WaleszDesk · Algo Access</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg0:#080a0d;--bg1:#0d1117;--bg2:#111820;--bg3:#161e28;--bg4:#1c2530;
+--border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.11);
+--text:#e2e8f0;--muted:#4a5568;--muted2:#718096;
+--accent:#00c896;--red:#f56565;--green:#48bb78;--amber:#ed8936;
+--r:8px;--r2:12px;--r3:16px;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg0);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;display:flex;flex-direction:column}
+.topbar{position:sticky;top:0;z-index:100;background:var(--bg1);border-bottom:1px solid var(--border2);display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:52px}
+.topbar-logo{display:flex;align-items:center;gap:10px}
+.logo-text{font-size:15px;font-weight:700;letter-spacing:0.04em}
+.logo-text .wd{color:var(--text)}
+.logo-text .desk{color:var(--accent);font-style:italic}
+.logo-divider{color:var(--muted);margin:0 2px}
+.logo-sub{color:var(--muted2);font-size:13px;font-weight:500}
+.topbar-status{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted2);padding:4px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);letter-spacing:0.02em}
+.main{flex:1;display:flex;flex-direction:column;align-items:center;padding:32px 16px 64px}
+#stepper{display:flex;align-items:center;justify-content:center;margin-bottom:32px;gap:0;width:100%;max-width:480px}
+.step-item{display:flex;flex-direction:column;align-items:center;gap:8px;position:relative;z-index:1}
+.step-dot{width:32px;height:32px;border-radius:50%;border:2px solid var(--border2);background:var(--bg3);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:11px;font-weight:500;color:var(--muted2);transition:all .3s ease;position:relative}
+.step-label{font-size:11px;font-weight:500;color:var(--muted);letter-spacing:0.03em;white-space:nowrap;transition:color .3s}
+.step-line{flex:1;height:2px;background:var(--border2);transition:background .3s;margin-bottom:20px;min-width:32px}
+.step-item.active .step-dot{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,200,150,0.15),0 0 12px rgba(0,200,150,0.25);color:var(--accent)}
+.step-item.active .step-label{color:var(--accent)}
+.step-item.done .step-dot{border-color:var(--accent);background:var(--accent);color:#fff;font-size:13px}
+.step-item.done .step-label{color:var(--accent)}
+.step-line.done{background:var(--accent)}
+.card{background:var(--bg1);border:1px solid var(--border2);border-radius:var(--r3);padding:28px;width:100%;max-width:480px;margin-bottom:0}
+.card-title{font-size:18px;font-weight:700;margin-bottom:6px}
+.card-sub{color:var(--muted2);font-size:13px;line-height:1.6;margin-bottom:24px}
+.field-group{display:flex;flex-direction:column;gap:16px;margin-bottom:20px}
+.field-wrap{display:flex;flex-direction:column;gap:6px}
+.field-label{font-size:12px;font-weight:600;color:var(--muted2);letter-spacing:0.04em;text-transform:uppercase}
+.field-row{display:flex;gap:0}
+input[type=text],input[type=password],input[type=number]{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:10px 14px;width:100%;outline:none;transition:border-color .2s}
+input[type=text]:focus,input[type=password]:focus,input[type=number]:focus{border-color:var(--accent)}
+input[type=number]{-moz-appearance:textfield}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}
+.vis-btn{background:var(--bg3);border:1px solid var(--border2);border-left:none;border-radius:0 var(--r) var(--r) 0;color:var(--muted2);cursor:pointer;font-size:14px;padding:0 12px;transition:color .2s}
+.vis-btn:hover{color:var(--text)}
+input.has-btn{border-radius:var(--r) 0 0 var(--r)}
+.btn{border-radius:var(--r2);cursor:pointer;font-family:'Syne',sans-serif;font-size:14px;font-weight:600;padding:11px 20px;transition:all .2s;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:none}
+.btn-outline-green{background:transparent;border:1.5px solid var(--accent);color:var(--accent)}
+.btn-outline-green:hover:not(:disabled){background:rgba(0,200,150,0.08)}
+.btn-grad{background:linear-gradient(135deg,#00c896,#00a87a);color:#fff;box-shadow:0 4px 14px rgba(0,200,150,0.25)}
+.btn-grad:hover:not(:disabled){box-shadow:0 4px 20px rgba(0,200,150,0.4);transform:translateY(-1px)}
+.btn:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+.btn-full{width:100%}
+.spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner.show{display:block}
+.msg-box{border-radius:var(--r);padding:12px 14px;font-size:13px;line-height:1.55;display:none}
+.msg-box.show{display:block}
+.msg-success{background:rgba(72,187,120,0.1);border:1px solid rgba(72,187,120,0.3);color:var(--green)}
+.msg-error{background:rgba(245,101,101,0.1);border:1px solid rgba(245,101,101,0.3);color:var(--red)}
+.continue-wrap{margin-top:16px}
+.algo-step{display:none}
+.algo-step.active{display:block}
+.bot-list{display:flex;flex-direction:column;gap:12px;margin-bottom:20px}
+.bot-tmpl{background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--r2);padding:16px;cursor:pointer;transition:all .2s}
+.bot-tmpl:hover{border-color:var(--border2);background:var(--bg3)}
+.bot-tmpl.selected{border-color:var(--accent);box-shadow:0 0 0 1px rgba(0,200,150,0.2),0 0 16px rgba(0,200,150,0.1)}
+.bot-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px}
+.bot-name{font-size:14px;font-weight:700}
+.bot-badges{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px;font-family:'DM Mono',monospace;letter-spacing:0.03em;text-transform:uppercase}
+.badge-type{background:rgba(255,255,255,0.07);color:var(--muted2)}
+.badge-low{background:rgba(72,187,120,0.15);color:var(--green)}
+.badge-med{background:rgba(237,137,54,0.15);color:var(--amber)}
+.badge-high{background:rgba(245,101,101,0.15);color:var(--red)}
+.bot-desc{font-size:12px;color:var(--muted2);line-height:1.55;margin-bottom:10px}
+.bot-stats{display:flex;gap:16px;flex-wrap:wrap}
+.bot-stat{display:flex;flex-direction:column;gap:2px}
+.bot-stat-label{font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:0.04em}
+.bot-stat-val{font-size:12px;font-weight:600;font-family:'DM Mono',monospace;color:var(--text)}
+.capital-hint{font-size:12px;color:var(--muted2);margin-top:8px;font-family:'DM Mono',monospace}
+.preview-box{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r2);padding:16px;margin-top:16px;display:none}
+.preview-box.show{display:block}
+.preview-title{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px}
+.preview-rows{display:flex;flex-direction:column;gap:8px}
+.preview-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.preview-row-label{font-size:12px;color:var(--muted2)}
+.preview-row-val{font-size:12px;font-weight:600;font-family:'DM Mono',monospace;color:var(--text);text-align:right}
+.preview-divider{height:1px;background:var(--border);margin:4px 0}
+.done-card{text-align:center;padding:40px 28px}
+.done-icon{font-size:56px;margin-bottom:16px;line-height:1}
+.done-title{font-size:22px;font-weight:800;margin-bottom:8px}
+.done-sub{color:var(--muted2);font-size:13px;line-height:1.6;margin-bottom:24px}
+.status-box{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r2);padding:16px;text-align:left}
+.status-rows{display:flex;flex-direction:column;gap:10px}
+.status-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.status-row-label{font-size:12px;color:var(--muted2)}
+.status-row-val{font-size:12px;font-weight:600;font-family:'DM Mono',monospace;color:var(--text);text-align:right}
+.live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 6px rgba(72,187,120,0.6);margin-right:5px;animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+.empty-state{text-align:center;padding:32px 16px;color:var(--muted2);font-size:13px}
+@media(max-width:520px){.topbar{padding:0 16px}.main{padding:24px 12px 48px}.card{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-logo">
+    <span class="logo-text"><span class="wd">WALESZ</span><span class="desk">DESK</span></span>
+    <span class="logo-divider">/</span>
+    <span class="logo-sub">Algo</span>
+  </div>
+  <span class="topbar-status" id="topbar-status">Not connected</span>
+</div>
+
+<div class="main">
+  <div id="stepper">
+    <div class="step-item" id="s1">
+      <div class="step-dot">1</div>
+      <div class="step-label">Connect</div>
+    </div>
+    <div class="step-line" id="line-1-2"></div>
+    <div class="step-item" id="s2">
+      <div class="step-dot">2</div>
+      <div class="step-label">Choose Bot</div>
+    </div>
+    <div class="step-line" id="line-2-3"></div>
+    <div class="step-item" id="s3">
+      <div class="step-dot">3</div>
+      <div class="step-label">Capital</div>
+    </div>
+  </div>
+
+  <div id="step-1" class="algo-step">
+    <div class="card">
+      <div class="card-title">🔗 Connect Bybit</div>
+      <div class="card-sub">Enter your Bybit API credentials. Read-only access is sufficient to verify. Trading permissions are required to launch bots.</div>
+      <div class="field-group">
+        <div class="field-wrap">
+          <div class="field-label">API Key</div>
+          <input type="text" id="s1-key" placeholder="Enter your Bybit API key" autocomplete="off" spellcheck="false"/>
+        </div>
+        <div class="field-wrap">
+          <div class="field-label">API Secret</div>
+          <div class="field-row">
+            <input type="password" id="s1-secret" class="has-btn" placeholder="Enter your API secret" autocomplete="off" spellcheck="false"/>
+            <button class="vis-btn" id="s1-vis" type="button" onclick="toggleVis('s1-secret','s1-vis')">👁</button>
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-outline-green" id="s1-connect-btn" onclick="verifyKeys()">
+        <span id="s1-spin" class="spinner"></span>
+        Connect &amp; Verify
+      </button>
+      <div class="msg-box msg-success" id="s1-success" style="margin-top:14px"></div>
+      <div class="msg-box msg-error" id="s1-error" style="margin-top:14px"></div>
+      <div class="continue-wrap" id="s1-continue" style="display:none">
+        <button class="btn btn-grad btn-full" onclick="goStep(2)">Continue →</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="step-2" class="algo-step">
+    <div class="card">
+      <div class="card-title">🤖 Choose a Strategy</div>
+      <div class="card-sub">Select a pre-built bot template. Each strategy has different risk profiles, symbols, and capital requirements.</div>
+      <div class="bot-list" id="bot-templates-list"></div>
+      <div class="msg-box msg-error" id="s2-error"></div>
+      <div class="continue-wrap" id="s2-continue" style="display:none">
+        <button class="btn btn-grad btn-full" onclick="goStep(3)">Continue →</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="step-3" class="algo-step">
+    <div class="card">
+      <div class="card-title">💰 Allocate Capital</div>
+      <div class="card-sub">Set how much of your balance to allocate to this bot. You can adjust or stop at any time.</div>
+      <div class="field-wrap">
+        <div class="field-label">Allocated Capital (USD)</div>
+        <input type="number" id="s3-capital" placeholder="0.00" min="0" step="0.01" oninput="updatePreview()"/>
+      </div>
+      <div class="capital-hint">Min <span id="s3-min">$50</span> · Max 50% of balance (<span id="s3-max">—</span>)</div>
+      <div class="preview-box" id="s3-preview">
+        <div class="preview-title">Deployment Preview</div>
+        <div class="preview-rows">
+          <div class="preview-row"><span class="preview-row-label">Strategy</span><span class="preview-row-val" id="prev-strategy">—</span></div>
+          <div class="preview-row"><span class="preview-row-label">Symbol</span><span class="preview-row-val" id="prev-symbol">—</span></div>
+          <div class="preview-divider"></div>
+          <div class="preview-row"><span class="preview-row-label">Allocated Capital</span><span class="preview-row-val" id="prev-capital">—</span></div>
+          <div class="preview-row"><span class="preview-row-label">Est. Monthly Return</span><span class="preview-row-val" id="prev-monthly">—</span></div>
+          <div class="preview-row"><span class="preview-row-label">Risk</span><span class="preview-row-val" id="prev-risk">—</span></div>
+        </div>
+      </div>
+      <div class="msg-box msg-error" id="s3-error" style="margin-top:16px"></div>
+      <div style="margin-top:20px">
+        <button class="btn btn-grad btn-full" id="s3-launch" onclick="launchBot()">
+          <span id="s3-spin" class="spinner"></span>
+          Launch Bot
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="step-done" class="algo-step">
+    <div class="card done-card">
+      <div class="done-icon">✅</div>
+      <div class="done-title">Bot is Live!</div>
+      <div class="done-sub">Your strategy is now active and running. You can monitor performance from the WaleszDesk dashboard.</div>
+      <div class="status-box">
+        <div class="status-rows" id="done-status"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let algoState = {
+  step: 1,
+  apiKey: null,
+  apiSecret: null,
+  balance: null,
+  uid: null,
+  selectedTemplateId: null,
+  templates: []
+};
+
+async function deriveKey(pw) {
+  const enc = new TextEncoder();
+  const km = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name:'PBKDF2', salt:enc.encode('wdalgosalt'), iterations:100000, hash:'SHA-256' }, km, {name:'AES-GCM',length:256}, false, ['encrypt','decrypt']);
+}
+
+async function encryptStr(text, pw) {
+  const key = await deriveKey(pw);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({name:'AES-GCM',iv}, key, new TextEncoder().encode(text));
+  const buf = new Uint8Array(12+ct.byteLength); buf.set(iv); buf.set(new Uint8Array(ct),12);
+  return btoa(String.fromCharCode(...buf));
+}
+
+function toggleVis(inputId, btnId) {
+  const inp = document.getElementById(inputId);
+  const btn = document.getElementById(btnId);
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    btn.textContent = '🙈';
+  } else {
+    inp.type = 'password';
+    btn.textContent = '👁';
+  }
+}
+
+function setStepperState(active) {
+  ['s1','s2','s3'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    el.classList.remove('active','done');
+    const dot = el.querySelector('.step-dot');
+    const n = i + 1;
+    if (n < active) {
+      el.classList.add('done');
+      dot.textContent = '✓';
+    } else if (n === active) {
+      el.classList.add('active');
+      dot.textContent = String(n);
+    } else {
+      dot.textContent = String(n);
+    }
+  });
+  const l1 = document.getElementById('line-1-2');
+  const l2 = document.getElementById('line-2-3');
+  l1.classList.toggle('done', active > 1);
+  l2.classList.toggle('done', active > 2);
+}
+
+function goStep(n) {
+  document.querySelectorAll('.algo-step').forEach(el => el.classList.remove('active'));
+  if (n === 'done') {
+    document.getElementById('step-done').classList.add('active');
+  } else {
+    document.getElementById('step-' + n).classList.add('active');
+    algoState.step = n;
+    setStepperState(n);
+    if (n === 2 && !algoState.templates.length) loadTemplates();
+    if (n === 3) updatePreview();
+  }
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+function showErr(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.classList.add('show');
+}
+
+function hideErr(id) {
+  const el = document.getElementById(id);
+  el.classList.remove('show');
+  el.textContent = '';
+}
+
+async function verifyKeys() {
+  const key = document.getElementById('s1-key').value.trim();
+  const secret = document.getElementById('s1-secret').value.trim();
+  hideErr('s1-error');
+  document.getElementById('s1-success').classList.remove('show');
+  if (!key || !secret) {
+    showErr('s1-error', 'Please enter both API Key and API Secret.');
+    return;
+  }
+  const btn = document.getElementById('s1-connect-btn');
+  const spin = document.getElementById('s1-spin');
+  btn.disabled = true;
+  spin.classList.add('show');
+  try {
+    const res = await fetch('/api/algo/verify-keys', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({key, secret})
+    });
+    const d = await res.json();
+    if (!res.ok || d.error) throw new Error(d.error || 'Verification failed');
+    algoState.apiKey = key;
+    algoState.apiSecret = secret;
+    algoState.balance = d.balance;
+    algoState.uid = d.uid;
+    const sBox = document.getElementById('s1-success');
+    sBox.textContent = `✓ Connected — Balance: $${Number(d.balance).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} | UID: ${d.uid}`;
+    sBox.classList.add('show');
+    document.getElementById('s1-continue').style.display = 'block';
+    btn.style.display = 'none';
+    document.getElementById('topbar-status').textContent = `UID ${d.uid} · $${Number(d.balance).toLocaleString('en-US',{maximumFractionDigits:0})}`;
+    const pw = key.slice(0, 8);
+    const encKey = await encryptStr(key, pw);
+    const encSecret = await encryptStr(secret, pw);
+    localStorage.setItem('wd_algo_session', JSON.stringify({encKey, encSecret, uid: d.uid, balance: d.balance}));
+  } catch(e) {
+    showErr('s1-error', e.message || 'Could not verify credentials. Check your API key and secret.');
+  } finally {
+    btn.disabled = false;
+    spin.classList.remove('show');
+  }
+}
+
+function riskBadgeClass(risk) {
+  if (!risk) return 'badge-type';
+  const r = risk.toLowerCase();
+  if (r === 'low') return 'badge-low';
+  if (r === 'med' || r === 'medium') return 'badge-med';
+  if (r === 'high') return 'badge-high';
+  return 'badge-type';
+}
+
+async function loadTemplates() {
+  const list = document.getElementById('bot-templates-list');
+  list.innerHTML = '<div class="empty-state">Loading strategies…</div>';
+  try {
+    const res = await fetch('/api/algo/available-bots');
+    const d = await res.json();
+    if (!res.ok || d.error) throw new Error(d.error || 'Failed to load');
+    const templates = d.templates || d;
+    algoState.templates = templates;
+    if (!templates.length) {
+      list.innerHTML = '<div class="empty-state">No strategies available at this time.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    templates.forEach(t => {
+      const el = document.createElement('div');
+      el.className = 'bot-tmpl';
+      el.id = 'tmpl-' + t.id;
+      el.onclick = () => selectTemplate(t.id);
+      const monthly = t.est_monthly_pct != null ? `~${t.est_monthly_pct}%` : '—';
+      const minCap = t.min_capital != null ? `$${Number(t.min_capital).toLocaleString()}` : '—';
+      el.innerHTML = `
+        <div class="bot-header">
+          <div class="bot-name">${escHtml(t.name)}</div>
+          <div class="bot-badges">
+            <span class="badge badge-type">${escHtml(t.type || 'BOT')}</span>
+            <span class="badge ${riskBadgeClass(t.risk)}">${escHtml(t.risk || 'N/A')}</span>
+          </div>
+        </div>
+        <div class="bot-desc">${escHtml(t.description || '')}</div>
+        <div class="bot-stats">
+          <div class="bot-stat"><div class="bot-stat-label">Symbol</div><div class="bot-stat-val">${escHtml(t.symbol || '—')}</div></div>
+          <div class="bot-stat"><div class="bot-stat-label">Est. Monthly %</div><div class="bot-stat-val">${escHtml(monthly)}</div></div>
+          <div class="bot-stat"><div class="bot-stat-label">Min Capital</div><div class="bot-stat-val">${escHtml(minCap)}</div></div>
+        </div>`;
+      list.appendChild(el);
+    });
+  } catch(e) {
+    list.innerHTML = `<div class="empty-state">${e.message}</div>`;
+  }
+}
+
+function selectTemplate(id) {
+  algoState.selectedTemplateId = id;
+  document.querySelectorAll('.bot-tmpl').forEach(el => el.classList.remove('selected'));
+  const el = document.getElementById('tmpl-' + id);
+  if (el) el.classList.add('selected');
+  hideErr('s2-error');
+  document.getElementById('s2-continue').style.display = 'block';
+  const t = algoState.templates.find(x => x.id === id);
+  if (t) {
+    document.getElementById('s3-min').textContent = `$${Number(t.min_capital || 50).toLocaleString()}`;
+  }
+  if (algoState.balance != null) {
+    const maxVal = (algoState.balance * 0.5).toFixed(2);
+    document.getElementById('s3-max').textContent = `$${Number(maxVal).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  }
+}
+
+function updatePreview() {
+  const capInput = document.getElementById('s3-capital');
+  const val = parseFloat(capInput.value);
+  const preview = document.getElementById('s3-preview');
+  hideErr('s3-error');
+  if (!algoState.selectedTemplateId || isNaN(val) || val <= 0) {
+    preview.classList.remove('show');
+    return;
+  }
+  const t = algoState.templates.find(x => x.id === algoState.selectedTemplateId);
+  if (!t) { preview.classList.remove('show'); return; }
+  preview.classList.add('show');
+  document.getElementById('prev-strategy').textContent = t.name;
+  document.getElementById('prev-symbol').textContent = t.symbol || '—';
+  document.getElementById('prev-capital').textContent = `$${val.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  const monthlyDollar = t.est_monthly_pct != null ? (val * t.est_monthly_pct / 100).toFixed(2) : null;
+  document.getElementById('prev-monthly').textContent = monthlyDollar != null
+    ? `$${Number(monthlyDollar).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} (${t.est_monthly_pct}%)`
+    : '—';
+  document.getElementById('prev-risk').textContent = t.risk || '—';
+}
+
+async function launchBot() {
+  hideErr('s3-error');
+  const capInput = document.getElementById('s3-capital');
+  const capital = parseFloat(capInput.value);
+  const t = algoState.templates.find(x => x.id === algoState.selectedTemplateId);
+  if (!t) { showErr('s3-error', 'No strategy selected. Please go back and choose one.'); return; }
+  const minCap = Math.max(50, t.min_capital || 50);
+  const maxCap = algoState.balance != null ? algoState.balance * 0.5 : Infinity;
+  if (isNaN(capital) || capital <= 0) { showErr('s3-error', 'Please enter a capital amount.'); return; }
+  if (capital < minCap) { showErr('s3-error', `Minimum capital for this strategy is $${minCap.toLocaleString()}.`); return; }
+  if (algoState.balance != null && capital > maxCap) { showErr('s3-error', `Maximum allowed is 50% of your balance ($${maxCap.toFixed(2)}).`); return; }
+  const btn = document.getElementById('s3-launch');
+  const spin = document.getElementById('s3-spin');
+  btn.disabled = true;
+  spin.classList.add('show');
+  try {
+    const res = await fetch('/api/algo/launch', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({apiKey: algoState.apiKey, apiSecret: algoState.apiSecret, templateId: algoState.selectedTemplateId, allocatedCapital: capital})
+    });
+    const d = await res.json();
+    if (!res.ok || d.error) throw new Error(d.error || 'Launch failed');
+    try {
+      const pw = (algoState.apiKey || '').slice(0, 8);
+      const encKey = await encryptStr(algoState.apiKey, pw);
+      const encSecret = await encryptStr(algoState.apiSecret, pw);
+      localStorage.setItem('wd_algo_session', JSON.stringify({encKey, encSecret, uid: algoState.uid, balance: algoState.balance, launched: true, botId: d.botId, templateId: algoState.selectedTemplateId, capital}));
+    } catch(_) {}
+    showDone(d, t, capital);
+  } catch(e) {
+    showErr('s3-error', e.message || 'Failed to launch. Please try again.');
+  } finally {
+    btn.disabled = false;
+    spin.classList.remove('show');
+  }
+}
+
+function showDone(d, t, capital) {
+  goStep('done');
+  document.getElementById('stepper').style.display = 'none';
+  const rows = document.getElementById('done-status');
+  rows.innerHTML = `
+    <div class="status-row"><span class="status-row-label">Strategy</span><span class="status-row-val">${escHtml(t.name)}</span></div>
+    <div class="status-row"><span class="status-row-label">Symbol</span><span class="status-row-val">${escHtml(t.symbol || '—')}</span></div>
+    <div class="status-row"><span class="status-row-label">Allocated</span><span class="status-row-val">$${Number(capital).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+    <div class="status-row"><span class="status-row-label">Risk</span><span class="status-row-val">${escHtml(t.risk || '—')}</span></div>
+    <div class="status-row"><span class="status-row-label">Bot Status</span><span class="status-row-val"><span class="live-dot"></span>Active</span></div>
+    <div class="status-row"><span class="status-row-label">UID</span><span class="status-row-val">${escHtml(String(algoState.uid || d.uid || '—'))}</span></div>`;
+}
+
+async function loadDoneStatus(sess) {
+  goStep('done');
+  document.getElementById('stepper').style.display = 'none';
+  const rows = document.getElementById('done-status');
+  rows.innerHTML = '<div class="empty-state">Loading status…</div>';
+  try {
+    const res = await fetch(`/api/algo/status?uid=${encodeURIComponent(sess.uid)}`);
+    const d = await res.json();
+    if (!res.ok || d.error) throw new Error(d.error || 'Status unavailable');
+    rows.innerHTML = `
+      <div class="status-row"><span class="status-row-label">Strategy</span><span class="status-row-val">${escHtml(d.template_name || '—')}</span></div>
+      <div class="status-row"><span class="status-row-label">Allocated</span><span class="status-row-val">$${Number(d.allocated_capital || sess.capital || 0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+      <div class="status-row"><span class="status-row-label">Bot Status</span><span class="status-row-val"><span class="live-dot"></span>${escHtml(d.status || 'Active')}</span></div>
+      <div class="status-row"><span class="status-row-label">Trades</span><span class="status-row-val">${escHtml(String(d.trade_count != null ? d.trade_count : '—'))}</span></div>
+      <div class="status-row"><span class="status-row-label">UID</span><span class="status-row-val">${escHtml(String(sess.uid))}</span></div>`;
+  } catch(e) {
+    localStorage.removeItem('wd_algo_session');
+    goStep(1);
+    document.getElementById('stepper').style.display = '';
+  }
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+window.addEventListener('load', () => {
+  try {
+    const raw = localStorage.getItem('wd_algo_session');
+    if (raw) {
+      const saved = JSON.parse(raw);
+      if (saved.launched && saved.uid) {
+        loadDoneStatus(saved);
+        return;
+      }
+    }
+  } catch(_) {}
+  goStep(1);
+});
+</script>
+</body>
+</html>
