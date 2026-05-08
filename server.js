@@ -5,13 +5,23 @@ const axios         = require('axios');
 const path          = require('path');
 const jwt           = require('jsonwebtoken');
 const { Pool }      = require('pg');
+const http          = require('http');
+const helmet        = require('helmet');
+const rateLimit     = require('express-rate-limit');
+const { WebSocketServer } = require('ws');
 const startBotEngine             = require('./botEngine');
 const { createExchangeClient }   = require('./exchanges');
 
 const app = express();
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json());
-app.use(cors({ origin: '*' }));
+app.use(cors({ origin: process.env.ALLOWED_ORIGIN || '*' }));
 app.use(express.static(path.join(__dirname)));
+
+const limiter = rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false });
+const authLimiter = rateLimit({ windowMs: 60_000, max: 10, standardHeaders: true, legacyHeaders: false });
+app.use('/api/', limiter);
+app.use('/api/auth/', authLimiter);
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 const pool = new Pool({
@@ -150,6 +160,22 @@ async function pollClosedTrades() {
     }
   } catch (e) {
     console.error('[poll] closed trades error:', e.message);
+  }
+}
+
+// ── Balance cache (TTL 30s, eliminates N concurrent exchange calls on /api/bots) ──
+const balanceCache = new Map(); // botId → { balance, ts }
+const BALANCE_TTL  = 30_000;
+
+async function getCachedBalance(botId, fetchFn) {
+  const cached = balanceCache.get(botId);
+  if (cached && Date.now() - cached.ts < BALANCE_TTL) return cached.balance;
+  try {
+    const balance = await fetchFn();
+    balanceCache.set(botId, { balance, ts: Date.now() });
+    return balance;
+  } catch {
+    return null;
   }
 }
 
@@ -777,14 +803,12 @@ app.get('/api/bots', async (req, res) => {
     const bots = await Promise.all(rows.map(async row => {
       const pub = botPublic(row);
       if (row.status !== 'stopped') {
-        try {
+        pub.live_balance = await getCachedBalance(row.id, async () => {
           const { exchange, apiKey, apiSecret, passphrase } = botClientDetails(row);
           const client = createExchangeClient(exchange, apiKey, apiSecret, passphrase);
           const { total } = await client.getBalance();
-          pub.live_balance = parseFloat(total.toFixed(2));
-        } catch {
-          pub.live_balance = null;
-        }
+          return parseFloat(total.toFixed(2));
+        });
       } else {
         pub.live_balance = null;
       }
@@ -1178,6 +1202,94 @@ app.patch('/api/journal/:id', async (req, res) => {
   }
 });
 
+// ── WebSocket server ──────────────────────────────────
+const server = http.createServer(app);
+const wss    = new WebSocketServer({ server, path: '/ws' });
+
+wss.on('connection', (ws, req) => {
+  const token = new URL(req.url, 'ws://x').searchParams.get('token');
+  try { jwt.verify(token, JWT_SECRET); } catch { ws.close(1008, 'Unauthorized'); return; }
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
+  ws.on('error', () => {});
+});
+
+// Heartbeat — drop stale connections
+setInterval(() => {
+  wss.clients.forEach(ws => {
+    if (!ws.isAlive) { ws.terminate(); return; }
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, 30_000);
+
+function wsBroadcast(payload) {
+  const msg = JSON.stringify(payload);
+  wss.clients.forEach(ws => { if (ws.readyState === 1) ws.send(msg); });
+}
+
+// Broadcast live data every 5s — one fetch shared across all connected clients
+async function broadcastLiveData() {
+  if (wss.clients.size === 0) return;
+  try {
+    const [balRes, posRes, todayRes] = await Promise.allSettled([
+      bybitGet('/v5/account/wallet-balance', { accountType: 'UNIFIED' }),
+      bybitGet('/v5/position/list', { category: 'linear', settleCoin: 'USDT' }),
+      bybitGet('/v5/position/closed-pnl', {
+        category: 'linear',
+        startTime: new Date().setHours(0, 0, 0, 0).toString(),
+        limit: '50',
+      }),
+    ]);
+
+    let balance = null;
+    if (balRes.status === 'fulfilled' && balRes.value?.retCode === 0) {
+      const acct = balRes.value.result?.list?.[0] || {};
+      const usdt = (acct.coin || []).find(c => c.coin === 'USDT');
+      if (usdt) balance = {
+        balance: parseFloat(usdt.walletBalance || 0).toFixed(2),
+        equity:  parseFloat(usdt.equity || usdt.walletBalance || 0).toFixed(2),
+        avail:   parseFloat(usdt.availableToWithdraw || usdt.walletBalance || 0).toFixed(2),
+      };
+    }
+
+    let positions = [];
+    if (posRes.status === 'fulfilled' && posRes.value?.retCode === 0) {
+      positions = (posRes.value.result?.list || [])
+        .filter(p => parseFloat(p.size) > 0)
+        .map(p => ({
+          exchange: 'bybit', symbol: p.symbol, side: p.side, size: p.size,
+          entryPrice: p.avgPrice, markPrice: p.markPrice || '',
+          liqPrice: p.liqPrice,
+          unrealisedPnl: parseFloat(p.unrealisedPnl).toFixed(2),
+          leverage: p.leverage, takeProfit: p.takeProfit || '', stopLoss: p.stopLoss || '',
+        }));
+    }
+
+    const unrealised = positions.reduce((s, p) => s + parseFloat(p.unrealisedPnl || 0), 0);
+
+    let realisedToday = 0;
+    if (todayRes.status === 'fulfilled' && todayRes.value?.retCode === 0) {
+      (todayRes.value.result?.list || []).forEach(p => { realisedToday += parseFloat(p.closedPnl || 0); });
+    }
+
+    wsBroadcast({
+      type: 'live_data',
+      balance,
+      positions: { ok: true, positions },
+      pnl: {
+        unrealised:    parseFloat(unrealised.toFixed(4)),
+        realisedToday: parseFloat(realisedToday.toFixed(4)),
+        totalToday:    parseFloat((realisedToday + unrealised).toFixed(4)),
+      },
+    });
+  } catch (e) {
+    console.error('[ws] broadcast error:', e.message);
+  }
+}
+
+setInterval(broadcastLiveData, 5_000);
+
 initDb()
   .then(() => {
     pollClosedTrades();
@@ -1186,4 +1298,4 @@ initDb()
   })
   .catch(err => console.error('[DB] init failed:', err.message));
 
-app.listen(PORT, '0.0.0.0', () => console.log(`WaleszDesk running on 0.0.0.0:${PORT}`));
+server.listen(PORT, '0.0.0.0', () => console.log(`WaleszDesk running on 0.0.0.0:${PORT}`));

@@ -3550,19 +3550,14 @@ function calcR() {
   }
 }
 
-async function fetchPositions() {
-  const card = document.getElementById('positions-card');
-  const grid = document.getElementById('positions-grid');
+function renderPositionsData(d) {
+  const grid  = document.getElementById('positions-grid');
   const empty = document.getElementById('positions-empty');
-  try {
-    const ctrl2 = new AbortController(); setTimeout(() => ctrl2.abort(), 5000);
-    const r = await apiFetch('/api/positions', { signal: ctrl2.signal });
-    const d = await r.json();
-    if (!d.ok) { grid.style.display = 'none'; empty.textContent = 'Error: ' + d.error; empty.style.display = ''; return; }
-    if (!d.positions.length) { grid.style.display = 'none'; empty.textContent = 'No open positions'; empty.style.display = ''; return; }
-    empty.style.display = 'none';
-    grid.style.display = '';
-    const _posAvgLoss = computeAvgLoss();
+  if (!d.ok) { grid.style.display = 'none'; empty.textContent = 'Error: ' + d.error; empty.style.display = ''; return; }
+  if (!d.positions.length) { grid.style.display = 'none'; empty.textContent = 'No open positions'; empty.style.display = ''; return; }
+  empty.style.display = 'none';
+  grid.style.display = '';
+  const _posAvgLoss = computeAvgLoss();
     grid.innerHTML = d.positions.map(p => {
       const pnl = parseFloat(p.unrealisedPnl) || 0;
       const pnlColor = pnl >= 0 ? 'var(--green)' : 'var(--red)';
@@ -3618,15 +3613,20 @@ async function fetchPositions() {
         + '</div>'
       + '</div>';
     }).join('');
-    const el = document.getElementById('pos-last-refresh');
-    if (el) el.textContent = 'Last refreshed ' + new Date().toLocaleTimeString();
-    // Refresh P&L tiles since position count may have changed (closed position)
-    bustCache('/api/pnl/today', '/api/positions');
-    fetchLivePnl();
-    fetchTodayPnl();
+  const el = document.getElementById('pos-last-refresh');
+  if (el) el.textContent = 'Last refreshed ' + new Date().toLocaleTimeString();
+}
+
+async function fetchPositions() {
+  const empty = document.getElementById('positions-empty');
+  try {
+    const ctrl2 = new AbortController(); setTimeout(() => ctrl2.abort(), 5000);
+    const r = await apiFetch('/api/positions', { signal: ctrl2.signal });
+    const d = await r.json();
+    renderPositionsData(d);
+    if (d.ok) { bustCache('/api/pnl/today', '/api/positions'); fetchLivePnl(); fetchTodayPnl(); }
   } catch(e) {
-    empty.textContent = 'Backend offline — start server.js first';
-    empty.style.display = '';
+    if (empty) { empty.textContent = 'Backend offline — start server.js first'; empty.style.display = ''; }
   }
 }
 
@@ -3798,6 +3798,66 @@ async function fetchTodayPnl() {
 let liveEquityChart = null;
 let equityHistory = [];
 let tickerWs = null;
+let wsActive = false;
+let _ws = null;
+
+function initWS() {
+  if (_ws && _ws.readyState < 2) return; // already open/connecting
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const token = authToken();
+  if (!token) return;
+  _ws = new WebSocket(`${proto}://${location.host}/ws?token=${token}`);
+
+  _ws.onopen = () => {
+    wsActive = true;
+    console.log('[ws] connected');
+  };
+
+  _ws.onmessage = ({ data }) => {
+    let msg; try { msg = JSON.parse(data); } catch { return; }
+    if (msg.type !== 'live_data') return;
+
+    // Balance
+    if (msg.balance) {
+      const el  = document.getElementById('s-balance');
+      const sub = document.getElementById('s-balance-sub');
+      _last.balance = msg.balance.balance;
+      _last.avail   = msg.balance.avail;
+      flashStat('s-balance', '$' + msg.balance.balance, 'stat-val acc');
+      if (sub) sub.textContent = 'Available: $' + msg.balance.avail;
+      const balEl = document.getElementById('balance');
+      if (balEl) { balEl.value = msg.balance.balance; calc(); }
+    }
+
+    // Live PnL tile (from positions)
+    if (msg.pnl) {
+      const unrealised = msg.pnl.unrealised;
+      currentUnrealisedPnl = unrealised;
+      _last.unrealised = unrealised;
+      _last.posCount   = (msg.positions?.positions || []).length;
+      const fmt = v => (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
+      const cls = v => 'stat-val ' + (v >= 0 ? 'pos' : 'neg');
+      if (!dashRMode) {
+        flashStat('s-pnl', fmt(unrealised), cls(unrealised));
+        const sub = document.getElementById('s-pnl-sub');
+        if (sub) sub.textContent = _last.posCount ? 'Live unrealised' : 'No open positions';
+      }
+    }
+
+    // Positions card (only when tab is active)
+    if (msg.positions && document.getElementById('positions-card')?.offsetParent !== null) {
+      renderPositionsData(msg.positions);
+    }
+  };
+
+  _ws.onclose = () => {
+    wsActive = false;
+    console.log('[ws] disconnected — falling back to polling');
+    setTimeout(initWS, 5_000); // reconnect
+  };
+
+  _ws.onerror = () => _ws.close();
+}
 let tickerData = {};
 
 const TICKER_SYMBOLS = ['BTCUSDT','ETHUSDT','SOLUSDT','XRPUSDT','BNBUSDT','DOGEUSDT','ADAUSDT','AVAXUSDT','LINKUSDT','DOTUSDT'];
@@ -4198,18 +4258,19 @@ function startLiveDashboard() {
     const stat = document.getElementById(id)?.closest('.stat');
     if (stat) stat.classList.add('loading');
   });
+  initWS();
   fetchJournalDB().then(() => refreshAll());   // load journal so Win Rate is accurate, then fire all tiles
   Promise.all([fetchStats(), fetchBots()]);    // parallel: stats + bots (not covered by refreshAll on first tick)
 
-  // Single 5s ticker — all tiles via refreshAll, slower tasks gated by tick counter
+  // Single 5s ticker — slower tasks + fallback when WS offline
   let _tick = 0;
   setInterval(() => {
     _tick++;
     refreshAll();
     checkAlerts();
-    if (_tick % 4  === 0) fetchBots();          // every 20s
-    if (_tick % 12 === 0) { bustCache('/api/stats'); fetchStats(); } // every 60s
-    if (_tick % 6  === 0) checkBtcSpike();       // every 30s
+    if (_tick % 4  === 0) fetchBots();
+    if (_tick % 12 === 0) { bustCache('/api/stats'); fetchStats(); }
+    if (_tick % 6  === 0) checkBtcSpike();
   }, 5_000);
 }
 
@@ -4519,16 +4580,15 @@ function updateWinRate() {
 }
 
 function refreshAll() {
-  // P&L tiles — network fetch (cached, won't hammer)
-  fetchLivePnl();
-  fetchTodayPnl();
-  fetchBalance(true);
-  // Win Rate — debounced, allJournalTrades-only, never shows 0% from empty state
+  if (!wsActive) {
+    fetchLivePnl();
+    fetchTodayPnl();
+    fetchBalance(true);
+  }
   updateWinRate();
-  // Active Bots — from in-memory botsData
   const active = botsData.filter(b => b.status === 'active').length;
-  flashStat('s-bots',      String(active),              'stat-val');
-  flashStat('s-botstotal', botsData.length + ' total',  null);
+  flashStat('s-bots',      String(active),             'stat-val');
+  flashStat('s-botstotal', botsData.length + ' total', null);
 }
 
 // ── AUTH ──────────────────────────────────────────────
