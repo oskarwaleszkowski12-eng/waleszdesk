@@ -2582,7 +2582,6 @@ function renderBots() {
         <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
           <button class="btn sm" style="padding:4px 7px;font-size:13px;line-height:1;" onclick="openEditBot(${b.id})" title="Edit">✏️</button>
           <button class="btn sm" style="padding:4px 7px;font-size:13px;line-height:1;" onclick="openBotLogs(${b.id})" title="Logs">📋</button>
-          <button class="btn sm" style="padding:3px 8px;font-size:10px;font-weight:700;line-height:1;letter-spacing:.04em;color:var(--accent);border-color:rgba(0,200,150,.25);" onclick="openPublishToAlgo(${b.id})" title="Publish as Algo template">→ Algo</button>
           <span class="badge ${sLabel}">${sLabel}</span>
         </div>
       </div>
@@ -2607,6 +2606,9 @@ function renderBots() {
         <span>${tc} trades · ${oo} open orders</span>${unrealLine ? ' · ' + unrealLine : ''}
       </div>
       <div class="bot-actions">${actions}</div>
+      <div style="padding:0 0 4px;margin-top:-4px;">
+        <button class="btn sm" style="width:100%;font-size:10px;font-weight:700;letter-spacing:.05em;color:var(--accent);border-color:rgba(0,200,150,.2);padding:5px;" onclick="openPublishToAlgo(${b.id})">↗ Publish to Algo</button>
+      </div>
     </div>`;
   }).join('') + `<div class="add-card" onclick="openAddBot()"><div class="add-icon">+</div><div>Add Bot</div></div>`;
 }
