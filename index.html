@@ -249,6 +249,14 @@ body {
 .bot-card.running::before { background: var(--green); }
 .bot-card.paused::before { background: var(--amber); }
 .bot-card:hover { border-color: var(--border2); transform: translateY(-1px); }
+.bot-menu { position:absolute;top:46px;right:12px;z-index:300;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r2);padding:4px;min-width:175px;box-shadow:0 8px 28px rgba(0,0,0,.55);display:none; }
+.bot-menu.open { display:block; }
+.bmi { padding:7px 12px;font-size:12px;cursor:pointer;border-radius:6px;color:var(--text);transition:background .12s;white-space:nowrap; }
+.bmi:hover { background:var(--bg4); }
+.bmi.green { color:var(--green); }
+.bmi.red   { color:var(--red); }
+.bmi.accent{ color:var(--accent); }
+.bmi-sep   { height:1px;background:var(--border);margin:4px 2px; }
 
 .bot-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
 .bot-name { font-size: 13px; font-weight: 700; letter-spacing: 0.02em; }
@@ -2563,14 +2571,14 @@ function renderBots() {
 
     const safeName = b.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 
-    const actions = b.status === 'stopped'
-      ? `<button class="btn sm success" onclick="resumeBot(${b.id})">▶ Resume</button>
-         <button class="btn sm danger"  onclick="deleteBotPermanent(${b.id},'${safeName}')">🗑 Delete</button>`
+    const menuActions = b.status === 'stopped'
+      ? `<div class="bmi green" onclick="resumeBot(${b.id});closeBotMenus()">▶ Resume</div>
+         <div class="bmi red"   onclick="deleteBotPermanent(${b.id},'${safeName}');closeBotMenus()">&#128465; Delete</div>`
       : b.status === 'active'
-      ? `<button class="btn sm" onclick="pauseBot(${b.id})">⏸ Pause</button>
-         <button class="btn sm danger" onclick="stopBot(${b.id},'${safeName}')">⏹ Stop</button>`
-      : `<button class="btn sm success" onclick="resumeBot(${b.id})">▶ Resume</button>
-         <button class="btn sm danger"  onclick="stopBot(${b.id},'${safeName}')">⏹ Stop</button>`;
+      ? `<div class="bmi"       onclick="pauseBot(${b.id});closeBotMenus()">&#9646;&#9646; Pause</div>
+         <div class="bmi red"   onclick="stopBot(${b.id},'${safeName}');closeBotMenus()">&#9209; Stop</div>`
+      : `<div class="bmi green" onclick="resumeBot(${b.id});closeBotMenus()">▶ Resume</div>
+         <div class="bmi red"   onclick="stopBot(${b.id},'${safeName}');closeBotMenus()">&#9209; Stop</div>`;
 
     return `<div class="bot-card ${sLabel}">
       <div class="bot-header">
@@ -2579,12 +2587,18 @@ function renderBots() {
           <div class="bot-pair">${exBadge} ${b.symbol} · ${tLabel} · ${(cfg.side||'').toUpperCase()}</div>
           ${subLine}
         </div>
-        <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
-          <button class="btn sm" style="padding:4px 7px;font-size:13px;line-height:1;" onclick="openEditBot(${b.id})" title="Edit">✏️</button>
-          <button class="btn sm" style="padding:4px 7px;font-size:13px;line-height:1;" onclick="openBotLogs(${b.id})" title="Logs">📋</button>
-          <button class="btn sm" style="padding:4px 8px;font-size:12px;font-weight:700;line-height:1;color:var(--accent);border-color:rgba(0,200,150,.3);" onclick="openPublishToAlgo(${b.id})" title="Publish to Algo">↗</button>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+          <button class="btn sm" style="padding:3px 9px;font-size:15px;line-height:1;" onclick="toggleBotMenu(${b.id},event)" title="Options">&#9881;</button>
           <span class="badge ${sLabel}">${sLabel}</span>
         </div>
+      </div>
+
+      <div id="bot-menu-${b.id}" class="bot-menu">
+        <div class="bmi" onclick="openEditBot(${b.id});closeBotMenus()">&#9998; Edit</div>
+        <div class="bmi" onclick="openBotLogs(${b.id});closeBotMenus()">&#128203; Logs</div>
+        <div class="bmi accent" onclick="openPublishToAlgo(${b.id});closeBotMenus()">&#8599; Publish to Algo</div>
+        <div class="bmi-sep"></div>
+        ${menuActions}
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:10px 0;padding:8px;background:var(--bg2);border-radius:var(--r);border:1px solid var(--border);">
@@ -2606,7 +2620,6 @@ function renderBots() {
       <div class="bot-strat" style="margin-top:-8px;display:flex;gap:8px;align-items:center;">
         <span>${tc} trades · ${oo} open orders</span>${unrealLine ? ' · ' + unrealLine : ''}
       </div>
-      <div class="bot-actions">${actions}</div>
     </div>`;
   }).join('') + `<div class="add-card" onclick="openAddBot()"><div class="add-icon">+</div><div>Add Bot</div></div>`;
 }
@@ -4168,6 +4181,18 @@ function renderAlgoUsers(users) {
     </tr>`;
   }).join('');
 }
+
+function toggleBotMenu(id, e) {
+  e.stopPropagation();
+  const menu = document.getElementById('bot-menu-' + id);
+  const isOpen = menu.classList.contains('open');
+  closeBotMenus();
+  if (!isOpen) menu.classList.add('open');
+}
+function closeBotMenus() {
+  document.querySelectorAll('.bot-menu.open').forEach(m => m.classList.remove('open'));
+}
+document.addEventListener('click', closeBotMenus);
 
 function openPublishToAlgo(botId) {
   const b = botsData.find(x => x.id === botId);
