@@ -2582,6 +2582,7 @@ function renderBots() {
         <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
           <button class="btn sm" style="padding:4px 7px;font-size:13px;line-height:1;" onclick="openEditBot(${b.id})" title="Edit">✏️</button>
           <button class="btn sm" style="padding:4px 7px;font-size:13px;line-height:1;" onclick="openBotLogs(${b.id})" title="Logs">📋</button>
+          <button class="btn sm" style="padding:3px 8px;font-size:10px;font-weight:700;line-height:1;letter-spacing:.04em;color:var(--accent);border-color:rgba(0,200,150,.25);" onclick="openPublishToAlgo(${b.id})" title="Publish as Algo template">→ Algo</button>
           <span class="badge ${sLabel}">${sLabel}</span>
         </div>
       </div>
@@ -4166,6 +4167,26 @@ function renderAlgoUsers(users) {
       <td style="font-size:11px;color:var(--muted2);">${joined}</td>
     </tr>`;
   }).join('');
+}
+
+function openPublishToAlgo(botId) {
+  const b = botsData.find(x => x.id === botId);
+  if (!b) return;
+  algoTemplateEditId = null;
+  document.getElementById('tmpl-modal-title').textContent = 'Publish to Algo — ' + b.name;
+  const cfg = { ...(b.config || {}) };
+  delete cfg.state;
+  document.getElementById('tmpl-name').value    = b.name;
+  document.getElementById('tmpl-symbol').value  = b.symbol;
+  document.getElementById('tmpl-desc').value    = '';
+  document.getElementById('tmpl-type').value    = b.type || 'dca';
+  document.getElementById('tmpl-risk').value    = 'Medium';
+  document.getElementById('tmpl-monthly').value = '';
+  document.getElementById('tmpl-mincap').value  = b.allocated_balance ? Math.ceil(parseFloat(b.allocated_balance)) : 50;
+  document.getElementById('tmpl-config').value  = JSON.stringify(cfg, null, 2);
+  document.getElementById('tmpl-err').style.display = 'none';
+  document.getElementById('modal-algo-template').classList.add('open');
+  setTimeout(() => document.getElementById('tmpl-desc').focus(), 100);
 }
 
 function openAddTemplate() {
