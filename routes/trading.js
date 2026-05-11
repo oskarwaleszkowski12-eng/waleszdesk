@@ -2,6 +2,32 @@ const { Router } = require('express');
 const axios      = require('axios');
 const { bybitGet, bybitPost } = require('../lib/bybit');
 const logger     = require('../lib/logger');
+const { validate, z } = require('../lib/validate');
+
+const numStr = z.union([z.string(), z.number()]).transform(v => parseFloat(v));
+
+const setTpSlSchema = z.object({
+  symbol: z.string().min(1).max(20),
+  type:   z.enum(['TP', 'SL']),
+  price:  numStr.refine(v => v > 0, 'price must be positive'),
+});
+
+const closePositionSchema = z.object({
+  symbol: z.string().min(1).max(20),
+  side:   z.enum(['Buy', 'Sell']),
+  qty:    numStr.refine(v => v > 0, 'qty must be positive'),
+});
+
+const orderSchema = z.object({
+  symbol:     z.string().min(1).max(20),
+  side:       z.enum(['Buy', 'Sell']),
+  orderType:  z.enum(['Market', 'Limit']),
+  qty:        numStr.refine(v => v > 0, 'qty must be positive'),
+  price:      numStr.refine(v => v > 0).optional(),
+  stopLoss:   numStr.refine(v => v > 0).optional(),
+  takeProfit: numStr.refine(v => v > 0).optional(),
+  leverage:   z.number().int().min(1).max(200).optional(),
+});
 
 const router = Router();
 
@@ -88,11 +114,9 @@ router.get('/ticker', async (req, res) => {
   }
 });
 
-router.post('/set-tpsl', async (req, res) => {
+router.post('/set-tpsl', validate(setTpSlSchema), async (req, res) => {
   try {
     const { symbol, type, price } = req.body;
-    if (!symbol || !type || price == null)
-      return res.status(400).json({ ok: false, error: 'Missing fields: symbol, type, price' });
     const params = { category: 'linear', symbol, positionIdx: 0, tpTriggerBy: 'MarkPrice', slTriggerBy: 'MarkPrice' };
     if (type === 'TP')      params.takeProfit = String(price);
     else if (type === 'SL') params.stopLoss   = String(price);
@@ -107,11 +131,9 @@ router.post('/set-tpsl', async (req, res) => {
   }
 });
 
-router.post('/close-position', async (req, res) => {
+router.post('/close-position', validate(closePositionSchema), async (req, res) => {
   try {
     const { symbol, side, qty } = req.body;
-    if (!symbol || !side || !qty)
-      return res.status(400).json({ ok: false, error: 'Missing fields: symbol, side, qty' });
     const closeSide = side === 'Buy' ? 'Sell' : 'Buy';
     const qtyNum    = parseFloat(qty);
     const precision = symbol.startsWith('BTC') ? 3 : symbol.startsWith('ETH') ? 2 : 1;
@@ -133,11 +155,9 @@ router.post('/close-position', async (req, res) => {
   }
 });
 
-router.post('/order', async (req, res) => {
+router.post('/order', validate(orderSchema), async (req, res) => {
   try {
     const { symbol, side, orderType, qty, price, stopLoss, takeProfit, leverage } = req.body;
-    if (!symbol || !side || !orderType || !qty)
-      return res.status(400).json({ ok: false, error: 'Missing fields: symbol, side, orderType, qty' });
     if (leverage)
       await bybitPost('/v5/position/set-leverage', { category: 'linear', symbol, buyLeverage: String(leverage), sellLeverage: String(leverage) });
     const qtyNum = parseFloat(qty);

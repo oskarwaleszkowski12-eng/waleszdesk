@@ -4,6 +4,28 @@ const { pool }                = require('../lib/db');
 const { encrypt }             = require('../lib/crypto');
 const { createExchangeClient } = require('../exchanges');
 const logger                  = require('../lib/logger');
+const { validate, z }         = require('../lib/validate');
+
+const verifyKeysSchema = z.object({
+  key:        z.string().min(1),
+  secret:     z.string().min(1),
+  exchange:   z.string().optional(),
+  passphrase: z.string().optional(),
+});
+
+const launchSchema = z.object({
+  apiKey:           z.string().min(1),
+  apiSecret:        z.string().min(1),
+  apiPassphrase:    z.string().optional(),
+  exchange:         z.string().optional(),
+  templateId:       z.number().int().positive(),
+  allocatedCapital: z.number().positive(),
+  inviteCode:       z.string().min(1).max(20),
+});
+
+const verifyInviteSchema = z.object({
+  code: z.string().min(1).max(20),
+});
 
 const router = Router();
 
@@ -16,9 +38,8 @@ router.get('/available-bots', async (req, res) => {
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
-router.post('/verify-keys', async (req, res) => {
+router.post('/verify-keys', validate(verifyKeysSchema), async (req, res) => {
   const { key, secret, exchange, passphrase } = req.body;
-  if (!key || !secret) return res.status(400).json({ ok: false, error: 'key and secret required' });
   try {
     const client = createExchangeClient(exchange || 'bybit', key, secret, passphrase);
     const { total } = await client.getBalance();
@@ -27,12 +48,9 @@ router.post('/verify-keys', async (req, res) => {
   } catch (e) { res.json({ ok: false, error: e.message }); }
 });
 
-router.post('/launch', async (req, res) => {
+router.post('/launch', validate(launchSchema), async (req, res) => {
   try {
     const { apiKey, apiSecret, apiPassphrase, exchange, templateId, allocatedCapital, inviteCode } = req.body;
-    if (!apiKey || !apiSecret || !templateId || !allocatedCapital)
-      return res.status(400).json({ ok: false, error: 'Missing required fields' });
-    if (!inviteCode) return res.status(400).json({ ok: false, error: 'Invite code required' });
 
     const { rows: codeRows } = await pool.query(`SELECT id FROM invite_codes WHERE code=$1 AND used=FALSE`, [inviteCode.trim().toUpperCase()]);
     if (!codeRows.length) return res.status(400).json({ ok: false, error: 'Invalid or already used invite code' });
@@ -95,10 +113,9 @@ router.get('/status', async (req, res) => {
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
-router.post('/verify-invite', async (req, res) => {
+router.post('/verify-invite', validate(verifyInviteSchema), async (req, res) => {
   try {
-    const { code } = req.body || {};
-    if (!code) return res.status(400).json({ ok: false, error: 'Missing code' });
+    const { code } = req.body;
     const { rows } = await pool.query(`SELECT * FROM invite_codes WHERE code=$1 AND used=FALSE`, [code.trim().toUpperCase()]);
     if (!rows.length) return res.status(400).json({ ok: false, error: 'Invalid or already used code' });
     res.json({ ok: true });

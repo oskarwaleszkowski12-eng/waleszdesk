@@ -1,6 +1,12 @@
 const { Router } = require('express');
 const { pool }   = require('../lib/db');
 const logger     = require('../lib/logger');
+const { validate, z } = require('../lib/validate');
+
+const journalPatchSchema = z.object({
+  notes:     z.string().max(5000).optional(),
+  checklist: z.record(z.boolean()).optional(),
+});
 
 const router = Router();
 
@@ -14,7 +20,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', validate(journalPatchSchema), async (req, res) => {
   try {
     const { notes, checklist } = req.body;
     const { rows } = await pool.query(

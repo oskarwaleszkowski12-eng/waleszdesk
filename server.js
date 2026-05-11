@@ -12,6 +12,7 @@ const config    = require('./lib/config');
 const { initDb } = require('./lib/db');
 const { decrypt } = require('./lib/crypto');
 const { requireAuth } = require('./lib/auth');
+const { validate, z } = require('./lib/validate');
 const { startPoller } = require('./lib/poller');
 const setupWS   = require('./ws');
 const startBotEngine = require('./botEngine');
@@ -37,8 +38,9 @@ app.use('/api/auth/', authLimiter);
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 // Auth
-app.post('/api/auth/login', (req, res) => {
-  const { password } = req.body || {};
+const loginSchema = z.object({ password: z.string().min(1) });
+app.post('/api/auth/login', validate(loginSchema), (req, res) => {
+  const { password } = req.body;
   if (!config.ADMIN_PASS || password !== config.ADMIN_PASS)
     return res.status(401).json({ ok: false, error: 'Invalid password' });
   const token = jwt.sign({ role: 'admin' }, config.JWT_SECRET, { expiresIn: '24h' });

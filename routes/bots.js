@@ -5,6 +5,20 @@ const { getCachedBalance }   = require('../lib/cache');
 const { createExchangeClient } = require('../exchanges');
 const { API_KEY, API_SECRET }  = require('../lib/config');
 const logger                 = require('../lib/logger');
+const { validate, z }        = require('../lib/validate');
+
+const createBotSchema = z.object({
+  name:             z.string().min(1).max(100),
+  type:             z.enum(['dca', 'grid']),
+  symbol:           z.string().min(1).max(20),
+  config:           z.record(z.unknown()),
+  apiKey:           z.string().min(1),
+  apiSecret:        z.string().min(1),
+  apiPassphrase:    z.string().optional(),
+  exchange:         z.string().optional(),
+  subaccountName:   z.string().max(100).optional(),
+  allocatedBalance: z.number().positive().optional(),
+});
 
 const router = Router();
 
@@ -43,15 +57,9 @@ router.get('/test-connection', async (req, res) => {
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', validate(createBotSchema), async (req, res) => {
   try {
     const { name, type, symbol, config, apiKey, apiSecret, apiPassphrase, exchange, subaccountName, allocatedBalance } = req.body;
-    if (!name || !type || !symbol || !config)
-      return res.status(400).json({ ok: false, error: 'Missing: name, type, symbol, config' });
-    if (!['dca', 'grid'].includes(type))
-      return res.status(400).json({ ok: false, error: 'type must be dca or grid' });
-    if (!apiKey || !apiSecret)
-      return res.status(400).json({ ok: false, error: 'API key and secret are required' });
     const ex = (exchange || 'bybit').toLowerCase();
     const { rows } = await pool.query(
       `INSERT INTO bots (name,type,symbol,status,config,stats,api_key_enc,api_secret_enc,api_passphrase_enc,exchange,subaccount_name,allocated_balance)
