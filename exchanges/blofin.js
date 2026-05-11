@@ -1,6 +1,7 @@
 'use strict';
 const axios  = require('axios');
 const crypto = require('crypto');
+const { withRetry } = require('./_utils');
 
 const BASE = 'https://openapi.blofin.com';
 
@@ -31,7 +32,8 @@ class BlofinClient {
   }
 
   _headers(method, path, body = '') {
-    const ts    = Math.floor(Date.now() / 1000).toString();
+    // Timestamp must be Unix milliseconds, generated immediately before the request
+    const ts    = Date.now().toString();
     const nonce = this._nonce();
     return {
       'ACCESS-KEY':        this.apiKey,
@@ -46,19 +48,19 @@ class BlofinClient {
   async _get(path, params = {}) {
     const qs       = Object.keys(params).length ? '?' + Object.keys(params).map(k => `${k}=${params[k]}`).join('&') : '';
     const fullPath = path + qs;
-    const res = await axios.get(`${BASE}${fullPath}`, {
+    const res = await withRetry(() => axios.get(`${BASE}${fullPath}`, {
       headers: this._headers('GET', fullPath),
       timeout: 8000,
-    });
+    }), 'blofin');
     return res.data;
   }
 
   async _post(path, body) {
     const bodyStr = JSON.stringify(body);
-    const res = await axios.post(`${BASE}${path}`, bodyStr, {
+    const res = await withRetry(() => axios.post(`${BASE}${path}`, bodyStr, {
       headers: this._headers('POST', path, bodyStr),
       timeout: 8000,
-    });
+    }), 'blofin');
     return res.data;
   }
 

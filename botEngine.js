@@ -1,5 +1,7 @@
 'use strict';
 const { createExchangeClient } = require('./exchanges');
+const logger                   = require('./lib/logger');
+const { sendTelegram }         = require('./lib/telegram');
 
 module.exports = function startBotEngine({ pool, decrypt }) {
   const botLocks = new Set();
@@ -127,7 +129,7 @@ module.exports = function startBotEngine({ pool, decrypt }) {
       state.initial_entry        = price;
       state.last_safety_ts       = 0;
       await saveState(bot.id, { ...cfg, state });
-      console.log(`[dca:${bot.id}] base @ ~${price} qty=${qty}`);
+      logger.info({ botId: bot.id, price, qty }, '[dca] base order placed');
       return;
     }
 
@@ -144,7 +146,8 @@ module.exports = function startBotEngine({ pool, decrypt }) {
       state.safety_orders_placed = 0;
       state.initial_entry        = null;
       await saveState(bot.id, { ...cfg, state });
-      console.log(`[dca:${bot.id}] TP @ ${pnlPct.toFixed(2)}% pnl=$${unreal.toFixed(2)}`);
+      logger.info({ botId: bot.id, pnlPct: pnlPct.toFixed(2), pnl: unreal.toFixed(2) }, '[dca] TP hit');
+      sendTelegram(`✅ <b>Bot ${bot.id} TP hit</b>\n${sym} +${pnlPct.toFixed(2)}% / $${unreal.toFixed(2)}`);
       return;
     }
 
@@ -169,7 +172,7 @@ module.exports = function startBotEngine({ pool, decrypt }) {
     state.safety_orders_placed = placed + 1;
     state.last_safety_ts       = Date.now();
     await saveState(bot.id, { ...cfg, state });
-    console.log(`[dca:${bot.id}] safety #${state.safety_orders_placed} @ ~${price} qty=${qty}`);
+    logger.info({ botId: bot.id, n: state.safety_orders_placed, price, qty }, '[dca] safety order placed');
   }
 
   // ── Grid Bot ──────────────────────────────────────────────────────────────
@@ -205,7 +208,7 @@ module.exports = function startBotEngine({ pool, decrypt }) {
           const { orderId } = await client.placeOrder({ symbol: sym, side, type: 'Limit', qty, price: fmtPrice(sym, lvl) });
           await recordTrade(bot.id, { orderId, side, qty, price: lvl, status: 'open', meta: { type: 'grid', level: lvl, step } });
         } catch (e) {
-          console.error(`[grid:${bot.id}] init @ ${lvl} failed:`, e.message);
+          logger.error({ botId: bot.id, lvl, err: e }, '[grid] init order failed');
         }
       }
       state.initialized = true;
@@ -240,10 +243,10 @@ module.exports = function startBotEngine({ pool, decrypt }) {
             await recordTrade(bot.id, { orderId, side: newS, qty, price: newP, status: 'open', meta: { type: 'grid', level: newP, step: tStep } });
             const profit = isBuy ? (newP - fp) * fq : (fp - newP) * fq;
             await mergeStats(bot.id, { total_pnl: profit, trades: 1 });
-            console.log(`[grid:${bot.id}] ${trade.side}@${fp}→${newS}@${newP} ~$${profit.toFixed(4)}`);
+            logger.info({ botId: bot.id, from: `${trade.side}@${fp}`, to: `${newS}@${newP}`, profit: profit.toFixed(4) }, '[grid] order filled');
           }
         } catch (e) {
-          console.error(`[grid:${bot.id}] replenish @ ${newP} failed:`, e.message);
+          logger.error({ botId: bot.id, newP, err: e }, '[grid] replenish failed');
         }
       }
     }
@@ -256,26 +259,31 @@ module.exports = function startBotEngine({ pool, decrypt }) {
       const { rows } = await pool.query(`SELECT * FROM bots WHERE status='active'`);
       bots = rows;
     } catch (e) {
-      console.error('[botEngine] DB error:', e.message);
+      logger.error({ err: e }, '[botEngine] DB error');
       return;
     }
+
+    let running = 0;
     for (const bot of bots) {
       if (botLocks.has(bot.id)) continue;
+      if (running >= 10) break; // cap concurrent ticks to avoid thundering herd
       const client = getBotClient(bot);
       if (!client) {
         await setBotStatus(bot.id, 'error', 'No API keys configured').catch(() => {});
         continue;
       }
       botLocks.add(bot.id);
+      running++;
       (bot.type === 'dca' ? tickDca(bot, client) : tickGrid(bot, client))
         .catch(e => {
-          console.error(`[bot:${bot.id}] uncaught:`, e.message);
+          logger.error({ botId: bot.id, err: e }, '[botEngine] uncaught tick error');
           setBotStatus(bot.id, 'error', e.message).catch(() => {});
+          sendTelegram(`🚨 <b>Bot ${bot.id} error</b>\n${e.message}`);
         })
-        .finally(() => botLocks.delete(bot.id));
+        .finally(() => { botLocks.delete(bot.id); running--; });
     }
   }
 
   setInterval(tick, 10_000);
-  console.log('[botEngine] started');
+  logger.info('[botEngine] started');
 };

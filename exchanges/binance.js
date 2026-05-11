@@ -1,6 +1,7 @@
 'use strict';
 const axios  = require('axios');
 const crypto = require('crypto');
+const { withRetry } = require('./_utils');
 
 const FAPI = 'https://fapi.binance.com';
 const API  = 'https://api.binance.com';
@@ -16,32 +17,38 @@ class BinanceClient {
   }
 
   async _get(base, endpoint, params = {}) {
-    const p  = { ...params, timestamp: Date.now(), recvWindow: 20000 };
-    const qs = Object.keys(p).map(k => `${k}=${p[k]}`).join('&');
-    const res = await axios.get(`${base}${endpoint}?${qs}&signature=${this._sign(qs)}`, {
-      headers: { 'X-MBX-APIKEY': this.apiKey },
-      timeout: 8000,
-    });
+    const res = await withRetry(() => {
+      const p  = { ...params, timestamp: Date.now(), recvWindow: 20000 };
+      const qs = Object.keys(p).map(k => `${k}=${p[k]}`).join('&');
+      return axios.get(`${base}${endpoint}?${qs}&signature=${this._sign(qs)}`, {
+        headers: { 'X-MBX-APIKEY': this.apiKey },
+        timeout: 8000,
+      });
+    }, 'binance');
     return res.data;
   }
 
   async _post(base, endpoint, params = {}) {
-    const p  = { ...params, timestamp: Date.now(), recvWindow: 20000 };
-    const qs = Object.keys(p).map(k => `${k}=${p[k]}`).join('&');
-    const res = await axios.post(`${base}${endpoint}`, `${qs}&signature=${this._sign(qs)}`, {
-      headers: { 'X-MBX-APIKEY': this.apiKey, 'Content-Type': 'application/x-www-form-urlencoded' },
-      timeout: 8000,
-    });
+    const res = await withRetry(() => {
+      const p  = { ...params, timestamp: Date.now(), recvWindow: 20000 };
+      const qs = Object.keys(p).map(k => `${k}=${p[k]}`).join('&');
+      return axios.post(`${base}${endpoint}`, `${qs}&signature=${this._sign(qs)}`, {
+        headers: { 'X-MBX-APIKEY': this.apiKey, 'Content-Type': 'application/x-www-form-urlencoded' },
+        timeout: 8000,
+      });
+    }, 'binance');
     return res.data;
   }
 
   async _delete(base, endpoint, params = {}) {
-    const p  = { ...params, timestamp: Date.now(), recvWindow: 20000 };
-    const qs = Object.keys(p).map(k => `${k}=${p[k]}`).join('&');
-    const res = await axios.delete(`${base}${endpoint}?${qs}&signature=${this._sign(qs)}`, {
-      headers: { 'X-MBX-APIKEY': this.apiKey },
-      timeout: 8000,
-    });
+    const res = await withRetry(() => {
+      const p  = { ...params, timestamp: Date.now(), recvWindow: 20000 };
+      const qs = Object.keys(p).map(k => `${k}=${p[k]}`).join('&');
+      return axios.delete(`${base}${endpoint}?${qs}&signature=${this._sign(qs)}`, {
+        headers: { 'X-MBX-APIKEY': this.apiKey },
+        timeout: 8000,
+      });
+    }, 'binance');
     return res.data;
   }
 

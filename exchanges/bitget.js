@@ -1,6 +1,7 @@
 'use strict';
 const axios  = require('axios');
 const crypto = require('crypto');
+const { withRetry } = require('./_utils');
 
 const BASE    = 'https://api.bitget.com';
 const PRODUCT = 'USDT-FUTURES';
@@ -32,19 +33,19 @@ class BitgetClient {
   async _get(path, params = {}) {
     const qs       = Object.keys(params).length ? '?' + Object.keys(params).map(k => `${k}=${encodeURIComponent(params[k])}`).join('&') : '';
     const fullPath = path + qs;
-    const res = await axios.get(`${BASE}${fullPath}`, {
+    const res = await withRetry(() => axios.get(`${BASE}${fullPath}`, {
       headers: this._headers('GET', fullPath),
       timeout: 8000,
-    });
+    }), 'bitget');
     return res.data;
   }
 
   async _post(path, body = {}) {
     const bodyStr = JSON.stringify(body);
-    const res = await axios.post(`${BASE}${path}`, bodyStr, {
+    const res = await withRetry(() => axios.post(`${BASE}${path}`, bodyStr, {
       headers: this._headers('POST', path, bodyStr),
       timeout: 8000,
-    });
+    }), 'bitget');
     return res.data;
   }
 

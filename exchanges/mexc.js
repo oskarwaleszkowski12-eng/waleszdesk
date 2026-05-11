@@ -1,6 +1,7 @@
 'use strict';
 const axios  = require('axios');
 const crypto = require('crypto');
+const { withRetry } = require('./_utils');
 
 const BASE = 'https://contract.mexc.com';
 
@@ -36,22 +37,26 @@ class MexcClient {
   }
 
   async _get(path, params = {}) {
-    const ts = Date.now().toString();
-    const qs = Object.keys(params).length ? '?' + Object.keys(params).map(k => `${k}=${params[k]}`).join('&') : '';
-    const res = await axios.get(`${BASE}${path}${qs}`, {
-      headers: this._headers(ts),
-      timeout: 8000,
-    });
+    const qs  = Object.keys(params).length ? '?' + Object.keys(params).map(k => `${k}=${params[k]}`).join('&') : '';
+    const res = await withRetry(() => {
+      const ts = Date.now().toString();
+      return axios.get(`${BASE}${path}${qs}`, {
+        headers: this._headers(ts),
+        timeout: 8000,
+      });
+    }, 'mexc');
     return res.data;
   }
 
   async _post(path, body = {}) {
-    const ts      = Date.now().toString();
     const bodyStr = JSON.stringify(body);
-    const res = await axios.post(`${BASE}${path}`, bodyStr, {
-      headers: this._headers(ts, bodyStr),
-      timeout: 8000,
-    });
+    const res = await withRetry(() => {
+      const ts = Date.now().toString();
+      return axios.post(`${BASE}${path}`, bodyStr, {
+        headers: this._headers(ts, bodyStr),
+        timeout: 8000,
+      });
+    }, 'mexc');
     return res.data;
   }
 
