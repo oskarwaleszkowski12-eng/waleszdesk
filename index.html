@@ -962,6 +962,7 @@ body.light-mode #login-overlay { background: var(--bg0); }
     <button class="nav-btn" onclick="showPanel('api',this)">API</button>
     <button class="nav-btn" onclick="showPanel('algo',this)">Algo</button>
     <a href="/funded" class="nav-btn" style="text-decoration:none;">Funded</a>
+    <button class="nav-btn" onclick="showPanel('waitlist',this)">Waitlist</button>
   </nav>
   <div class="conn-badge">
     <div class="conn-dot" id="conn-dot"></div>
@@ -1513,6 +1514,53 @@ body.light-mode #login-overlay { background: var(--bg0); }
     </div>
   </div>
 
+  <div class="panel" id="panel-waitlist">
+    <div class="section-head">
+      <div class="section-title">Funded by Walesz — Waitlista</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn sm" onclick="fetchWaitlist()">↻ Refresh</button>
+        <button class="btn sm" id="wl-copy-btn" onclick="copyWaitlistEmails()">⎘ Kopiuj emaile</button>
+        <a href="/funded-by-walesz" target="_blank" class="btn sm" style="text-decoration:none;">↗ Landing</a>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;" id="wl-stats-row">
+      <div class="card" style="padding:14px 16px;">
+        <div style="font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Łącznie</div>
+        <div style="font-size:22px;font-weight:700;color:var(--text);" id="wl-count-total">—</div>
+      </div>
+      <div class="card" style="padding:14px 16px;">
+        <div style="font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Pro</div>
+        <div style="font-size:22px;font-weight:700;color:var(--accent);" id="wl-count-pro">—</div>
+      </div>
+      <div class="card" style="padding:14px 16px;">
+        <div style="font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">VIP</div>
+        <div style="font-size:22px;font-weight:700;color:#c9a84c;" id="wl-count-vip">—</div>
+      </div>
+      <div class="card" style="padding:14px 16px;">
+        <div style="font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Mentoring</div>
+        <div style="font-size:22px;font-weight:700;color:#a07de0;" id="wl-count-mentoring">—</div>
+      </div>
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden;">
+      <div class="au-table-wrap">
+        <table class="au-table" id="wl-table">
+          <thead><tr>
+            <th>#</th>
+            <th>Email</th>
+            <th>Plan</th>
+            <th>Imię</th>
+            <th>Data zapisu</th>
+          </tr></thead>
+          <tbody id="wl-tbody">
+            <tr><td colspan="5" style="text-align:center;color:var(--muted2);padding:24px 0;">Kliknij Refresh aby załadować</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- GENERATE INVITE MODAL -->
@@ -1855,7 +1903,8 @@ function showPanel(id, el) {
   if (id === 'pnl')     { setTimeout(renderCharts, 50); fetchPnlHistory(); fetchPnlWeekdays(); }
   if (id === 'alerts')  { renderAlertsList(); requestAlertPermission(); }
   if (id === 'journal') fetchJournalDB();
-  if (id === 'algo')    fetchAlgoAdmin();
+  if (id === 'algo')     fetchAlgoAdmin();
+  if (id === 'waitlist') fetchWaitlist();
   if (id === 'positions') startPositionsRefresh();
   else stopPositionsRefresh();
 }
@@ -4708,6 +4757,57 @@ function refreshAll() {
 
 // ── AUTH ──────────────────────────────────────────────
 function authToken() { return sessionStorage.getItem('wd_token') || ''; }
+
+// ── WAITLIST ────────────────────────────────────────────
+const WL_PLAN_LABELS = { pro: 'Pro', vip: 'VIP', mentoring: 'Mentoring' };
+const WL_PLAN_COLORS = { pro: 'var(--accent)', vip: '#c9a84c', mentoring: '#a07de0' };
+let _wlData = [];
+
+async function fetchWaitlist() {
+  const tbody = document.getElementById('wl-tbody');
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted2);padding:24px 0;">Ładowanie...</td></tr>';
+  try {
+    const r = await apiFetch('/api/waitlist');
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    _wlData = d.data;
+    const counts = { total: d.count, pro: 0, vip: 0, mentoring: 0 };
+    d.data.forEach(row => { if (counts[row.plan] !== undefined) counts[row.plan]++; });
+    document.getElementById('wl-count-total').textContent     = counts.total;
+    document.getElementById('wl-count-pro').textContent       = counts.pro;
+    document.getElementById('wl-count-vip').textContent       = counts.vip;
+    document.getElementById('wl-count-mentoring').textContent = counts.mentoring;
+    if (!d.data.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted2);padding:24px 0;">Brak zapisów</td></tr>';
+      return;
+    }
+    tbody.innerHTML = d.data.map((row, i) => {
+      const date = new Date(row.created_at).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' });
+      const planColor = WL_PLAN_COLORS[row.plan] || 'var(--muted2)';
+      const planLabel = WL_PLAN_LABELS[row.plan] || row.plan;
+      return `<tr>
+        <td style="color:var(--muted2);">${i + 1}</td>
+        <td style="font-family:var(--font-mono);font-size:12px;">${row.email}</td>
+        <td><span style="font-size:11px;font-weight:600;letter-spacing:.04em;color:${planColor};background:${planColor}18;border:1px solid ${planColor}33;padding:2px 8px;border-radius:4px;">${planLabel}</span></td>
+        <td style="color:var(--muted2);">${row.name || '—'}</td>
+        <td style="color:var(--muted2);font-family:var(--font-mono);font-size:11px;">${date}</td>
+      </tr>`;
+    }).join('');
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--red);padding:24px 0;">Błąd: ${err.message}</td></tr>`;
+  }
+}
+
+function copyWaitlistEmails() {
+  if (!_wlData.length) return;
+  const emails = _wlData.map(r => r.email).join('\n');
+  navigator.clipboard.writeText(emails).then(() => {
+    const btn = document.getElementById('wl-copy-btn');
+    const orig = btn.textContent;
+    btn.textContent = '✓ Skopiowano';
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  });
+}
 
 function apiFetch(url, opts = {}) {
   const token = authToken();
