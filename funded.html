@@ -43,6 +43,21 @@ body{background:var(--bg0);color:var(--text);font-family:var(--font-display);min
 .nav-btn:hover{color:var(--text);}
 .nav-btn.active{background:var(--bg4);color:var(--text);border:1px solid var(--border2);}
 
+/* APP SWITCHER */
+.app-sw{position:relative;}
+.app-sw-btn{width:32px;height:32px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--muted2);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;}
+.app-sw-btn:hover{color:var(--text);border-color:var(--border3);background:var(--bg3);}
+.app-sw-menu{display:none;position:absolute;top:calc(100% + 8px);right:0;min-width:226px;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r2);padding:6px;box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:200;}
+.app-sw-menu.open{display:block;}
+.app-sw-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:var(--r);text-decoration:none;color:var(--muted2);transition:all .15s;}
+.app-sw-item:hover{background:var(--bg3);color:var(--text);}
+.app-sw-item.current{background:var(--bg4);color:var(--text);pointer-events:none;}
+.app-sw-icon{font-size:17px;flex-shrink:0;width:22px;text-align:center;line-height:1;}
+.app-sw-name{font-size:12px;font-weight:600;letter-spacing:.03em;display:block;}
+.app-sw-sub{font-size:10px;color:var(--muted);display:block;margin-top:2px;font-family:var(--font-mono);letter-spacing:.03em;}
+.app-sw-item.current .app-sw-sub{color:var(--muted2);}
+.app-sw-divider{height:1px;background:var(--border);margin:4px 0;}
+
 /* ── LAYOUT ── */
 .main{padding:72px 24px 40px;max-width:1440px;margin:0 auto;}
 .panel{display:none;animation:fadeIn .2s ease;}
@@ -305,6 +320,24 @@ tr:hover td{background:rgba(255,255,255,.015);}
       <span id="tv-status-text">Tradovate</span>
     </div>
     <div style="font-size:11px;color:var(--muted2);font-family:var(--font-mono);letter-spacing:0.04em;" id="topbar-date"></div>
+    <div class="app-sw">
+      <button class="app-sw-btn" onclick="toggleAppSw()" title="Przełącz aplikację">⊞</button>
+      <div class="app-sw-menu" id="appSwMenu">
+        <a href="/" class="app-sw-item">
+          <span class="app-sw-icon">📊</span>
+          <span><span class="app-sw-name">WaleszDesk</span><span class="app-sw-sub">Panel tradingowy</span></span>
+        </a>
+        <div class="app-sw-divider"></div>
+        <a href="/funded" class="app-sw-item current">
+          <span class="app-sw-icon">💼</span>
+          <span><span class="app-sw-name">WD Funded</span><span class="app-sw-sub">Tradovate · konta prop</span></span>
+        </a>
+        <a href="/funded-by-walesz" class="app-sw-item">
+          <span class="app-sw-icon">✦</span>
+          <span><span class="app-sw-name">Funded by Walesz</span><span class="app-sw-sub">Landing · waitlista</span></span>
+        </a>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -2161,6 +2194,14 @@ updateDate();
 renderAccounts();
 setupCalc();
 initTvStatus();
+
+function toggleAppSw() {
+  document.getElementById('appSwMenu').classList.toggle('open');
+}
+document.addEventListener('click', e => {
+  const sw = document.querySelector('.app-sw');
+  if (sw && !sw.contains(e.target)) document.getElementById('appSwMenu').classList.remove('open');
+});
 </script>
 </body>
 </html>

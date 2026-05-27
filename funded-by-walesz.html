@@ -909,6 +909,52 @@
     to { transform: translateX(-50%); }
   }
 
+  /* APP SWITCHER */
+  .app-sw { position: relative; }
+  .app-sw-btn {
+    width: 30px; height: 30px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 15px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .2s;
+    flex-shrink: 0;
+  }
+  .app-sw-btn:hover { color: var(--gold); border-color: var(--gold-border); }
+  .app-sw-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    min-width: 230px;
+    background: var(--bg2);
+    border: 1px solid var(--gold-border);
+    border-radius: 6px;
+    padding: 6px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.6);
+    z-index: 200;
+  }
+  .app-sw-menu.open { display: block; }
+  .app-sw-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px;
+    border-radius: 4px;
+    text-decoration: none;
+    color: var(--text-muted);
+    transition: all .15s;
+  }
+  .app-sw-item:hover { background: var(--bg3); color: var(--text); }
+  .app-sw-item.current { background: var(--bg3); color: var(--text); pointer-events: none; }
+  .app-sw-icon { font-size: 16px; flex-shrink: 0; width: 20px; text-align: center; line-height: 1; }
+  .app-sw-name { font-size: 12px; font-weight: 500; letter-spacing: 0.03em; display: block; font-family: var(--font-body); }
+  .app-sw-sub { font-size: 10px; color: var(--text-dim); display: block; margin-top: 2px; font-family: var(--font-mono); letter-spacing: 0.03em; }
+  .app-sw-item.current .app-sw-sub { color: var(--text-muted); }
+  .app-sw-divider { height: 1px; background: var(--border); margin: 4px 0; }
+  .app-sw-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--gold); padding: 6px 12px 2px; display: block; }
+
   /* RESPONSIVE */
   @media (max-width: 768px) {
     nav { padding: 1rem 1.5rem; }
@@ -962,6 +1008,25 @@
     <li><a href="#faq">FAQ</a></li>
   </ul>
   <a href="#plany" class="nav-cta">Dołącz</a>
+  <div class="app-sw">
+    <button class="app-sw-btn" onclick="toggleAppSw()" title="Admin">⊞</button>
+    <div class="app-sw-menu" id="appSwMenu">
+      <span class="app-sw-label">Admin</span>
+      <a href="/" class="app-sw-item">
+        <span class="app-sw-icon">📊</span>
+        <span><span class="app-sw-name">WaleszDesk</span><span class="app-sw-sub">Panel tradingowy</span></span>
+      </a>
+      <a href="/funded" class="app-sw-item">
+        <span class="app-sw-icon">💼</span>
+        <span><span class="app-sw-name">WD Funded</span><span class="app-sw-sub">Tradovate · konta prop</span></span>
+      </a>
+      <div class="app-sw-divider"></div>
+      <a href="/funded-by-walesz" class="app-sw-item current">
+        <span class="app-sw-icon">✦</span>
+        <span><span class="app-sw-name">Funded by Walesz</span><span class="app-sw-sub">Landing · waitlista</span></span>
+      </a>
+    </div>
+  </div>
 </nav>
 
 <!-- TICKER -->
@@ -1245,6 +1310,15 @@
     nav.style.borderBottomColor = window.scrollY > 50
       ? 'rgba(201,168,76,0.15)'
       : 'rgba(255,255,255,0.06)';
+  });
+
+  // App switcher
+  function toggleAppSw() {
+    document.getElementById('appSwMenu').classList.toggle('open');
+  }
+  document.addEventListener('click', e => {
+    const sw = document.querySelector('.app-sw');
+    if (sw && !sw.contains(e.target)) document.getElementById('appSwMenu').classList.remove('open');
   });
 
   // Waitlist modal
