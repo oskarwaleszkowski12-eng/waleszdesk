@@ -2646,12 +2646,17 @@ async function fetchBots() {
   } catch {}
 }
 
+let _botsRenderHash = '';
 function renderBots() {
   const g = document.getElementById('bots-grid');
   if (!botsData.length) {
     g.innerHTML = `<div class="add-card" onclick="openAddBot()"><div class="add-icon">+</div><div>Add First Bot</div></div>`;
+    _botsRenderHash = '';
     return;
   }
+  const hash = JSON.stringify(botsData.map(b => [b.id, b.status, b.stats, b.live_balance]));
+  if (hash === _botsRenderHash) return;
+  _botsRenderHash = hash;
   g.innerHTML = botsData.map(b => {
     const cfg    = b.config || {};
     const stats  = b.stats  || {};
@@ -3976,9 +3981,10 @@ function initWS() {
       }
     }
 
-    // Positions card (only when tab is active)
+    // Positions card (only when tab is active) — debounced 80ms
     if (msg.positions && document.getElementById('positions-card')?.offsetParent !== null) {
-      renderPositionsData(msg.positions);
+      clearTimeout(_posRenderDebounce);
+      _posRenderDebounce = setTimeout(() => renderPositionsData(msg.positions), 80);
     }
   };
 
@@ -3991,6 +3997,7 @@ function initWS() {
   _ws.onerror = () => _ws.close();
 }
 let tickerData = {};
+let _posRenderDebounce = null;
 
 const TICKER_SYMBOLS = ['BTCUSDT','ETHUSDT','SOLUSDT','XRPUSDT','BNBUSDT','DOGEUSDT','ADAUSDT','AVAXUSDT','LINKUSDT','DOTUSDT'];
 
@@ -4431,10 +4438,10 @@ function startLiveDashboard() {
   setInterval(() => {
     _tick++;
     refreshAll();
-    checkAlerts();
-    if (_tick % 4  === 0) fetchBots();
-    if (_tick % 12 === 0) { bustCache('/api/stats'); fetchStats(); }
-    if (_tick % 6  === 0) checkBtcSpike();
+    setTimeout(checkAlerts,   800);
+    if (_tick % 4  === 0) setTimeout(fetchBots,    1600);
+    if (_tick % 12 === 0) setTimeout(() => { bustCache('/api/stats'); fetchStats(); }, 2400);
+    if (_tick % 6  === 0) setTimeout(checkBtcSpike, 3200);
   }, 5_000);
 }
 
@@ -4496,6 +4503,7 @@ function startTickerWs() {
         args: TICKER_SYMBOLS.map(s => 'tickers.' + s)
       }));
     };
+    let _tickerRafPending = false;
     tickerWs.onmessage = (e) => {
       const msg = JSON.parse(e.data);
       if (msg.topic && msg.data) {
@@ -4506,7 +4514,10 @@ function startTickerWs() {
             price: parseFloat(d.lastPrice || d.markPrice || 0),
             change: parseFloat(d.price24hPcnt || 0) * 100,
           };
-          updateTickerBar();
+          if (!_tickerRafPending) {
+            _tickerRafPending = true;
+            requestAnimationFrame(() => { _tickerRafPending = false; updateTickerBar(); });
+          }
         }
       }
     };

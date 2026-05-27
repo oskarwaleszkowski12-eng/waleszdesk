@@ -302,6 +302,42 @@ tr:hover td{background:rgba(255,255,255,.015);}
   .calc-layout{grid-template-columns:1fr;}
   .stats-row{grid-template-columns:repeat(2,1fr);}
 }
+body.light-mode {
+  --bg:      #f8f9fa;
+  --bg2:     #ffffff;
+  --bg3:     #f1f3f5;
+  --bg4:     #e9ecef;
+  --text:    #1a1a2e;
+  --muted:   #868e96;
+  --muted2:  #495057;
+  --border:  rgba(0,0,0,0.08);
+  --border2: rgba(0,0,0,0.14);
+  --bg0:     #f0f2f5;
+  --bg1:     #ffffff;
+}
+body.light-mode .topbar {
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 1px 12px rgba(0,0,0,0.08);
+}
+body.light-mode .nav {
+  background: var(--bg3);
+}
+body.light-mode .nav-btn.active {
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+}
+body.light-mode .card, body.light-mode .stat {
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+body.light-mode .modal-box {
+  background: #ffffff;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+}
+body.light-mode input, body.light-mode select, body.light-mode textarea {
+  background: var(--bg2) !important;
+  color: var(--text) !important;
+  border-color: var(--border2) !important;
+}
 </style>
 </head>
 <body>
@@ -320,6 +356,7 @@ tr:hover td{background:rgba(255,255,255,.015);}
       <span id="tv-status-text">Tradovate</span>
     </div>
     <div style="font-size:11px;color:var(--muted2);font-family:var(--font-mono);letter-spacing:0.04em;" id="topbar-date"></div>
+    <button id="theme-toggle" title="Toggle light/dark mode" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--border2);background:var(--bg2);color:var(--muted2);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">🌙</button>
     <div class="app-sw">
       <button class="app-sw-btn" onclick="toggleAppSw()" title="Przełącz aplikację">⊞</button>
       <div class="app-sw-menu" id="appSwMenu">
@@ -2202,6 +2239,18 @@ document.addEventListener('click', e => {
   const sw = document.querySelector('.app-sw');
   if (sw && !sw.contains(e.target)) document.getElementById('appSwMenu').classList.remove('open');
 });
+
+// Theme toggle
+(function() {
+  const btn = document.getElementById('theme-toggle');
+  const saved = localStorage.getItem('wd_theme');
+  if (saved === 'light') { document.body.classList.add('light-mode'); if(btn) btn.textContent = '☀️'; }
+  if (btn) btn.addEventListener('click', () => {
+    const isLight = document.body.classList.toggle('light-mode');
+    btn.textContent = isLight ? '☀️' : '🌙';
+    localStorage.setItem('wd_theme', isLight ? 'light' : 'dark');
+  });
+})();
 </script>
 </body>
 </html>
