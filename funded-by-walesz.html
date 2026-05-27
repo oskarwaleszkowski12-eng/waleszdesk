@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Funded by Walesz — Ekskluzywny Program Prop Tradingu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #080810;
+    --bg2: #0d0d1a;
+    --bg3: #111120;
+    --gold: #c9a84c;
+    --gold-light: #e8c97a;
+    --gold-dim: rgba(201,168,76,0.15);
+    --gold-border: rgba(201,168,76,0.25);
+    --purple: #7c5cbf;
+    --purple-light: #a07de0;
+    --purple-dim: rgba(124,92,191,0.12);
+    --purple-border: rgba(124,92,191,0.3);
+    --text: #f0ede8;
+    --text-muted: #8a8799;
+    --text-dim: #4a4860;
+    --border: rgba(255,255,255,0.06);
+    --font-display: 'Cormorant Garamond', serif;
+    --font-body: 'DM Sans', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* NOISE TEXTURE */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 3rem;
+    border-bottom: 1px solid var(--border);
+    background: rgba(8,8,16,0.85);
+    backdrop-filter: blur(20px);
+  }
+
+  .nav-logo {
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    font-weight: 500;
+    color: var(--text);
+    letter-spacing: 0.02em;
+  }
+
+  .nav-logo span { color: var(--gold); }
+
+  .nav-links {
+    display: flex;
+    gap: 2.5rem;
+    list-style: none;
+  }
+
+  .nav-links a {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text-muted);
+    text-decoration: none;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    transition: color 0.2s;
+  }
+
+  .nav-links a:hover { color: var(--gold-light); }
+
+  .nav-cta {
+    font-size: 13px;
+    font-weight: 500;
+    padding: 0.5rem 1.25rem;
+    border: 1px solid var(--gold-border);
+    border-radius: 2px;
+    color: var(--gold);
+    text-decoration: none;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    background: var(--gold-dim);
+  }
+
+  .nav-cta:hover {
+    background: rgba(201,168,76,0.25);
+    border-color: var(--gold);
+  }
+
+  /* HERO */
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 8rem 2rem 6rem;
+    overflow: hidden;
+  }
+
+  .hero-glow {
+    position: absolute;
+    top: 20%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 800px;
+    height: 500px;
+    background: radial-gradient(ellipse, rgba(124,92,191,0.12) 0%, transparent 65%),
+                radial-gradient(ellipse at 60% 40%, rgba(201,168,76,0.07) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .hero-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 1.5rem;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 0.2s;
+  }
+
+  .hero-eyebrow span {
+    display: inline-block;
+    width: 24px;
+    height: 1px;
+    background: var(--gold);
+    vertical-align: middle;
+    margin: 0 10px;
+    opacity: 0.6;
+  }
+
+  .hero-title {
+    font-family: var(--font-display);
+    font-size: clamp(3.5rem, 8vw, 7rem);
+    font-weight: 500;
+    line-height: 1.0;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    margin-bottom: 0.5rem;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 0.4s;
+  }
+
+  .hero-title em {
+    font-style: italic;
+    color: var(--gold-light);
+  }
+
+  .hero-title-line2 {
+    font-family: var(--font-display);
+    font-size: clamp(3.5rem, 8vw, 7rem);
+    font-weight: 400;
+    font-style: italic;
+    line-height: 1.0;
+    color: var(--text-muted);
+    margin-bottom: 2rem;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 0.5s;
+  }
+
+  .hero-sub {
+    font-size: 17px;
+    font-weight: 300;
+    color: var(--text-muted);
+    max-width: 520px;
+    line-height: 1.7;
+    margin-bottom: 3rem;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 0.65s;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 0.8s;
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0.85rem 2rem;
+    background: var(--gold);
+    color: #080810;
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-decoration: none;
+    border-radius: 2px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-primary:hover {
+    background: var(--gold-light);
+    transform: translateY(-1px);
+  }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0.85rem 2rem;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    text-decoration: none;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    transition: all 0.2s;
+  }
+
+  .btn-secondary:hover {
+    color: var(--text);
+    border-color: rgba(255,255,255,0.15);
+  }
+
+  .hero-stats {
+    display: flex;
+    gap: 3rem;
+    margin-top: 5rem;
+    padding-top: 3rem;
+    border-top: 1px solid var(--border);
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 1s;
+  }
+
+  .stat { text-align: center; }
+
+  .stat-val {
+    font-family: var(--font-display);
+    font-size: 2.2rem;
+    font-weight: 600;
+    color: var(--gold-light);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* SECTIONS */
+  section { position: relative; z-index: 1; }
+
+  .section-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 6rem 2rem;
+  }
+
+  .section-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .section-eyebrow::after {
+    content: '';
+    flex: 1;
+    max-width: 40px;
+    height: 1px;
+    background: var(--gold);
+    opacity: 0.4;
+  }
+
+  .section-title {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 4vw, 3.2rem);
+    font-weight: 500;
+    line-height: 1.1;
+    color: var(--text);
+    margin-bottom: 1.25rem;
+  }
+
+  .section-title em { font-style: italic; color: var(--gold-light); }
+
+  .section-sub {
+    font-size: 16px;
+    font-weight: 300;
+    color: var(--text-muted);
+    max-width: 520px;
+    line-height: 1.7;
+  }
+
+  /* HOW IT WORKS */
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+    margin-top: 4rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .step {
+    padding: 2.5rem 2rem;
+    background: var(--bg2);
+    position: relative;
+    transition: background 0.3s;
+  }
+
+  .step:hover { background: var(--bg3); }
+
+  .step-num {
+    font-family: var(--font-display);
+    font-size: 4rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    line-height: 1;
+    margin-bottom: 1.5rem;
+    transition: color 0.3s;
+  }
+
+  .step:hover .step-num { color: var(--gold-dim); }
+
+  .step-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 0.75rem;
+  }
+
+  .step-body {
+    font-size: 14px;
+    font-weight: 300;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  .step-divider {
+    position: absolute;
+    right: 0; top: 20%; bottom: 20%;
+    width: 1px;
+    background: var(--border);
+  }
+
+  /* PRICING */
+  .pricing-section { background: var(--bg2); }
+
+  .pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 4rem;
+  }
+
+  .plan {
+    background: var(--bg2);
+    padding: 2rem 1.5rem;
+    position: relative;
+    transition: background 0.3s;
+  }
+
+  .plan:hover { background: var(--bg3); }
+
+  .plan.featured {
+    background: var(--bg3);
+    border: 1px solid var(--gold-border);
+    margin: -1px;
+    z-index: 2;
+  }
+
+  .plan-badge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--bg);
+    background: var(--gold);
+    padding: 3px 10px;
+    border-radius: 1px;
+    display: inline-block;
+    margin-bottom: 1.5rem;
+  }
+
+  .plan-name {
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 0.25rem;
+  }
+
+  .plan-price {
+    font-size: 2.2rem;
+    font-weight: 300;
+    color: var(--text);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .plan-price sup {
+    font-size: 1rem;
+    vertical-align: top;
+    margin-top: 6px;
+    color: var(--text-muted);
+    display: inline-block;
+  }
+
+  .plan-price sub {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .plan-limit {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--purple-light);
+    letter-spacing: 0.08em;
+    margin-top: 6px;
+    margin-bottom: 1.5rem;
+    display: block;
+  }
+
+  .plan-divider {
+    height: 1px;
+    background: var(--border);
+    margin-bottom: 1.5rem;
+  }
+
+  .plan-features {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 2rem;
+  }
+
+  .plan-features li {
+    font-size: 13px;
+    font-weight: 300;
+    color: var(--text-muted);
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    line-height: 1.4;
+  }
+
+  .plan-features li::before {
+    content: '—';
+    color: var(--gold);
+    opacity: 0.5;
+    flex-shrink: 0;
+    font-size: 12px;
+    margin-top: 1px;
+  }
+
+  .plan-features li.no { opacity: 0.35; }
+  .plan-features li.no::before { content: '×'; color: var(--text-dim); }
+
+  .plan-btn {
+    display: block;
+    text-align: center;
+    padding: 0.7rem 1rem;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-decoration: none;
+    border-radius: 2px;
+    transition: all 0.2s;
+    cursor: pointer;
+    font-family: var(--font-body);
+    width: 100%;
+    border: none;
+  }
+
+  .plan-btn.outline {
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    background: transparent;
+  }
+
+  .plan-btn.outline:hover {
+    border-color: rgba(255,255,255,0.2);
+    color: var(--text);
+  }
+
+  .plan-btn.gold {
+    background: var(--gold);
+    color: var(--bg);
+  }
+
+  .plan-btn.gold:hover {
+    background: var(--gold-light);
+    transform: translateY(-1px);
+  }
+
+  .plan-btn.purple-btn {
+    background: var(--purple-dim);
+    border: 1px solid var(--purple-border);
+    color: var(--purple-light);
+  }
+
+  .plan-btn.purple-btn:hover {
+    background: rgba(124,92,191,0.2);
+  }
+
+  /* WAITLIST MODAL */
+  .wl-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    background: rgba(8,8,16,0.85);
+    backdrop-filter: blur(12px);
+    align-items: center;
+    justify-content: center;
+  }
+
+  .wl-overlay.open { display: flex; }
+
+  .wl-modal {
+    background: var(--bg2);
+    border: 1px solid var(--gold-border);
+    border-radius: 6px;
+    padding: 2.5rem 2rem;
+    width: min(460px, 92vw);
+    position: relative;
+  }
+
+  .wl-close {
+    position: absolute;
+    top: 1rem; right: 1.25rem;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 20px;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  .wl-close:hover { color: var(--text); }
+
+  .wl-tag {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 0.75rem;
+  }
+
+  .wl-title {
+    font-family: var(--font-display);
+    font-size: 1.8rem;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 0.5rem;
+  }
+
+  .wl-sub {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 1.75rem;
+    line-height: 1.5;
+  }
+
+  .wl-form { display: flex; flex-direction: column; gap: 12px; }
+
+  .wl-input {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.7rem 1rem;
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 14px;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .wl-input:focus { border-color: var(--gold-border); }
+  .wl-input::placeholder { color: var(--text-dim); }
+
+  .wl-submit {
+    padding: 0.8rem 1.5rem;
+    background: var(--gold);
+    color: var(--bg);
+    border: none;
+    border-radius: 2px;
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 4px;
+  }
+
+  .wl-submit:hover { background: var(--gold-light); }
+  .wl-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .wl-success {
+    display: none;
+    text-align: center;
+    padding: 1.5rem 0;
+  }
+
+  .wl-success-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .wl-success-title {
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    color: var(--gold-light);
+    margin-bottom: 0.5rem;
+  }
+
+  .wl-success-body {
+    font-size: 14px;
+    color: var(--text-muted);
+  }
+
+  .wl-error {
+    font-size: 12px;
+    color: #f56565;
+    display: none;
+    margin-top: 4px;
+  }
+
+  /* MENTORING */
+  .mentoring-card {
+    margin-top: 4rem;
+    border: 1px solid var(--gold-border);
+    border-radius: 4px;
+    background: linear-gradient(135deg, rgba(201,168,76,0.04) 0%, transparent 60%);
+    padding: 3rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    align-items: center;
+  }
+
+  .mentoring-tag {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 1rem;
+  }
+
+  .mentoring-title {
+    font-family: var(--font-display);
+    font-size: 2.4rem;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.1;
+    margin-bottom: 1rem;
+  }
+
+  .mentoring-title em { font-style: italic; color: var(--gold-light); }
+
+  .mentoring-body {
+    font-size: 15px;
+    font-weight: 300;
+    color: var(--text-muted);
+    line-height: 1.7;
+    margin-bottom: 1.5rem;
+  }
+
+  .mentoring-packages {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .pkg-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg2);
+    transition: border-color 0.2s;
+  }
+
+  .pkg-row:hover { border-color: var(--gold-border); }
+
+  .pkg-row-name { font-size: 14px; font-weight: 400; color: var(--text); }
+  .pkg-row-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .pkg-row-price { font-family: var(--font-display); font-size: 1.4rem; font-weight: 500; color: var(--gold-light); white-space: nowrap; }
+  .pkg-row-price span { font-size: 12px; font-family: var(--font-body); color: var(--text-muted); font-weight: 300; }
+
+  /* DISCLAIMER */
+  .disclaimer-section {
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+  }
+
+  .disclaimer-box {
+    border: 1px solid rgba(201,168,76,0.15);
+    border-radius: 3px;
+    padding: 2rem 2.5rem;
+    background: rgba(201,168,76,0.03);
+    margin-bottom: 2rem;
+  }
+
+  .disclaimer-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 0.75rem;
+  }
+
+  .disclaimer-text {
+    font-size: 12px;
+    font-weight: 300;
+    color: var(--text-dim);
+    line-height: 1.8;
+  }
+
+  /* FAQ */
+  .faq-list { margin-top: 3rem; }
+
+  .faq-item {
+    border-bottom: 1px solid var(--border);
+    padding: 1.5rem 0;
+  }
+
+  .faq-q {
+    font-size: 15px;
+    font-weight: 400;
+    color: var(--text);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .faq-q::after {
+    content: '+';
+    font-size: 18px;
+    color: var(--gold);
+    flex-shrink: 0;
+    transition: transform 0.2s;
+  }
+
+  .faq-item.open .faq-q::after { transform: rotate(45deg); }
+
+  .faq-a {
+    font-size: 14px;
+    font-weight: 300;
+    color: var(--text-muted);
+    line-height: 1.7;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s;
+  }
+
+  .faq-item.open .faq-a {
+    max-height: 200px;
+    padding-top: 0.75rem;
+  }
+
+  /* FOOTER */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 3rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .footer-logo {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    color: var(--text-muted);
+  }
+
+  .footer-logo span { color: var(--gold); }
+
+  .footer-links {
+    display: flex;
+    gap: 2rem;
+    list-style: none;
+  }
+
+  .footer-links a {
+    font-size: 12px;
+    color: var(--text-dim);
+    text-decoration: none;
+    letter-spacing: 0.05em;
+    transition: color 0.2s;
+  }
+
+  .footer-links a:hover { color: var(--gold); }
+
+  .footer-copy {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+  }
+
+  /* ANIMATIONS */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* TICKER */
+  .ticker-wrap {
+    overflow: hidden;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    padding: 10px 0;
+    white-space: nowrap;
+  }
+
+  .ticker-track {
+    display: inline-flex;
+    gap: 0;
+    animation: ticker 30s linear infinite;
+  }
+
+  .ticker-item {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    padding: 0 2.5rem;
+  }
+
+  .ticker-item span { color: var(--gold); margin-right: 6px; }
+
+  @keyframes ticker {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  /* RESPONSIVE */
+  @media (max-width: 768px) {
+    nav { padding: 1rem 1.5rem; }
+    .nav-links { display: none; }
+    .hero-stats { gap: 1.5rem; flex-wrap: wrap; justify-content: center; }
+    .steps { grid-template-columns: 1fr; }
+    .step-divider { display: none; }
+    .pricing-grid { grid-template-columns: 1fr 1fr; }
+    .mentoring-card { grid-template-columns: 1fr; gap: 2rem; }
+    footer { flex-direction: column; gap: 1.5rem; text-align: center; }
+  }
+
+  @media (max-width: 480px) {
+    .pricing-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- WAITLIST MODAL -->
+<div class="wl-overlay" id="wlOverlay">
+  <div class="wl-modal">
+    <button class="wl-close" onclick="closeWaitlist()">×</button>
+    <div id="wlForm">
+      <div class="wl-tag" id="wlTag">Waitlista — Plan Pro</div>
+      <div class="wl-title">Zapisz się na listę</div>
+      <div class="wl-sub">Program otwieramy wkrótce. Dostaniesz email jako pierwszy, gdy pojawi się miejsce.</div>
+      <form class="wl-form" onsubmit="submitWaitlist(event)">
+        <input type="hidden" id="wlPlan" value="pro">
+        <input class="wl-input" type="email" id="wlEmail" placeholder="Twój adres email" required autocomplete="email">
+        <input class="wl-input" type="text" id="wlName" placeholder="Imię (opcjonalnie)" autocomplete="given-name">
+        <div class="wl-error" id="wlError"></div>
+        <button type="submit" class="wl-submit" id="wlSubmit">Zapisz mnie na listę</button>
+      </form>
+    </div>
+    <div class="wl-success" id="wlSuccess">
+      <div class="wl-success-icon">✓</div>
+      <div class="wl-success-title">Zapisano!</div>
+      <div class="wl-success-body">Odezwiemy się gdy otworzymy program.</div>
+    </div>
+  </div>
+</div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">Funded <span>by Walesz</span></div>
+  <ul class="nav-links">
+    <li><a href="#jak-dziala">Jak działa</a></li>
+    <li><a href="#plany">Plany</a></li>
+    <li><a href="#mentoring">Mentoring</a></li>
+    <li><a href="#faq">FAQ</a></li>
+  </ul>
+  <a href="#plany" class="nav-cta">Dołącz</a>
+</nav>
+
+<!-- TICKER -->
+<div class="ticker-wrap" style="margin-top: 72px;">
+  <div class="ticker-track">
+    <span class="ticker-item"><span>BTC/USDT</span>LONG · +4.2% · SL HIT</span>
+    <span class="ticker-item"><span>ETH/USDT</span>SHORT · +2.8% · TP1 HIT</span>
+    <span class="ticker-item"><span>SOL/USDT</span>LONG · +6.1% · CLOSED</span>
+    <span class="ticker-item"><span>FUNDED</span>FTMO · 50K · ACTIVE</span>
+    <span class="ticker-item"><span>WIN RATE</span>68% · OSTATNIE 30 DNI</span>
+    <span class="ticker-item"><span>BTC/USDT</span>LONG · +4.2% · SL HIT</span>
+    <span class="ticker-item"><span>ETH/USDT</span>SHORT · +2.8% · TP1 HIT</span>
+    <span class="ticker-item"><span>SOL/USDT</span>LONG · +6.1% · CLOSED</span>
+    <span class="ticker-item"><span>FUNDED</span>FTMO · 50K · ACTIVE</span>
+    <span class="ticker-item"><span>WIN RATE</span>68% · OSTATNIE 30 DNI</span>
+  </div>
+</div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-glow"></div>
+  <div class="hero-eyebrow"><span></span>Ekskluzywny program — max 50 osób<span></span></div>
+  <h1 class="hero-title">Funded by <em>Walesz</em></h1>
+  <div class="hero-title-line2">Traduj jak profesjonalista</div>
+  <p class="hero-sub">Obserwuj moje realne pozycje na funded accounts, ucz się procesu i zdaj swój własny challenge prop firmy.</p>
+  <div class="hero-actions">
+    <button class="btn-primary" onclick="openWaitlist('pro')">Dołącz do programu →</button>
+    <a href="#jak-dziala" class="btn-secondary">Jak to działa</a>
+  </div>
+  <div class="hero-stats">
+    <div class="stat">
+      <div class="stat-val">68%</div>
+      <div class="stat-label">Win Rate</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val">50K</div>
+      <div class="stat-label">Funded Account</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val">50</div>
+      <div class="stat-label">Max członków</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val">1:3</div>
+      <div class="stat-label">Avg RR</div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="jak-dziala">
+  <div class="section-inner">
+    <div class="section-eyebrow reveal">Proces</div>
+    <h2 class="section-title reveal">Jak to <em>działa</em></h2>
+    <p class="section-sub reveal">Trzy kroki od dołączenia do programu do pierwszego zdanego challenge'u.</p>
+
+    <div class="steps reveal">
+      <div class="step">
+        <div class="step-num">01</div>
+        <div class="step-title">Dołącz i obserwuj</div>
+        <div class="step-body">Zyskujesz dostęp do moich live pozycji na funded accounts w czasie rzeczywistym. Widzisz wejścia, SL, TP i pełne uzasadnienie każdej decyzji.</div>
+        <div class="step-divider"></div>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <div class="step-title">Ucz się procesu</div>
+        <div class="step-body">Weekly analiza rynku, review trade journala, materiały o psychologii i zarządzaniu ryzykiem. Nie kopiujesz — rozumiesz i budujesz własną przewagę.</div>
+        <div class="step-divider"></div>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <div class="step-title">Zdaj swój challenge</div>
+        <div class="step-body">Z gotową strategią i udokumentowanym edge'em podchodzisz do challenge'u swojej prop firmy. Masz moje wsparcie na każdym etapie.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="plany" class="pricing-section">
+  <div class="section-inner">
+    <div class="section-eyebrow reveal">Plany dostępu</div>
+    <h2 class="section-title reveal">Wybierz swój <em>poziom</em></h2>
+    <p class="section-sub reveal">Program jest zamknięty — łącznie maksymalnie 50 osób. Kiedy miejsca się skończą, otwieramy waitlistę.</p>
+
+    <div class="pricing-grid reveal">
+
+      <!-- FREE -->
+      <div class="plan">
+        <div class="plan-name">Free</div>
+        <div class="plan-price">0 <sub>zł</sub></div>
+        <span class="plan-limit">Bez limitu</span>
+        <div class="plan-divider"></div>
+        <ul class="plan-features">
+          <li>Publiczny feed wyników</li>
+          <li>Newsletter edukacyjny</li>
+          <li>Blog i content</li>
+          <li class="no">Live positions</li>
+          <li class="no">Alerty SL/TP</li>
+          <li class="no">Discord</li>
+          <li class="no">Mentoring</li>
+        </ul>
+        <button class="plan-btn outline" onclick="openWaitlist('pro')">Obserwuj za darmo</button>
+      </div>
+
+      <!-- PRO -->
+      <div class="plan featured">
+        <div class="plan-badge">Najpopularniejszy</div>
+        <div class="plan-name">Pro</div>
+        <div class="plan-price"><sup>249</sup> <sub>zł / mies.</sub></div>
+        <span class="plan-limit">⬡ Max 40 miejsc</span>
+        <div class="plan-divider"></div>
+        <ul class="plan-features">
+          <li>Live tracking pozycji</li>
+          <li>Alerty wejść SL/TP</li>
+          <li>Weekly analiza rynku</li>
+          <li>Discord Pro</li>
+          <li>Materiały prop challenge</li>
+          <li>Locked-in pricing</li>
+          <li class="no">Mentoring 1:1</li>
+        </ul>
+        <button class="plan-btn gold" onclick="openWaitlist('pro')">Dołącz do Pro</button>
+      </div>
+
+      <!-- VIP -->
+      <div class="plan">
+        <div class="plan-name">VIP</div>
+        <div class="plan-price"><sup>699</sup> <sub>zł / mies.</sub></div>
+        <span class="plan-limit">⬡ Max 10 miejsc</span>
+        <div class="plan-divider"></div>
+        <ul class="plan-features">
+          <li>Wszystko z Pro</li>
+          <li>WaleszDesk live panel</li>
+          <li>Mentoring 1:1 miesięcznie</li>
+          <li>Review trade journala</li>
+          <li>Discord VIP prywatny</li>
+          <li>Nagrania sesji live</li>
+          <li>Priorytetowy kontakt</li>
+        </ul>
+        <button class="plan-btn purple-btn" onclick="openWaitlist('vip')">Dołącz do VIP</button>
+      </div>
+
+      <!-- PRIVATE -->
+      <div class="plan">
+        <div class="plan-name">Prywatny</div>
+        <div class="plan-price"><sup>800</sup> <sub>zł / sesja</sub></div>
+        <span class="plan-limit">Na żądanie</span>
+        <div class="plan-divider"></div>
+        <ul class="plan-features">
+          <li>Sesja 1:1 · 60 minut</li>
+          <li>Analiza Twojego journala</li>
+          <li>Q&A bez ograniczeń</li>
+          <li>Nagranie sesji</li>
+          <li>Notatki podsumowujące</li>
+          <li>Pakiet 2 sesji: 1 500 zł</li>
+          <li>Pakiet 4 sesji: 2 800 zł</li>
+        </ul>
+        <button class="plan-btn outline" onclick="openWaitlist('mentoring')">Zarezerwuj sesję</button>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- MENTORING -->
+<section id="mentoring">
+  <div class="section-inner">
+    <div class="section-eyebrow reveal">Prywatny mentoring</div>
+    <h2 class="section-title reveal">Tylko Ty <em>i ja</em></h2>
+
+    <div class="mentoring-card reveal">
+      <div>
+        <div class="mentoring-tag">Indywidualnie · Bez grupy</div>
+        <div class="mentoring-title">Sesja 1:1 <em>skupiona</em> wyłącznie na Tobie</div>
+        <div class="mentoring-body">Analizujemy Twój journal, Twoje błędy, Twoją strategię. Bez ogólnych rad — konkretna praca z Twoimi trasakcjami i Twoim planem tradingowym.</div>
+        <button class="btn-primary" onclick="openWaitlist('mentoring')">Zarezerwuj sesję →</button>
+      </div>
+      <div class="mentoring-packages">
+        <div class="pkg-row">
+          <div>
+            <div class="pkg-row-name">Pojedyncza sesja</div>
+            <div class="pkg-row-sub">60 minut · Zoom/Meet · Nagranie</div>
+          </div>
+          <div class="pkg-row-price">800 <span>zł</span></div>
+        </div>
+        <div class="pkg-row">
+          <div>
+            <div class="pkg-row-name">Pakiet 2 sesji</div>
+            <div class="pkg-row-sub">Oszczędzasz 100 zł · Q&A między sesjami</div>
+          </div>
+          <div class="pkg-row-price">1 500 <span>zł</span></div>
+        </div>
+        <div class="pkg-row" style="border-color: var(--gold-border);">
+          <div>
+            <div class="pkg-row-name">Pakiet miesięczny</div>
+            <div class="pkg-row-sub">4 sesje · Oszczędzasz 400 zł · Chat support</div>
+          </div>
+          <div class="pkg-row-price">2 800 <span>zł</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="section-inner" style="max-width: 720px;">
+    <div class="section-eyebrow reveal">Pytania</div>
+    <h2 class="section-title reveal"><em>FAQ</em></h2>
+
+    <div class="faq-list reveal">
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">Czy to jest doradztwo inwestycyjne?</div>
+        <div class="faq-a">Nie. Wszystkie treści mają charakter wyłącznie edukacyjny i dokumentacyjny. Pokazuję swoje własne decyzje tradingowe — nie są to rekomendacje inwestycyjne w rozumieniu Ustawy o obrocie instrumentami finansowymi. Każda decyzja należy wyłącznie do Ciebie.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">Dlaczego tylko 50 osób?</div>
+        <div class="faq-a">Zależy mi na jakości, nie na ilości. Przy 50 osobach mogę utrzymać wysoki poziom zaangażowania, szybko odpowiadać i realnie pomagać każdemu. To nie jest masowy kurs — to zamknięta społeczność.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">Jak wygląda płatność i anulowanie?</div>
+        <div class="faq-a">Płatność cykliczna przez Stripe — miesięczna lub roczna (zniżka 15%). Możesz anulować w dowolnym momencie bez okresu wypowiedzenia. Dostęp aktywny do końca opłaconego okresu.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">Dla kogo jest program Pro, a dla kogo VIP?</div>
+        <div class="faq-a">Pro jest dla tych którzy chcą obserwować i uczyć się samodzielnie — live tracking, alerty i materiały wystarczą. VIP jest dla tych którzy chcą bezpośredniego kontaktu, review swojego journala i monthly call 1:1 ze mną.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">Co jeśli wszystkie miejsca są zajęte?</div>
+        <div class="faq-a">Wpisujesz się na waitlistę — dostajesz email jako pierwszy kiedy pojawi się miejsce lub kiedy otwieram kolejną turę. Przy kolejnym otwarciu ceny mogą być wyższe.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DISCLAIMER -->
+<section class="disclaimer-section">
+  <div class="section-inner" style="padding-top: 3rem; padding-bottom: 3rem;">
+    <div class="disclaimer-box">
+      <div class="disclaimer-label">Disclaimer prawny — przeczytaj przed dołączeniem</div>
+      <div class="disclaimer-text">
+        Treści publikowane w ramach programu "Funded by Walesz" mają charakter wyłącznie edukacyjny i informacyjny. Nie stanowią rekomendacji inwestycyjnych ani doradztwa inwestycyjnego w rozumieniu Ustawy z dnia 29 lipca 2005 r. o obrocie instrumentami finansowymi. Wyniki historyczne nie gwarantują przyszłych zysków. Trading instrumentami finansowymi wiąże się z ryzykiem utraty całości lub części zainwestowanego kapitału. Każda decyzja inwestycyjna należy wyłącznie do użytkownika i powinna być podjęta po samodzielnej analizie sytuacji rynkowej oraz własnych możliwości finansowych.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">Funded <span>by Walesz</span></div>
+  <ul class="footer-links">
+    <li><a href="#">Regulamin</a></li>
+    <li><a href="#">Polityka prywatności</a></li>
+    <li><a href="#">Kontakt</a></li>
+    <li><a href="#">Disclaimer</a></li>
+  </ul>
+  <div class="footer-copy">© 2025 Funded by Walesz</div>
+</footer>
+
+<script>
+  // FAQ toggle
+  function toggleFaq(el) {
+    el.parentElement.classList.toggle('open');
+  }
+
+  // Scroll reveal
+  const reveals = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry, i) => {
+      if (entry.isIntersecting) {
+        setTimeout(() => entry.target.classList.add('visible'), i * 80);
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  reveals.forEach(el => observer.observe(el));
+
+  // Nav scroll effect
+  const nav = document.querySelector('nav');
+  window.addEventListener('scroll', () => {
+    nav.style.borderBottomColor = window.scrollY > 50
+      ? 'rgba(201,168,76,0.15)'
+      : 'rgba(255,255,255,0.06)';
+  });
+
+  // Waitlist modal
+  const planLabels = { pro: 'Plan Pro', vip: 'Plan VIP', mentoring: 'Mentoring 1:1' };
+
+  function openWaitlist(plan) {
+    document.getElementById('wlPlan').value = plan;
+    document.getElementById('wlTag').textContent = 'Waitlista — ' + planLabels[plan];
+    document.getElementById('wlForm').style.display = '';
+    document.getElementById('wlSuccess').style.display = 'none';
+    document.getElementById('wlError').style.display = 'none';
+    document.getElementById('wlError').textContent = '';
+    document.getElementById('wlSubmit').disabled = false;
+    document.getElementById('wlOverlay').classList.add('open');
+    setTimeout(() => document.getElementById('wlEmail').focus(), 50);
+  }
+
+  function closeWaitlist() {
+    document.getElementById('wlOverlay').classList.remove('open');
+  }
+
+  document.getElementById('wlOverlay').addEventListener('click', function(e) {
+    if (e.target === this) closeWaitlist();
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeWaitlist();
+  });
+
+  async function submitWaitlist(e) {
+    e.preventDefault();
+    const btn = document.getElementById('wlSubmit');
+    const errEl = document.getElementById('wlError');
+    btn.disabled = true;
+    btn.textContent = 'Zapisuję...';
+    errEl.style.display = 'none';
+
+    const payload = {
+      email: document.getElementById('wlEmail').value.trim(),
+      plan:  document.getElementById('wlPlan').value,
+      name:  document.getElementById('wlName').value.trim() || undefined,
+    };
+
+    try {
+      const res = await fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        document.getElementById('wlForm').style.display = 'none';
+        document.getElementById('wlSuccess').style.display = 'block';
+      } else {
+        errEl.textContent = data.error || 'Coś poszło nie tak.';
+        errEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Zapisz mnie na listę';
+      }
+    } catch {
+      errEl.textContent = 'Błąd sieci. Spróbuj ponownie.';
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Zapisz mnie na listę';
+    }
+  }
+</script>
+</body>
+</html>

@@ -23,6 +23,8 @@ const statsRoutes   = require('./routes/stats');
 const botsRoutes    = require('./routes/bots');
 const algoRoutes    = require('./routes/algo');
 const journalRoutes = require('./routes/journal');
+const fundedRoutes   = require('./routes/funded');
+const waitlistRoutes = require('./routes/waitlist');
 
 const app = express();
 
@@ -56,9 +58,15 @@ app.post('/api/auth/login', validate(loginSchema), (req, res) => {
   res.json({ ok: true, token });
 });
 
-// Auth guard — public: /status, /auth/*, /algo/*
+// Auth guard — public: /status, /auth/*, /algo/*, POST /waitlist
 app.use('/api', (req, res, next) => {
-  if (req.path === '/status' || req.path.startsWith('/auth/') || req.path.startsWith('/algo/') || req.path === '/algo') return next();
+  if (
+    req.path === '/status' ||
+    req.path.startsWith('/auth/') ||
+    req.path.startsWith('/algo/') ||
+    req.path === '/algo' ||
+    (req.path === '/waitlist' && req.method === 'POST')
+  ) return next();
   requireAuth(req, res, next);
 });
 
@@ -69,16 +77,23 @@ app.use('/api', statsRoutes);
 app.use('/api/bots', botsRoutes);
 app.use('/api/algo', algoRoutes);
 app.use('/api/journal', journalRoutes);
+app.use('/api/funded', fundedRoutes);
+app.use('/api/waitlist', waitlistRoutes);
+app.get('/funded', (req, res) => res.sendFile(path.join(__dirname, 'funded.html')));
+app.get('/funded-by-walesz', (req, res) => res.sendFile(path.join(__dirname, 'funded-by-walesz.html')));
 app.get('/algo', (req, res) => res.sendFile(path.join(__dirname, 'algo.html')));
 
 // HTTP + WebSocket server
 const server = http.createServer(app);
 setupWS(server, config.JWT_SECRET);
 
+const tv = require('./lib/tradovate');
+
 initDb()
-  .then(() => {
+  .then(async () => {
     startPoller(require('./lib/db').pool);
     startBotEngine({ pool: require('./lib/db').pool, decrypt });
+    await tv.loadCredentialsFromDb();
   })
   .catch(err => logger.error({ err }, '[DB] init failed'));
 
