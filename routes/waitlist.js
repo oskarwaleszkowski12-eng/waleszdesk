@@ -4,6 +4,7 @@ const { pool } = require('../lib/db');
 const { validate, z } = require('../lib/validate');
 const logger  = require('../lib/logger');
 const { sendWaitlistConfirmation } = require('../lib/email');
+const { sendTelegram } = require('../lib/telegram');
 
 const waitlistSchema = z.object({
   email:   z.string().email(),
@@ -25,6 +26,8 @@ router.post('/', validate(waitlistSchema), async (req, res) => {
     );
     logger.info({ email, plan }, '[waitlist] new signup');
     res.json({ ok: true });
+    const planLabels = { pro: 'Pro', vip: 'VIP', mentoring: 'Mentoring 1:1' };
+    sendTelegram(`🔔 <b>Nowy zapis na waitlistę</b>\n📧 ${email}\n📌 Plan: <b>${planLabels[plan] || plan}</b>${name ? `\n👤 ${name}` : ''}`);
     sendWaitlistConfirmation(email.toLowerCase().trim(), plan, name || null);
   } catch (err) {
     logger.error({ err }, '[waitlist] insert failed');
