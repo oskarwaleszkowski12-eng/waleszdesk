@@ -49,6 +49,14 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 // Auth
 const loginSchema = z.object({ password: z.string().min(1) });
+const publicAlgoRoutes = new Set([
+  '/algo/available-bots',
+  '/algo/verify-keys',
+  '/algo/launch',
+  '/algo/status',
+  '/algo/verify-invite',
+]);
+
 app.post('/api/auth/login', validate(loginSchema), (req, res) => {
   const { password } = req.body;
   if (!config.ADMIN_PASS || password !== config.ADMIN_PASS)
@@ -58,13 +66,12 @@ app.post('/api/auth/login', validate(loginSchema), (req, res) => {
   res.json({ ok: true, token });
 });
 
-// Auth guard — public: /status, /auth/*, /algo/*, POST /waitlist
+// Auth guard — public: /status, /auth/*, selected onboarding /algo routes, POST /waitlist
 app.use('/api', (req, res, next) => {
   if (
     req.path === '/status' ||
     req.path.startsWith('/auth/') ||
-    req.path.startsWith('/algo/') ||
-    req.path === '/algo' ||
+    publicAlgoRoutes.has(req.path) ||
     (req.path === '/waitlist' && req.method === 'POST')
   ) return next();
   requireAuth(req, res, next);

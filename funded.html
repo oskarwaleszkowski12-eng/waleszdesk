@@ -2026,13 +2026,12 @@ async function tvConnect() {
   showConnectError('');
   connectStep('connecting');
   // Pass password only if entered (otherwise backend uses saved DB credentials)
-  await initiateConnect(username, password || null, _tvEnv === 'demo');
+  await initiateConnect(username, password, _tvEnv === 'demo');
 }
 
 async function initiateConnect(username, password, isDemo) {
-  const body = username
-    ? { username, password, isDemo }
-    : {};
+  const body = username ? { username, isDemo } : {};
+  if (password) body.password = password;
   const r = await api('POST', '/api/funded/auth/init', body);
   if (!r.ok) {
     if (!_jwt) { connectStep('login'); return; }
