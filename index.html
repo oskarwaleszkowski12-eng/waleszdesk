@@ -4466,8 +4466,12 @@ function startLiveDashboard() {
     if (stat) stat.classList.add('loading');
   });
   initWS();
-  fetchJournalDB().then(() => refreshAll());   // load journal so Win Rate is accurate, then fire all tiles
-  Promise.all([fetchStats(), fetchBots()]);    // parallel: stats + bots (not covered by refreshAll on first tick)
+  // Initial tile load — always run once regardless of WS state
+  fetchBalance(true);
+  fetchTodayPnl();
+  fetchLivePnl();
+  fetchJournalDB().then(() => refreshAll());   // load journal so Win Rate is accurate, then fire remaining tiles
+  Promise.all([fetchStats(), fetchBots()]);    // parallel: stats + bots
 
   // Single 5s ticker — slower tasks + fallback when WS offline
   let _tick = 0;
