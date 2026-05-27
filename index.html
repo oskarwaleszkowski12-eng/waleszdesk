@@ -3687,14 +3687,49 @@ function calcR() {
   }
 }
 
+let _posStructureHash = '';
+function _posLiqHtml(markPx, liqPx) {
+  if (!(liqPx > 0 && markPx > 0)) return { text: '—', color: 'var(--muted2)' };
+  const dist = Math.abs((liqPx - markPx) / markPx * 100);
+  return { text: dist.toFixed(2) + '%', color: dist < 10 ? 'var(--red)' : dist < 20 ? 'var(--amber)' : 'var(--green)' };
+}
+
 function renderPositionsData(d) {
   const grid  = document.getElementById('positions-grid');
   const empty = document.getElementById('positions-empty');
   if (!d.ok) { grid.style.display = 'none'; empty.textContent = 'Error: ' + d.error; empty.style.display = ''; return; }
-  if (!d.positions.length) { grid.style.display = 'none'; empty.textContent = 'No open positions'; empty.style.display = ''; return; }
+  if (!d.positions.length) {
+    _posStructureHash = '';
+    grid.style.display = 'none'; empty.textContent = 'No open positions'; empty.style.display = ''; return;
+  }
   empty.style.display = 'none';
   grid.style.display = '';
   const _posAvgLoss = computeAvgLoss();
+
+  // Surgical update when structure unchanged (same symbols/sides/sizes)
+  const structHash = d.positions.map(p => p.symbol + '_' + p.side + '_' + p.size).join('|');
+  if (structHash === _posStructureHash && grid.children.length) {
+    d.positions.forEach(p => {
+      const card = grid.querySelector('[data-pos="' + p.symbol + '_' + p.side.toLowerCase() + '"]');
+      if (!card) return;
+      const pnl = parseFloat(p.unrealisedPnl) || 0;
+      const pnlEl = card.querySelector('[data-pnl]');
+      if (pnlEl) {
+        pnlEl.textContent = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
+        pnlEl.style.color = pnl >= 0 ? 'var(--green)' : 'var(--red)';
+      }
+      const rEl = card.querySelector('[data-r]');
+      if (rEl) rEl.textContent = _posAvgLoss ? '≈ ' + (pnl >= 0 ? '+' : '') + (pnl / _posAvgLoss).toFixed(2) + 'R' : '';
+      const liq = _posLiqHtml(parseFloat(p.markPrice) || parseFloat(p.entryPrice), parseFloat(p.liqPrice));
+      const liqEl = card.querySelector('[data-liq]');
+      if (liqEl) { liqEl.textContent = liq.text; liqEl.style.color = liq.color; }
+    });
+    const el = document.getElementById('pos-last-refresh');
+    if (el) el.textContent = 'Last refreshed ' + new Date().toLocaleTimeString();
+    return;
+  }
+  _posStructureHash = structHash;
+
     grid.innerHTML = d.positions.map(p => {
       const pnl = parseFloat(p.unrealisedPnl) || 0;
       const pnlColor = pnl >= 0 ? 'var(--green)' : 'var(--red)';
@@ -3703,25 +3738,18 @@ function renderPositionsData(d) {
       const side = p.side.toLowerCase();
       const posSize = parseFloat(p.size) * parseFloat(p.entryPrice);
       const fundingPer8h = posSize * 0.0001;
-      // Distance to liquidation
-      const markPx = parseFloat(p.markPrice) || parseFloat(p.entryPrice);
-      const liqPx  = parseFloat(p.liqPrice);
-      let distToLiqHtml = '<span style="color:var(--muted2)">—</span>';
-      if (liqPx > 0 && markPx > 0) {
-        const dist = Math.abs((liqPx - markPx) / markPx * 100);
-        const liqColor = dist < 10 ? 'var(--red)' : dist < 20 ? 'var(--amber)' : 'var(--green)';
-        distToLiqHtml = '<span style="color:' + liqColor + '">' + dist.toFixed(2) + '%</span>';
-      }
-      return '<div class="pos-card ' + side + '">'
+      const liq = _posLiqHtml(parseFloat(p.markPrice) || parseFloat(p.entryPrice), parseFloat(p.liqPrice));
+      const distToLiqHtml = '<span data-liq style="color:' + liq.color + '">' + liq.text + '</span>';
+      return '<div class="pos-card ' + side + '" data-pos="' + p.symbol + '_' + side + '">'
         + '<div class="pos-header">'
           + '<div>'
             + '<div class="pos-sym">' + p.symbol + '</div>'
             + '<span class="side-b ' + (side==='long'?'side-long':'side-short') + '" style="font-size:10px;">' + p.side.toUpperCase() + '</span>'
           + '</div>'
           + '<div style="text-align:right;">'
-            + '<div style="font-size:20px;font-weight:700;font-family:var(--font-mono);color:' + pnlColor + '">' + pnlStr + '</div>'
+            + '<div data-pnl style="font-size:20px;font-weight:700;font-family:var(--font-mono);color:' + pnlColor + '">' + pnlStr + '</div>'
             + '<div style="font-size:10px;color:var(--muted2)">Unrealised P&L</div>'
-            + (rStr ? '<div style="font-size:11px;color:var(--muted2);font-family:var(--font-mono);margin-top:2px;">' + rStr + '</div>' : '')
+            + (rStr ? '<div data-r style="font-size:11px;color:var(--muted2);font-family:var(--font-mono);margin-top:2px;">' + rStr + '</div>' : '<div data-r></div>')
           + '</div>'
         + '</div>'
         + '<div class="pos-grid">'
@@ -3732,6 +3760,7 @@ function renderPositionsData(d) {
           + '<div class="pos-item"><label>Pos Value</label><span>$' + posSize.toFixed(2) + '</span></div>'
           + '<div class="pos-item"><label>Funding/8h</label><span style="color:var(--amber)">~$' + fundingPer8h.toFixed(3) + '</span></div>'
           + '<div class="pos-item"><label>Dist to Liq</label>' + distToLiqHtml + '</div>'
+
         + '</div>'
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px;">'
           + '<div style="display:flex;gap:6px;align-items:center;">'
@@ -3948,6 +3977,8 @@ function initWS() {
   _ws.onopen = () => {
     wsActive = true;
     console.log('[ws] connected');
+    // Pause HTTP polling — WS broadcasts same data every 5s
+    if (pnlInterval) { clearInterval(pnlInterval); pnlInterval = null; }
   };
 
   _ws.onmessage = ({ data }) => {
@@ -3991,6 +4022,7 @@ function initWS() {
   _ws.onclose = () => {
     wsActive = false;
     console.log('[ws] disconnected — falling back to polling');
+    startPnlRefresh(); // resume HTTP polling until WS reconnects
     setTimeout(initWS, 5_000); // reconnect
   };
 
@@ -4091,17 +4123,21 @@ async function checkAlerts() {
   const priceAlerts = active.filter(a => a.type === 'price');
   const pnlAlerts   = active.filter(a => a.type === 'pnl');
 
-  // Fetch mark prices for unique symbols
+  // Use WS tickerData first, fallback to HTTP only for symbols not in WS feed
   if (priceAlerts.length) {
     const symbols = [...new Set(priceAlerts.map(a => a.symbol))];
     const prices = {};
-    await Promise.all(symbols.map(async sym => {
-      try {
-        const r = await apiFetch('/api/ticker?symbol=' + sym);
-        const d = await r.json();
-        if (d.ok) prices[sym] = d.markPrice;
-      } catch(e) {}
-    }));
+    symbols.forEach(sym => { if (tickerData[sym]?.price) prices[sym] = tickerData[sym].price; });
+    const needHttp = symbols.filter(sym => !prices[sym]);
+    if (needHttp.length) {
+      await Promise.all(needHttp.map(async sym => {
+        try {
+          const r = await apiFetch('/api/ticker?symbol=' + sym);
+          const d = await r.json();
+          if (d.ok) prices[sym] = d.markPrice;
+        } catch(e) {}
+      }));
+    }
     for (const alert of priceAlerts) {
       const px = prices[alert.symbol];
       if (px == null) continue;
@@ -4467,7 +4503,7 @@ function initLiveEquityChart() {
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
-      animation: { duration: 300 },
+      animation: false,
       scales: {
         x: { display: false },
         y: {
