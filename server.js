@@ -26,6 +26,7 @@ const journalRoutes = require('./routes/journal');
 const fundedRoutes      = require('./routes/funded');
 const waitlistRoutes    = require('./routes/waitlist');
 const subscriberRoutes  = require('./routes/subscriber');
+const messagesRoutes    = require('./routes/messages');
 
 const app = express();
 
@@ -74,7 +75,8 @@ app.use('/api', (req, res, next) => {
     req.path.startsWith('/auth/') ||
     publicAlgoRoutes.has(req.path) ||
     (req.path === '/waitlist' && req.method === 'POST') ||
-    (req.path === '/subscriber/login' && req.method === 'POST')
+    (req.path === '/subscriber/login' && req.method === 'POST') ||
+    (req.path === '/messages' && req.method === 'POST')
   ) return next();
   requireAuth(req, res, next);
 });
@@ -89,6 +91,7 @@ app.use('/api/journal', journalRoutes);
 app.use('/api/funded', fundedRoutes);
 app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/subscriber', subscriberRoutes);
+app.use('/api/messages', messagesRoutes);
 app.get('/subscriber', (req, res) => res.sendFile(path.join(__dirname, 'subscriber.html')));
 app.get('/funded', (req, res) => res.sendFile(path.join(__dirname, 'funded.html')));
 app.get('/funded-by-walesz', (req, res) => res.sendFile(path.join(__dirname, 'funded-by-walesz.html')));

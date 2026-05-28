@@ -930,6 +930,43 @@ body.light-mode #login-overlay { background: var(--bg0); }
   line-height: 1;
 }
 #theme-toggle:hover { border-color: var(--border3); }
+
+/* ── MESSAGES PANEL ── */
+.msg-layout{display:grid;grid-template-columns:280px 1fr;gap:0;height:calc(100vh - 160px);min-height:500px;background:var(--bg1);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;}
+.msg-sidebar{border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.msg-sidebar-head{padding:14px 16px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);display:flex;align-items:center;justify-content:space-between;}
+.conv-list{overflow-y:auto;flex:1;}
+.conv-item{padding:12px 16px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s;position:relative;}
+.conv-item:hover{background:var(--bg2);}
+.conv-item.active{background:var(--bg3);}
+.conv-item-name{font-size:12px;font-weight:600;color:var(--text);margin-bottom:3px;display:flex;align-items:center;gap:6px;}
+.conv-item-preview{font-size:11px;color:var(--muted2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;}
+.conv-item-meta{font-size:10px;color:var(--muted);margin-top:3px;display:flex;align-items:center;gap:6px;}
+.conv-unread-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);flex-shrink:0;}
+.conv-source-badge{font-size:9px;font-weight:700;letter-spacing:.04em;padding:1px 6px;border-radius:3px;text-transform:uppercase;}
+.conv-source-badge.contact{background:rgba(99,179,237,.12);color:var(--blue);}
+.conv-source-badge.subscriber{background:var(--accent-dim);color:var(--accent);}
+.conv-closed-badge{font-size:9px;color:var(--muted);padding:1px 6px;border-radius:3px;background:rgba(255,255,255,.05);}
+.msg-main{display:flex;flex-direction:column;overflow:hidden;}
+.msg-main-head{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0;}
+.msg-main-title{font-size:13px;font-weight:700;}
+.msg-main-sub{font-size:11px;color:var(--muted2);margin-top:2px;}
+.msg-main-actions{display:flex;gap:6px;flex-shrink:0;}
+.chat-area{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:10px;}
+.bubble-wrap{display:flex;gap:10px;max-width:82%;}
+.bubble-wrap.admin{align-self:flex-start;}
+.bubble-wrap.user{align-self:flex-end;flex-direction:row-reverse;}
+.bubble{padding:10px 14px;border-radius:var(--r2);font-size:13px;line-height:1.65;white-space:pre-wrap;word-break:break-word;}
+.bubble-wrap.admin .bubble{background:var(--bg3);border:1px solid var(--border2);border-bottom-left-radius:4px;}
+.bubble-wrap.user .bubble{background:rgba(0,200,150,.13);border:1px solid rgba(0,200,150,.22);border-bottom-right-radius:4px;}
+.bubble-time{font-size:10px;color:var(--muted);margin-top:4px;font-family:var(--font-mono);}
+.bubble-wrap.user .bubble-time{text-align:right;}
+.msg-empty{display:flex;align-items:center;justify-content:center;flex:1;color:var(--muted2);font-size:13px;flex-direction:column;gap:8px;}
+.reply-area{padding:16px 20px;border-top:1px solid var(--border);flex-shrink:0;}
+.reply-textarea{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:13px;padding:10px 14px;outline:none;resize:none;font-family:var(--font-display);line-height:1.6;transition:border-color .2s;}
+.reply-textarea:focus{border-color:var(--accent);}
+.reply-footer{display:flex;align-items:center;justify-content:space-between;margin-top:8px;}
+.reply-hint{font-size:11px;color:var(--muted);}
 </style>
 </head>
 <body>
@@ -964,6 +1001,7 @@ body.light-mode #login-overlay { background: var(--bg0); }
     <a href="/funded" class="nav-btn" style="text-decoration:none;">Funded</a>
     <button class="nav-btn" onclick="showPanel('waitlist',this)">Waitlist</button>
     <button class="nav-btn" onclick="showPanel('subscribers',this)">Subskrybenci</button>
+    <button class="nav-btn" id="nav-messages-btn" onclick="showPanel('messages',this)" style="position:relative;">Wiadomości<span id="msg-badge" style="display:none;position:absolute;top:2px;right:2px;width:8px;height:8px;border-radius:50%;background:var(--red);"></span></button>
   </nav>
   <div class="conn-badge">
     <div class="conn-dot" id="conn-dot"></div>
@@ -1629,6 +1667,39 @@ body.light-mode #login-overlay { background: var(--bg0); }
 
 </div>
 
+  <!-- MESSAGES PANEL -->
+  <div class="panel" id="panel-messages">
+    <div class="section-head" style="margin-bottom:12px;">
+      <div class="section-title">Wiadomości</div>
+      <div style="display:flex;gap:8px;">
+        <select id="msg-filter" onchange="applyMsgFilter()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:12px;padding:5px 10px;outline:none;font-family:var(--font-display);">
+          <option value="all">Wszystkie</option>
+          <option value="unread">Nieprzeczytane</option>
+          <option value="open">Otwarte</option>
+          <option value="closed">Zamknięte</option>
+        </select>
+        <button class="btn sm" onclick="fetchConversations()">↻ Refresh</button>
+      </div>
+    </div>
+    <div class="msg-layout">
+      <div class="msg-sidebar">
+        <div class="msg-sidebar-head">
+          <span>Rozmowy</span>
+          <span id="msg-count" style="font-family:var(--font-mono);font-size:11px;"></span>
+        </div>
+        <div class="conv-list" id="conv-list">
+          <div style="padding:24px;text-align:center;color:var(--muted2);font-size:12px;">Kliknij Refresh</div>
+        </div>
+      </div>
+      <div class="msg-main" id="msg-main">
+        <div class="msg-empty">
+          <div class="msg-empty-icon">✉</div>
+          <div>Wybierz rozmowę</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 <!-- NEW POST MODAL -->
 <div class="overlay" id="modal-new-post">
   <div class="modal" style="width:min(560px,96vw)">
@@ -2048,6 +2119,7 @@ function showPanel(id, el) {
   if (id === 'algo')     fetchAlgoAdmin();
   if (id === 'waitlist') fetchWaitlist();
   if (id === 'subscribers') { fetchSubscribers(); fetchJournalPosts(); }
+  if (id === 'messages')   fetchConversations();
   if (id === 'positions') startPositionsRefresh();
   else stopPositionsRefresh();
 }
@@ -4638,6 +4710,8 @@ function startLiveDashboard() {
   fetchLivePnl();
   fetchJournalDB().then(() => refreshAll());   // load journal so Win Rate is accurate, then fire remaining tiles
   Promise.all([fetchStats(), fetchBots()]);    // parallel: stats + bots
+  refreshUnreadBadge();
+  setInterval(refreshUnreadBadge, 30000);
 
   // Single 5s ticker — slower tasks + fallback when WS offline
   let _tick = 0;
@@ -5250,6 +5324,192 @@ async function deleteJournalPost(id, title) {
     const d = await r.json();
     if (d.ok) fetchJournalPosts();
   } catch (err) { console.error('[deleteJournalPost]', err); }
+}
+
+// ── MESSAGES ──────────────────────────────────────────────────────────────────
+let _convData = [], _activeConvId = null;
+
+function relTime(iso) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1)   return 'teraz';
+  if (m < 60)  return m + 'm temu';
+  const h = Math.floor(m / 60);
+  if (h < 24)  return h + 'h temu';
+  return new Date(iso).toLocaleDateString('pl-PL', { day:'2-digit', month:'2-digit' });
+}
+
+function fullTime(iso) {
+  return new Date(iso).toLocaleString('pl-PL', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+}
+
+async function fetchConversations() {
+  try {
+    const r = await apiFetch('/api/messages/conversations');
+    const d = await r.json();
+    if (!d.ok) return;
+    _convData = d.conversations;
+    applyMsgFilter();
+    refreshUnreadBadge();
+  } catch (err) { console.error('[fetchConversations]', err); }
+}
+
+function applyMsgFilter() {
+  const filter = document.getElementById('msg-filter')?.value || 'all';
+  let filtered = _convData;
+  if (filter === 'unread')  filtered = _convData.filter(c => c.unread_admin);
+  if (filter === 'open')    filtered = _convData.filter(c => c.status === 'open');
+  if (filter === 'closed')  filtered = _convData.filter(c => c.status === 'closed');
+  renderConvList(filtered);
+}
+
+function renderConvList(convs) {
+  const list = document.getElementById('conv-list');
+  document.getElementById('msg-count').textContent = convs.length || '';
+  if (!convs.length) {
+    list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted2);font-size:12px;">Brak rozmów</div>';
+    return;
+  }
+  list.innerHTML = convs.map(c => {
+    const name = c.from_name || c.from_email;
+    const preview = (c.last_message || '').slice(0, 60);
+    const active = c.id === _activeConvId ? ' active' : '';
+    const srcBadge = `<span class="conv-source-badge ${c.source}">${c.source === 'subscriber' ? 'sub' : 'landing'}</span>`;
+    const closedBadge = c.status === 'closed' ? '<span class="conv-closed-badge">zamknięta</span>' : '';
+    const unreadDot = c.unread_admin ? '<span class="conv-unread-dot"></span>' : '';
+    return `<div class="conv-item${active}" onclick="openConv(${c.id})">
+      <div class="conv-item-name">${unreadDot}${name}${srcBadge}${closedBadge}</div>
+      <div class="conv-item-preview">${c.subject}</div>
+      <div class="conv-item-preview" style="margin-top:2px">${preview || '—'}</div>
+      <div class="conv-item-meta">${relTime(c.updated_at)} · ${c.message_count} wiad.</div>
+    </div>`;
+  }).join('');
+}
+
+async function openConv(id) {
+  _activeConvId = id;
+  applyMsgFilter();
+  const main = document.getElementById('msg-main');
+  main.innerHTML = '<div class="msg-empty"><div style="font-size:13px;color:var(--muted2)">Ładowanie...</div></div>';
+  try {
+    const r = await apiFetch('/api/messages/conversations/' + id);
+    const d = await r.json();
+    if (!d.ok) return;
+    const conv = d.conversation;
+    const msgs = d.messages;
+
+    // Update local unread flag
+    const c = _convData.find(x => x.id === id);
+    if (c) { c.unread_admin = false; applyMsgFilter(); refreshUnreadBadge(); }
+
+    const planBadge = conv.subscriber_plan
+      ? `<span style="font-size:10px;font-weight:700;text-transform:uppercase;padding:2px 8px;border-radius:4px;${conv.subscriber_plan==='vip'?'background:rgba(201,168,76,.1);color:#c9a84c':conv.subscriber_plan==='mentoring'?'background:rgba(159,122,234,.1);color:#9f7aea':'background:var(--accent-dim);color:var(--accent)'}">${conv.subscriber_plan}</span>` : '';
+    const srcLabel = conv.source === 'subscriber' ? 'Subskrybent' : 'Landing page';
+
+    main.innerHTML = `
+      <div class="msg-main-head">
+        <div>
+          <div class="msg-main-title">${conv.subject} ${planBadge}</div>
+          <div class="msg-main-sub">${conv.from_name ? conv.from_name + ' · ' : ''}${conv.from_email} · ${srcLabel}</div>
+        </div>
+        <div class="msg-main-actions">
+          <button class="btn sm" onclick="toggleConvStatus(${id},'${conv.status}')" id="conv-status-btn">
+            ${conv.status === 'open' ? 'Zamknij' : 'Otwórz ponownie'}
+          </button>
+          <button class="btn sm" style="color:var(--red)" onclick="deleteConv(${id})">Usuń</button>
+        </div>
+      </div>
+      <div class="chat-area" id="chat-area-${id}">
+        ${msgs.length ? msgs.map(m => `
+          <div class="bubble-wrap ${m.sender}">
+            <div>
+              <div class="bubble">${escMsg(m.content)}</div>
+              <div class="bubble-time">${fullTime(m.created_at)}</div>
+            </div>
+          </div>`).join('') : '<div class="msg-empty"><div>Brak wiadomości</div></div>'}
+      </div>
+      ${conv.status === 'open' ? `
+      <div class="reply-area">
+        <textarea class="reply-textarea" id="reply-ta-${id}" rows="3" placeholder="Napisz odpowiedź..." onkeydown="replyKeydown(event,${id})"></textarea>
+        <div class="reply-footer">
+          <span class="reply-hint">Ctrl + Enter aby wysłać</span>
+          <button class="btn accent sm" onclick="sendReply(${id})">Wyślij odpowiedź</button>
+        </div>
+      </div>` : ''}
+    `;
+    const area = document.getElementById('chat-area-' + id);
+    if (area) area.scrollTop = area.scrollHeight;
+  } catch (err) { console.error('[openConv]', err); }
+}
+
+function escMsg(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function replyKeydown(e, id) {
+  if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); sendReply(id); }
+}
+
+async function sendReply(id) {
+  const ta  = document.getElementById('reply-ta-' + id);
+  const btn = ta?.parentElement?.querySelector('.btn.accent');
+  if (!ta || !ta.value.trim()) return;
+  const content = ta.value.trim();
+  if (btn) { btn.disabled = true; btn.textContent = 'Wysyłanie...'; }
+  try {
+    const r = await apiFetch('/api/messages/conversations/' + id + '/reply', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    });
+    const d = await r.json();
+    if (!d.ok) { if (btn) { btn.disabled=false; btn.textContent='Wyślij odpowiedź'; } return; }
+    ta.value = '';
+    // Append bubble
+    const area = document.getElementById('chat-area-' + id);
+    if (area) {
+      const div = document.createElement('div');
+      div.className = 'bubble-wrap admin';
+      div.innerHTML = `<div><div class="bubble">${escMsg(content)}</div><div class="bubble-time">${fullTime(new Date().toISOString())}</div></div>`;
+      area.appendChild(div);
+      area.scrollTop = area.scrollHeight;
+    }
+    if (btn) { btn.disabled=false; btn.textContent='Wyślij odpowiedź'; }
+  } catch { if (btn) { btn.disabled=false; btn.textContent='Wyślij odpowiedź'; } }
+}
+
+async function toggleConvStatus(id, current) {
+  const newStatus = current === 'open' ? 'closed' : 'open';
+  try {
+    await apiFetch('/api/messages/conversations/' + id + '/status', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    const c = _convData.find(x => x.id === id);
+    if (c) c.status = newStatus;
+    openConv(id);
+    applyMsgFilter();
+  } catch (err) { console.error('[toggleConvStatus]', err); }
+}
+
+async function deleteConv(id) {
+  if (!confirm('Usuń rozmowę? Tej akcji nie można cofnąć.')) return;
+  try {
+    await apiFetch('/api/messages/conversations/' + id, { method: 'DELETE' });
+    _convData = _convData.filter(c => c.id !== id);
+    _activeConvId = null;
+    applyMsgFilter();
+    document.getElementById('msg-main').innerHTML = '<div class="msg-empty"><div class="msg-empty-icon">✉</div><div>Wybierz rozmowę</div></div>';
+    refreshUnreadBadge();
+  } catch (err) { console.error('[deleteConv]', err); }
+}
+
+async function refreshUnreadBadge() {
+  try {
+    const r = await apiFetch('/api/messages/unread-count');
+    const d = await r.json();
+    const badge = document.getElementById('msg-badge');
+    if (badge) badge.style.display = (d.ok && d.count > 0) ? '' : 'none';
+  } catch {}
 }
 
 function apiFetch(url, opts = {}) {

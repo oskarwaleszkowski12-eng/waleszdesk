@@ -1275,6 +1275,39 @@
 </section>
 
 <!-- FOOTER -->
+<section id="kontakt" style="padding:5rem 0;">
+  <div class="section-inner" style="max-width:640px;">
+    <div class="section-eyebrow reveal">Kontakt</div>
+    <h2 class="section-title reveal">Napisz do <em>mnie</em></h2>
+    <p class="section-sub reveal" style="margin-bottom:2.5rem;">Masz pytanie przed zapisem? Napisz — odpowiem w ciągu 24h.</p>
+    <div id="contact-form" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:2rem;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:7px;">Imię *</label>
+          <input id="cf-name" type="text" placeholder="Twoje imię" style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:14px;padding:11px 14px;outline:none;font-family:inherit;transition:border-color .2s;" onfocus="this.style.borderColor='rgba(0,200,150,.5)'" onblur="this.style.borderColor='rgba(255,255,255,.1)'">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:7px;">Email *</label>
+          <input id="cf-email" type="email" placeholder="twoj@email.com" style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:14px;padding:11px 14px;outline:none;font-family:inherit;transition:border-color .2s;" onfocus="this.style.borderColor='rgba(0,200,150,.5)'" onblur="this.style.borderColor='rgba(255,255,255,.1)'">
+        </div>
+      </div>
+      <div style="margin-bottom:14px;">
+        <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:7px;">Temat</label>
+        <input id="cf-subject" type="text" placeholder="np. Pytanie o plan VIP" style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:14px;padding:11px 14px;outline:none;font-family:inherit;transition:border-color .2s;" onfocus="this.style.borderColor='rgba(0,200,150,.5)'" onblur="this.style.borderColor='rgba(255,255,255,.1)'">
+      </div>
+      <div style="margin-bottom:20px;">
+        <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:7px;">Wiadomość *</label>
+        <textarea id="cf-content" rows="5" placeholder="Napisz co chcesz wiedzieć..." style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:14px;padding:11px 14px;outline:none;resize:vertical;font-family:inherit;line-height:1.65;transition:border-color .2s;" onfocus="this.style.borderColor='rgba(0,200,150,.5)'" onblur="this.style.borderColor='rgba(255,255,255,.1)'"></textarea>
+      </div>
+      <div id="cf-err" style="display:none;color:#f56565;font-size:12px;margin-bottom:12px;"></div>
+      <div id="cf-success" style="display:none;padding:14px 16px;background:rgba(0,200,150,.1);border:1px solid rgba(0,200,150,.25);border-radius:8px;color:#00c896;font-size:13px;font-weight:600;margin-bottom:12px;">
+        ✓ Wiadomość wysłana! Odpiszę w ciągu 24h.
+      </div>
+      <button id="cf-btn" onclick="sendContact()" style="width:100%;padding:13px;border-radius:8px;border:none;background:#00c896;color:#080a0d;font-size:13px;font-weight:700;letter-spacing:.06em;cursor:pointer;font-family:inherit;transition:opacity .2s;">Wyślij wiadomość</button>
+    </div>
+  </div>
+</section>
+
 <footer>
   <div class="footer-logo">Funded <span>by Walesz</span></div>
   <ul class="footer-links">
@@ -1383,6 +1416,37 @@
       errEl.style.display = 'block';
       btn.disabled = false;
       btn.textContent = 'Zapisz mnie na listę';
+    }
+  }
+
+  async function sendContact() {
+    const name    = document.getElementById('cf-name').value.trim();
+    const email   = document.getElementById('cf-email').value.trim();
+    const subject = document.getElementById('cf-subject').value.trim() || 'Pytanie z landing page';
+    const content = document.getElementById('cf-content').value.trim();
+    const errEl   = document.getElementById('cf-err');
+    const btn     = document.getElementById('cf-btn');
+    const success = document.getElementById('cf-success');
+    errEl.style.display = 'none'; success.style.display = 'none';
+    if (!name || !email || !content) { errEl.textContent = 'Uzupełnij imię, email i wiadomość.'; errEl.style.display = ''; return; }
+    if (!email.includes('@')) { errEl.textContent = 'Podaj poprawny adres email.'; errEl.style.display = ''; return; }
+    btn.disabled = true; btn.textContent = 'Wysyłanie...';
+    try {
+      const r = await fetch('/api/messages', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, subject, content }),
+      });
+      const d = await r.json();
+      if (!d.ok) { errEl.textContent = d.error || 'Błąd. Spróbuj ponownie.'; errEl.style.display = ''; btn.disabled = false; btn.textContent = 'Wyślij wiadomość'; return; }
+      success.style.display = '';
+      document.getElementById('cf-name').value = '';
+      document.getElementById('cf-email').value = '';
+      document.getElementById('cf-subject').value = '';
+      document.getElementById('cf-content').value = '';
+      btn.textContent = '✓ Wysłano';
+    } catch {
+      errEl.textContent = 'Błąd sieci. Spróbuj ponownie.'; errEl.style.display = '';
+      btn.disabled = false; btn.textContent = 'Wyślij wiadomość';
     }
   }
 </script>

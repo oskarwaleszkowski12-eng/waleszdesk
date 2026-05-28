@@ -4,6 +4,7 @@ const jwt        = require('jsonwebtoken');
 const { pool }   = require('../lib/db');
 const { JWT_SECRET, requireAuth, requireSubscriberAuth } = require('../lib/auth');
 const { validate, z } = require('../lib/validate');
+const { sendTelegram } = require('../lib/telegram');
 const logger     = require('../lib/logger');
 
 const router = Router();
@@ -310,6 +311,114 @@ router.delete('/admin/journal-posts/:id', requireAuth, async (req, res) => {
   } catch (err) {
     logger.error({ err }, '[subscriber/admin/journal-posts DELETE]');
     res.status(500).json({ ok: false, error: 'Błąd serwera.' });
+  }
+});
+
+// ── Subscriber: conversations ─────────────────────────────────────────────────
+const convSchema = z.object({
+  subject: z.string().min(1).max(200),
+  content: z.string().min(1).max(5000),
+});
+const msgSchema = z.object({ content: z.string().min(1).max(5000) });
+
+router.get('/conversations', requireSubscriberAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT
+        c.id, c.subject, c.status, c.unread_sub, c.created_at, c.updated_at,
+        (SELECT content FROM messages WHERE conversation_id=c.id ORDER BY created_at DESC LIMIT 1) AS last_message,
+        (SELECT sender  FROM messages WHERE conversation_id=c.id ORDER BY created_at DESC LIMIT 1) AS last_sender,
+        (SELECT COUNT(*)::int FROM messages WHERE conversation_id=c.id) AS message_count
+      FROM conversations c
+      WHERE c.subscriber_id=$1
+      ORDER BY c.updated_at DESC
+    `, [req.subscriber.sub_id]);
+    res.json({ ok: true, conversations: rows });
+  } catch (err) {
+    logger.error({ err }, '[subscriber/conversations GET]');
+    res.status(500).json({ ok: false, error: 'Błąd serwera.' });
+  }
+});
+
+router.post('/conversations', requireSubscriberAuth, validate(convSchema), async (req, res) => {
+  const { subject, content } = req.body;
+  const sub = req.subscriber;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const subRes = await client.query('SELECT email, name FROM subscribers WHERE id=$1', [sub.sub_id]);
+    const subRow = subRes.rows[0];
+    const { rows } = await client.query(`
+      INSERT INTO conversations (from_email, from_name, subject, source, subscriber_id)
+      VALUES ($1, $2, $3, 'subscriber', $4) RETURNING id
+    `, [subRow.email, subRow.name || sub.name || null, subject.trim(), sub.sub_id]);
+    const convId = rows[0].id;
+    await client.query(
+      `INSERT INTO messages (conversation_id, sender, content) VALUES ($1, 'user', $2)`,
+      [convId, content.trim()]
+    );
+    await client.query('COMMIT');
+    const planLabels = { pro: 'Pro', vip: 'VIP', mentoring: 'Mentoring' };
+    sendTelegram(
+      `📬 <b>Nowa wiadomość</b> (${planLabels[sub.plan]||sub.plan})\n👤 ${subRow.name||subRow.email}\n📌 ${subject}\n\n${content.slice(0,300)}${content.length>300?'…':''}`
+    );
+    res.json({ ok: true, id: convId });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    logger.error({ err }, '[subscriber/conversations POST]');
+    res.status(500).json({ ok: false, error: 'Błąd serwera.' });
+  } finally {
+    client.release();
+  }
+});
+
+router.get('/conversations/:id', requireSubscriberAuth, async (req, res) => {
+  try {
+    const { rows: convRows } = await pool.query(
+      `SELECT id, subject, status, unread_sub FROM conversations WHERE id=$1 AND subscriber_id=$2`,
+      [req.params.id, req.subscriber.sub_id]
+    );
+    if (!convRows[0]) return res.status(404).json({ ok: false, error: 'Not found' });
+    const { rows: msgs } = await pool.query(
+      `SELECT id, sender, content, created_at FROM messages WHERE conversation_id=$1 ORDER BY created_at ASC`,
+      [req.params.id]
+    );
+    await pool.query(`UPDATE conversations SET unread_sub=FALSE WHERE id=$1`, [req.params.id]);
+    res.json({ ok: true, conversation: convRows[0], messages: msgs });
+  } catch (err) {
+    logger.error({ err }, '[subscriber/conversations/:id GET]');
+    res.status(500).json({ ok: false, error: 'Błąd serwera.' });
+  }
+});
+
+router.post('/conversations/:id/messages', requireSubscriberAuth, validate(msgSchema), async (req, res) => {
+  const { content } = req.body;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      `SELECT id FROM conversations WHERE id=$1 AND subscriber_id=$2`,
+      [req.params.id, req.subscriber.sub_id]
+    );
+    if (!rows[0]) { await client.query('ROLLBACK'); return res.status(404).json({ ok: false, error: 'Not found' }); }
+    await client.query(
+      `INSERT INTO messages (conversation_id, sender, content) VALUES ($1, 'user', $2)`,
+      [req.params.id, content.trim()]
+    );
+    await client.query(
+      `UPDATE conversations SET unread_admin=TRUE, unread_sub=FALSE, updated_at=NOW() WHERE id=$1`,
+      [req.params.id]
+    );
+    await client.query('COMMIT');
+    const subName = req.subscriber.name || req.subscriber.plan;
+    sendTelegram(`💬 <b>Odpowiedź od subskrybenta</b>\n👤 ${subName}\n\n${content.slice(0,300)}${content.length>300?'…':''}`);
+    res.json({ ok: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    logger.error({ err }, '[subscriber/conversations/:id/messages POST]');
+    res.status(500).json({ ok: false, error: 'Błąd serwera.' });
+  } finally {
+    client.release();
   }
 });
 
