@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel Subskrybenta — Funded by Walesz</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg0:#080a0d;--bg1:#0d1117;--bg2:#111820;--bg3:#161e28;--bg4:#1c2530;
+  --border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.11);--border3:rgba(255,255,255,0.18);
+  --text:#e2e8f0;--muted:#4a5568;--muted2:#718096;
+  --accent:#00c896;--accent-dim:rgba(0,200,150,0.08);--accent-glow:rgba(0,200,150,0.15);
+  --red:#f56565;--red-dim:rgba(245,101,101,0.08);
+  --green:#48bb78;--green-dim:rgba(72,187,120,0.08);
+  --amber:#ed8936;--blue:#63b3ed;--purple:#9f7aea;--gold:#c9a84c;
+  --font-display:'Syne',sans-serif;--font-mono:'DM Mono',monospace;
+  --r:8px;--r2:12px;--r3:16px;
+}
+html{font-size:14px;}
+body{background:var(--bg0);color:var(--text);font-family:var(--font-display);min-height:100vh;overflow-x:hidden;}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+
+/* ── TOPBAR ── */
+.topbar{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:52px;background:rgba(8,10,13,0.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
+.logo{font-family:var(--font-display);font-size:15px;font-weight:700;letter-spacing:0.12em;color:var(--text);text-decoration:none;display:flex;align-items:center;gap:10px;}
+.logo em{color:var(--accent);font-style:normal;}
+.logo-tag{font-size:11px;font-weight:700;letter-spacing:0.1em;color:var(--purple);background:rgba(159,122,234,0.1);border:1px solid rgba(159,122,234,0.25);padding:2px 8px;border-radius:4px;}
+.topbar-right{display:flex;align-items:center;gap:10px;}
+
+/* APP SWITCHER */
+.app-sw{position:relative;}
+.app-sw-btn{width:32px;height:32px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--muted2);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;}
+.app-sw-btn:hover{color:var(--text);border-color:var(--border3);background:var(--bg3);}
+.app-sw-menu{display:none;position:absolute;top:calc(100% + 8px);right:0;min-width:226px;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r2);padding:6px;box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:200;}
+.app-sw-menu.open{display:block;}
+.app-sw-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:var(--r);text-decoration:none;color:var(--muted2);transition:all .15s;}
+.app-sw-item:hover{background:var(--bg3);color:var(--text);}
+.app-sw-item.current{background:var(--bg4);color:var(--text);pointer-events:none;}
+.app-sw-icon{font-size:17px;flex-shrink:0;width:22px;text-align:center;line-height:1;}
+.app-sw-name{font-size:12px;font-weight:600;letter-spacing:.03em;display:block;}
+.app-sw-sub{font-size:10px;color:var(--muted);display:block;margin-top:2px;font-family:var(--font-mono);letter-spacing:.03em;}
+.app-sw-item.current .app-sw-sub{color:var(--muted2);}
+.app-sw-divider{height:1px;background:var(--border);margin:4px 0;}
+
+/* LOGOUT BTN */
+.btn-logout{padding:5px 14px;border-radius:var(--r);font-size:12px;font-weight:600;letter-spacing:.04em;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--muted2);font-family:var(--font-display);transition:all .2s;}
+.btn-logout:hover{color:var(--red);border-color:var(--red);}
+
+/* ── LOGIN SCREEN ── */
+#login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:72px 24px 40px;}
+.login-card{width:min(420px,100%);background:var(--bg1);border:1px solid var(--border2);border-radius:20px;padding:40px 36px;}
+.login-title{font-size:22px;font-weight:700;letter-spacing:.04em;margin-bottom:6px;}
+.login-subtitle{font-size:13px;color:var(--muted2);margin-bottom:32px;}
+.field{margin-bottom:16px;}
+.field label{display:block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);margin-bottom:6px;}
+.field input{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:14px;padding:10px 12px;outline:none;font-family:var(--font-mono);transition:border-color .2s;}
+.field input:focus{border-color:var(--accent);}
+.btn-login{width:100%;padding:12px;border-radius:var(--r);border:none;background:var(--accent);color:#080a0d;font-size:13px;font-weight:700;letter-spacing:.06em;cursor:pointer;font-family:var(--font-display);transition:opacity .2s;margin-top:8px;}
+.btn-login:hover{opacity:.88;}
+.btn-login:disabled{opacity:.4;cursor:not-allowed;}
+.login-err{color:var(--red);font-size:12px;margin-top:10px;display:none;}
+
+/* ── DASHBOARD ── */
+#dashboard{display:none;padding:72px 24px 48px;max-width:1200px;margin:0 auto;}
+
+/* PLAN BADGE */
+.plan-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;}
+.plan-badge.pro{background:var(--accent-dim);color:var(--accent);border:1px solid rgba(0,200,150,.2);}
+.plan-badge.vip{background:rgba(201,168,76,.08);color:var(--gold);border:1px solid rgba(201,168,76,.2);}
+.plan-badge.mentoring{background:rgba(159,122,234,.08);color:var(--purple);border:1px solid rgba(159,122,234,.2);}
+
+/* WELCOME ROW */
+.welcome-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;gap:16px;flex-wrap:wrap;}
+.welcome-text h1{font-size:22px;font-weight:700;letter-spacing:.02em;margin-bottom:6px;}
+.welcome-text p{font-size:13px;color:var(--muted2);}
+
+/* STATS GRID */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}
+@media(max-width:700px){.stats-grid{grid-template-columns:repeat(2,1fr);}}
+.stat-card{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r2);padding:16px 18px;transition:border-color .2s;}
+.stat-card:hover{border-color:var(--border2);}
+.stat-label{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px;}
+.stat-val{font-size:22px;font-weight:700;font-family:var(--font-mono);color:var(--text);line-height:1;}
+.stat-val.pos{color:var(--green);}
+.stat-val.neg{color:var(--red);}
+.stat-val.acc{color:var(--accent);}
+.stat-val.gold{color:var(--gold);}
+.stat-sub{font-size:10px;color:var(--muted);margin-top:5px;font-family:var(--font-mono);}
+
+/* CARDS */
+.card{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r2);}
+.card-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);}
+.card-title{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);}
+
+/* CHART */
+.chart-wrap{padding:20px;height:200px;position:relative;}
+
+/* TWO-COL */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+@media(max-width:700px){.two-col{grid-template-columns:1fr;}}
+
+/* TRADES TABLE */
+.trades-wrap{overflow-x:auto;}
+table.sub-table{width:100%;border-collapse:collapse;font-size:12px;}
+table.sub-table th{padding:10px 14px;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);border-bottom:1px solid var(--border);white-space:nowrap;text-align:left;}
+table.sub-table td{padding:10px 14px;border-bottom:1px solid var(--border);color:var(--text);font-family:var(--font-mono);white-space:nowrap;}
+table.sub-table tr:last-child td{border-bottom:none;}
+table.sub-table tr:hover td{background:var(--bg2);}
+.side-long{color:var(--green);}
+.side-short{color:var(--red);}
+
+/* STREAK */
+.streak-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:700;font-family:var(--font-mono);}
+.streak-badge.W{background:var(--green-dim);color:var(--green);}
+.streak-badge.L{background:var(--red-dim);color:var(--red);}
+
+/* LOADING */
+.loading{display:flex;align-items:center;justify-content:center;padding:48px;color:var(--muted2);font-size:13px;gap:10px;}
+.spinner{width:18px;height:18px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+#dashboard{animation:fadeIn .25s ease;}
+
+/* EMPTY */
+.empty-state{text-align:center;padding:40px 20px;color:var(--muted2);font-size:13px;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a class="logo" href="/funded-by-walesz">
+    WALESZ<em>DESK</em>
+    <span class="logo-tag">FUNDED</span>
+  </a>
+  <div class="topbar-right">
+    <div id="user-plan-badge" style="display:none;"></div>
+    <button class="btn-logout" id="logout-btn" onclick="logout()" style="display:none;">Wyloguj</button>
+    <div class="app-sw">
+      <button class="app-sw-btn" onclick="toggleAppSw()" title="Przejdź do...">&#8859;</button>
+      <div class="app-sw-menu" id="app-sw-menu">
+        <a href="/funded-by-walesz" class="app-sw-item">
+          <span class="app-sw-icon">&#9733;</span>
+          <span><span class="app-sw-name">Funded by Walesz</span><span class="app-sw-sub">Landing · waitlista</span></span>
+        </a>
+        <a href="/subscriber" class="app-sw-item current">
+          <span class="app-sw-icon">&#128200;</span>
+          <span><span class="app-sw-name">Panel Subskrybenta</span><span class="app-sw-sub">subscriber.html</span></span>
+        </a>
+        <div class="app-sw-divider"></div>
+        <a href="/" class="app-sw-item">
+          <span class="app-sw-icon">&#9881;</span>
+          <span><span class="app-sw-name">Admin</span><span class="app-sw-sub">WaleszDesk · panel</span></span>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-title">Panel Subskrybenta</div>
+    <div class="login-subtitle">Zaloguj się używając adresu email i kodu dostępu.</div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="login-email" placeholder="twoj@email.com" autocomplete="email">
+    </div>
+    <div class="field">
+      <label>Kod dostępu</label>
+      <input type="text" id="login-code" placeholder="XXXX-XXXX-XXXX" autocomplete="off"
+             style="text-transform:uppercase;letter-spacing:.12em;">
+    </div>
+    <button class="btn-login" id="login-btn" onclick="doLogin()">Zaloguj</button>
+    <div class="login-err" id="login-err"></div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+
+  <div class="welcome-row">
+    <div class="welcome-text">
+      <h1 id="welcome-name">Witaj</h1>
+      <p id="welcome-sub">Wyniki programu za ostatnie 30 dni</p>
+    </div>
+    <div id="welcome-plan"></div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid" id="stats-grid">
+    <div class="stat-card"><div class="stat-label">Win Rate</div><div class="stat-val acc" id="s-winrate">—</div><div class="stat-sub" id="s-wl">— / —</div></div>
+    <div class="stat-card"><div class="stat-label">Net P&amp;L (30d)</div><div class="stat-val" id="s-pnl">—</div><div class="stat-sub" id="s-trades">— transakcji</div></div>
+    <div class="stat-card"><div class="stat-label">Profit Factor</div><div class="stat-val gold" id="s-pf">—</div><div class="stat-sub">gross profit / gross loss</div></div>
+    <div class="stat-card"><div class="stat-label">Seria</div><div class="stat-val" id="s-streak">—</div><div class="stat-sub" id="s-streak-type">dni z rzędu</div></div>
+  </div>
+
+  <div class="two-col">
+    <!-- Equity curve -->
+    <div class="card">
+      <div class="card-head"><span class="card-title">Equity Curve (30d)</span></div>
+      <div class="chart-wrap"><canvas id="equity-chart"></canvas></div>
+    </div>
+    <!-- Best / Worst trade -->
+    <div class="card">
+      <div class="card-head"><span class="card-title">Najlepsza / Najgorsza transakcja</span></div>
+      <div style="padding:20px;display:flex;flex-direction:column;gap:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--bg2);border-radius:var(--r);border:1px solid var(--border);">
+          <span style="font-size:11px;color:var(--muted2);font-weight:600;letter-spacing:.06em;text-transform:uppercase;">Najlepsza</span>
+          <span style="font-family:var(--font-mono);font-size:18px;font-weight:700;" id="s-best">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--bg2);border-radius:var(--r);border:1px solid var(--border);">
+          <span style="font-size:11px;color:var(--muted2);font-weight:600;letter-spacing:.06em;text-transform:uppercase;">Najgorsza</span>
+          <span style="font-family:var(--font-mono);font-size:18px;font-weight:700;" id="s-worst">—</span>
+        </div>
+        <div style="flex:1;"></div>
+        <div style="font-size:11px;color:var(--muted2);text-align:center;padding-top:8px;font-family:var(--font-mono);">dane z tabeli trades · aktualizowane na bieżąco</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent trades -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Ostatnie transakcje (30 dni)</span>
+      <span id="trades-count" style="font-size:11px;color:var(--muted2);font-family:var(--font-mono);"></span>
+    </div>
+    <div class="trades-wrap">
+      <div id="trades-loading" class="loading"><div class="spinner"></div>Ładowanie...</div>
+      <div id="trades-empty" class="empty-state" style="display:none;">Brak transakcji w ciągu ostatnich 30 dni.</div>
+      <table class="sub-table" id="trades-table" style="display:none;">
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th>Strona</th>
+            <th>Wejście</th>
+            <th>Wyjście</th>
+            <th>Rozmiar</th>
+            <th>P&amp;L</th>
+            <th>Zamknięcie</th>
+          </tr>
+        </thead>
+        <tbody id="trades-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let _token = null;
+let _equityChart = null;
+
+// ── App Switcher ──────────────────────────────────────────────────────────────
+function toggleAppSw() {
+  document.getElementById('app-sw-menu').classList.toggle('open');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.app-sw')) document.getElementById('app-sw-menu').classList.remove('open');
+});
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+function logout() {
+  sessionStorage.removeItem('sub_token');
+  sessionStorage.removeItem('sub_plan');
+  sessionStorage.removeItem('sub_name');
+  location.reload();
+}
+
+function showDashboard(token, plan, name) {
+  _token = token;
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('logout-btn').style.display = '';
+  document.getElementById('user-plan-badge').style.display = '';
+
+  const planLabels = { pro: 'Pro', vip: 'VIP', mentoring: 'Mentoring' };
+  document.getElementById('user-plan-badge').innerHTML =
+    `<span class="plan-badge ${plan}">${planLabels[plan] || plan}</span>`;
+  document.getElementById('welcome-plan').innerHTML =
+    `<span class="plan-badge ${plan}" style="font-size:13px;padding:6px 16px;">${planLabels[plan] || plan}</span>`;
+  document.getElementById('welcome-name').textContent = name ? `Witaj, ${name}` : 'Witaj';
+
+  loadPerformance();
+  loadTrades();
+}
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const code  = document.getElementById('login-code').value.trim();
+  const errEl = document.getElementById('login-err');
+  const btn   = document.getElementById('login-btn');
+
+  errEl.style.display = 'none';
+  if (!email || !code) { errEl.textContent = 'Uzupełnij email i kod.'; errEl.style.display = ''; return; }
+
+  btn.disabled = true; btn.textContent = 'Logowanie...';
+  try {
+    const r = await fetch('/api/subscriber/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code }),
+    });
+    const d = await r.json();
+    if (!d.ok) { errEl.textContent = d.error || 'Błąd logowania.'; errEl.style.display = ''; return; }
+    sessionStorage.setItem('sub_token', d.token);
+    sessionStorage.setItem('sub_plan', d.plan);
+    sessionStorage.setItem('sub_name', d.name || '');
+    showDashboard(d.token, d.plan, d.name);
+  } catch {
+    errEl.textContent = 'Błąd połączenia. Spróbuj ponownie.'; errEl.style.display = '';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Zaloguj';
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('login-screen').style.display !== 'none') doLogin();
+});
+
+// ── Performance ───────────────────────────────────────────────────────────────
+async function loadPerformance() {
+  try {
+    const r = await fetch('/api/subscriber/performance', {
+      headers: { Authorization: `Bearer ${_token}` },
+    });
+    const d = await r.json();
+    if (!d.ok) return;
+    const s = d.stats;
+
+    const wr = document.getElementById('s-winrate');
+    wr.textContent = s.winRate + '%';
+    wr.className = 'stat-val ' + (s.winRate >= 50 ? 'pos' : 'neg');
+
+    document.getElementById('s-wl').textContent = `${s.wins}W / ${s.losses}L`;
+
+    const pnlEl = document.getElementById('s-pnl');
+    pnlEl.textContent = (s.netPnl >= 0 ? '+' : '') + s.netPnl.toFixed(2) + ' USDT';
+    pnlEl.className = 'stat-val ' + (s.netPnl >= 0 ? 'pos' : 'neg');
+
+    document.getElementById('s-trades').textContent = s.totalTrades + ' transakcji';
+
+    const pf = document.getElementById('s-pf');
+    pf.textContent = s.profitFactor !== null ? s.profitFactor.toFixed(2) : '—';
+
+    const streakEl = document.getElementById('s-streak');
+    if (s.streak > 0 && s.streakType) {
+      streakEl.innerHTML = `<span class="streak-badge ${s.streakType}">${s.streak} ${s.streakType === 'W' ? 'W' : 'L'}</span>`;
+      document.getElementById('s-streak-type').textContent = s.streakType === 'W' ? 'dni wygranych z rzędu' : 'dni strat z rzędu';
+    } else {
+      streakEl.textContent = '—';
+    }
+
+    const bestEl = document.getElementById('s-best');
+    bestEl.textContent = (s.bestTrade >= 0 ? '+' : '') + s.bestTrade.toFixed(2) + ' USDT';
+    bestEl.className = s.bestTrade >= 0 ? 'pos' : '';
+    bestEl.style.color = s.bestTrade >= 0 ? 'var(--green)' : 'var(--red)';
+
+    const worstEl = document.getElementById('s-worst');
+    worstEl.textContent = (s.worstTrade >= 0 ? '+' : '') + s.worstTrade.toFixed(2) + ' USDT';
+    worstEl.style.color = s.worstTrade < 0 ? 'var(--red)' : 'var(--green)';
+
+    renderEquityChart(d.history);
+  } catch (err) {
+    console.error('[performance]', err);
+  }
+}
+
+function renderEquityChart(history) {
+  const canvas = document.getElementById('equity-chart');
+  if (!canvas) return;
+
+  let running = 0;
+  const labels = history.map(h => h.day.slice(5));
+  const data   = history.map(h => { running += h.pnl; return parseFloat(running.toFixed(4)); });
+
+  const positive = running >= 0;
+  const color = positive ? '#00c896' : '#f56565';
+
+  if (_equityChart) _equityChart.destroy();
+  _equityChart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        borderColor: color,
+        backgroundColor: positive ? 'rgba(0,200,150,0.07)' : 'rgba(245,101,101,0.07)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.35,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: { legend: { display: false }, tooltip: {
+        callbacks: { label: ctx => (ctx.raw >= 0 ? '+' : '') + ctx.raw.toFixed(2) + ' USDT' },
+      }},
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#4a5568', font: { size: 10 }, maxTicksLimit: 8 } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#4a5568', font: { size: 10, family: 'DM Mono' }, callback: v => (v >= 0 ? '+' : '') + v.toFixed(0) } },
+      },
+    },
+  });
+}
+
+// ── Trades ────────────────────────────────────────────────────────────────────
+async function loadTrades() {
+  try {
+    const r = await fetch('/api/subscriber/trades', {
+      headers: { Authorization: `Bearer ${_token}` },
+    });
+    const d = await r.json();
+    document.getElementById('trades-loading').style.display = 'none';
+    if (!d.ok || !d.trades.length) { document.getElementById('trades-empty').style.display = ''; return; }
+
+    document.getElementById('trades-count').textContent = d.trades.length + ' transakcji';
+    document.getElementById('trades-table').style.display = '';
+
+    const tbody = document.getElementById('trades-tbody');
+    tbody.innerHTML = d.trades.map(t => {
+      const pnl    = parseFloat(t.pnl || 0);
+      const pnlCls = pnl >= 0 ? 'pos' : 'neg';
+      const pnlStr = (pnl >= 0 ? '+' : '') + pnl.toFixed(2);
+      const side   = (t.side || '').toLowerCase();
+      const sideCls = side === 'buy' || side === 'long' ? 'side-long' : 'side-short';
+      const sideLabel = side === 'buy' || side === 'long' ? 'LONG' : 'SHORT';
+      const closeTime = t.close_time ? new Date(t.close_time).toLocaleDateString('pl-PL', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
+      return `<tr>
+        <td style="font-weight:600;">${t.symbol || '—'}</td>
+        <td class="${sideCls}">${sideLabel}</td>
+        <td>${t.entry_price ? parseFloat(t.entry_price).toFixed(4) : '—'}</td>
+        <td>${t.exit_price  ? parseFloat(t.exit_price).toFixed(4)  : '—'}</td>
+        <td>${t.size        ? parseFloat(t.size).toFixed(4)        : '—'}</td>
+        <td class="${pnlCls}" style="font-weight:700;">${pnlStr}</td>
+        <td style="color:var(--muted2);">${closeTime}</td>
+      </tr>`;
+    }).join('');
+  } catch (err) {
+    document.getElementById('trades-loading').style.display = 'none';
+    document.getElementById('trades-empty').style.display = '';
+    console.error('[trades]', err);
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+(function init() {
+  const token = sessionStorage.getItem('sub_token');
+  const plan  = sessionStorage.getItem('sub_plan');
+  const name  = sessionStorage.getItem('sub_name');
+  if (token && plan) showDashboard(token, plan, name);
+})();
+</script>
+</body>
+</html>

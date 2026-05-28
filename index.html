@@ -963,6 +963,7 @@ body.light-mode #login-overlay { background: var(--bg0); }
     <button class="nav-btn" onclick="showPanel('algo',this)">Algo</button>
     <a href="/funded" class="nav-btn" style="text-decoration:none;">Funded</a>
     <button class="nav-btn" onclick="showPanel('waitlist',this)">Waitlist</button>
+    <button class="nav-btn" onclick="showPanel('subscribers',this)">Subskrybenci</button>
   </nav>
   <div class="conn-badge">
     <div class="conn-dot" id="conn-dot"></div>
@@ -1561,6 +1562,108 @@ body.light-mode #login-overlay { background: var(--bg0); }
     </div>
   </div>
 
+  <!-- SUBSCRIBERS PANEL -->
+  <div class="panel" id="panel-subscribers">
+    <div class="section-head">
+      <div class="section-title">Funded by Walesz — Subskrybenci</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn sm" onclick="fetchSubscribers()">↻ Refresh</button>
+        <button class="btn sm accent" onclick="openNewSubscriber()">+ Nowy subskrybent</button>
+        <a href="/subscriber" target="_blank" class="btn sm" style="text-decoration:none;">↗ Panel</a>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+      <div class="card" style="padding:14px 16px;">
+        <div style="font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Łącznie</div>
+        <div style="font-size:22px;font-weight:700;color:var(--text);" id="sb-count-total">—</div>
+      </div>
+      <div class="card" style="padding:14px 16px;">
+        <div style="font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Pro</div>
+        <div style="font-size:22px;font-weight:700;color:var(--accent);" id="sb-count-pro">—</div>
+      </div>
+      <div class="card" style="padding:14px 16px;">
+        <div style="font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">VIP</div>
+        <div style="font-size:22px;font-weight:700;color:#c9a84c;" id="sb-count-vip">—</div>
+      </div>
+      <div class="card" style="padding:14px 16px;">
+        <div style="font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Mentoring</div>
+        <div style="font-size:22px;font-weight:700;color:#a07de0;" id="sb-count-mentoring">—</div>
+      </div>
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden;">
+      <div class="au-table-wrap">
+        <table class="au-table" id="sb-table">
+          <thead><tr>
+            <th>#</th>
+            <th>Email</th>
+            <th>Plan</th>
+            <th>Imię</th>
+            <th>Status</th>
+            <th>Aktywny od</th>
+            <th>Wygasa</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="sb-tbody">
+            <tr><td colspan="8" style="text-align:center;color:var(--muted2);padding:24px 0;">Kliknij Refresh aby załadować</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- NEW SUBSCRIBER MODAL -->
+<div class="overlay" id="modal-new-subscriber">
+  <div class="modal" style="width:min(440px,96vw)">
+    <div class="modal-title">Nowy subskrybent</div>
+    <div class="fields-2">
+      <div class="field"><label>Email *</label><input type="email" id="nsub-email" placeholder="email@example.com" style="width:100%"></div>
+      <div class="field"><label>Imię</label><input type="text" id="nsub-name" placeholder="Opcjonalnie" style="width:100%"></div>
+    </div>
+    <div class="fields-2">
+      <div class="field"><label>Plan *</label>
+        <select id="nsub-plan" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:13px;padding:8px 10px;outline:none;font-family:var(--font-display);">
+          <option value="pro">Pro</option>
+          <option value="vip">VIP</option>
+          <option value="mentoring">Mentoring</option>
+        </select>
+      </div>
+      <div class="field"><label>Wygasa (opcjonalnie)</label><input type="date" id="nsub-expires" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:13px;padding:8px 10px;outline:none;font-family:var(--font-mono);"></div>
+    </div>
+    <div class="field"><label>Notatki</label><input type="text" id="nsub-notes" placeholder="Opcjonalnie" style="width:100%"></div>
+
+    <div id="nsub-code-box" style="display:none;margin-top:14px;padding:14px 16px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);">
+      <div style="font-size:10px;color:var(--muted2);margin-bottom:6px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;">Kod dostępu — wyślij subskrybentowi!</div>
+      <div id="nsub-code-val" style="font-family:var(--font-mono);font-size:20px;font-weight:500;color:var(--accent);letter-spacing:3px;cursor:pointer;" onclick="copySubCode()" title="Kliknij aby skopiować"></div>
+      <div style="font-size:11px;color:var(--muted2);margin-top:6px;">Kliknij kod aby skopiować · nie możemy go odtworzyć</div>
+    </div>
+
+    <div id="nsub-err" style="display:none;color:var(--red);font-size:12px;margin-top:8px;"></div>
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
+      <button class="btn" onclick="closeModal('modal-new-subscriber')">Zamknij</button>
+      <button class="btn accent" id="nsub-create-btn" onclick="createSubscriber()">Utwórz</button>
+    </div>
+  </div>
+</div>
+
+<!-- SUBSCRIBER CODE REGENERATE CONFIRM -->
+<div class="overlay" id="modal-regen-code">
+  <div class="modal" style="width:min(400px,96vw)">
+    <div class="modal-title">Nowy kod dostępu</div>
+    <div style="font-size:13px;color:var(--muted2);margin-bottom:16px;">Stary kod przestanie działać. Nowy kod musisz przesłać subskrybentowi ręcznie.</div>
+    <div id="regen-code-box" style="display:none;padding:14px 16px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);margin-bottom:12px;">
+      <div style="font-size:10px;color:var(--muted2);margin-bottom:6px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;">Nowy kod</div>
+      <div id="regen-code-val" style="font-family:var(--font-mono);font-size:20px;font-weight:500;color:var(--accent);letter-spacing:3px;cursor:pointer;" onclick="copyRegenCode()" title="Kliknij aby skopiować"></div>
+    </div>
+    <div id="regen-err" style="display:none;color:var(--red);font-size:12px;margin-bottom:8px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn" onclick="closeModal('modal-regen-code')">Zamknij</button>
+      <button class="btn accent" id="regen-btn" onclick="doRegenCode()">Wygeneruj nowy</button>
+    </div>
+  </div>
 </div>
 
 <!-- GENERATE INVITE MODAL -->
@@ -1905,6 +2008,7 @@ function showPanel(id, el) {
   if (id === 'journal') fetchJournalDB();
   if (id === 'algo')     fetchAlgoAdmin();
   if (id === 'waitlist') fetchWaitlist();
+  if (id === 'subscribers') fetchSubscribers();
   if (id === 'positions') startPositionsRefresh();
   else stopPositionsRefresh();
 }
@@ -4858,6 +4962,165 @@ function copyWaitlistEmails() {
     btn.textContent = '✓ Skopiowano';
     setTimeout(() => { btn.textContent = orig; }, 2000);
   });
+}
+
+// ── SUBSCRIBERS ADMIN ─────────────────────────────────────────────────────────
+let _sbData = [];
+
+async function fetchSubscribers() {
+  try {
+    const r = await apiFetch('/api/subscriber/admin');
+    const d = await r.json();
+    if (!d.ok) return;
+    _sbData = d.subscribers;
+    const total     = _sbData.length;
+    const countPro  = _sbData.filter(s => s.plan === 'pro').length;
+    const countVip  = _sbData.filter(s => s.plan === 'vip').length;
+    const countMent = _sbData.filter(s => s.plan === 'mentoring').length;
+    document.getElementById('sb-count-total').textContent    = total;
+    document.getElementById('sb-count-pro').textContent      = countPro;
+    document.getElementById('sb-count-vip').textContent      = countVip;
+    document.getElementById('sb-count-mentoring').textContent = countMent;
+
+    const planColors = { pro: 'var(--accent)', vip: '#c9a84c', mentoring: '#a07de0' };
+    const statusColors = { active: 'var(--green)', suspended: 'var(--red)', expired: 'var(--muted2)' };
+    const tbody = document.getElementById('sb-tbody');
+    if (!_sbData.length) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted2);padding:24px 0;">Brak subskrybentów</td></tr>';
+      return;
+    }
+    tbody.innerHTML = _sbData.map((s, i) => {
+      const plan   = s.plan || 'pro';
+      const status = s.status || 'active';
+      const actDate = s.activated_at ? new Date(s.activated_at).toLocaleDateString('pl-PL') : '—';
+      const expDate = s.expires_at   ? new Date(s.expires_at).toLocaleDateString('pl-PL')   : '∞';
+      return `<tr>
+        <td style="color:var(--muted2);">${i + 1}</td>
+        <td style="font-family:var(--font-mono);">${s.email}</td>
+        <td><span style="color:${planColors[plan]};font-weight:600;text-transform:uppercase;font-size:11px;">${plan}</span></td>
+        <td style="color:var(--muted2);">${s.name || '—'}</td>
+        <td><span style="color:${statusColors[status]};font-size:11px;font-weight:600;">${status}</span></td>
+        <td style="color:var(--muted2);font-family:var(--font-mono);font-size:11px;">${actDate}</td>
+        <td style="color:var(--muted2);font-family:var(--font-mono);font-size:11px;">${expDate}</td>
+        <td>
+          <div style="display:flex;gap:4px;">
+            <button class="btn sm" style="font-size:10px;padding:3px 8px;" onclick="openRegenCode(${s.id})">Nowy kod</button>
+            <button class="btn sm" style="font-size:10px;padding:3px 8px;color:var(--red);" onclick="deleteSubscriber(${s.id},'${s.email}')">Usuń</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch (err) {
+    console.error('[subscribers]', err);
+  }
+}
+
+function openNewSubscriber() {
+  document.getElementById('nsub-email').value   = '';
+  document.getElementById('nsub-name').value    = '';
+  document.getElementById('nsub-notes').value   = '';
+  document.getElementById('nsub-expires').value = '';
+  document.getElementById('nsub-plan').value    = 'pro';
+  document.getElementById('nsub-code-box').style.display = 'none';
+  document.getElementById('nsub-err').style.display      = 'none';
+  document.getElementById('nsub-create-btn').disabled    = false;
+  document.getElementById('nsub-create-btn').textContent = 'Utwórz';
+  openModal('modal-new-subscriber');
+}
+
+async function createSubscriber() {
+  const email   = document.getElementById('nsub-email').value.trim();
+  const name    = document.getElementById('nsub-name').value.trim();
+  const plan    = document.getElementById('nsub-plan').value;
+  const notes   = document.getElementById('nsub-notes').value.trim();
+  const expires = document.getElementById('nsub-expires').value;
+  const errEl   = document.getElementById('nsub-err');
+  const btn     = document.getElementById('nsub-create-btn');
+
+  errEl.style.display = 'none';
+  if (!email) { errEl.textContent = 'Email jest wymagany.'; errEl.style.display = ''; return; }
+
+  btn.disabled = true; btn.textContent = 'Tworzenie...';
+  try {
+    const body = { email, plan };
+    if (name)    body.name    = name;
+    if (notes)   body.notes   = notes;
+    if (expires) body.expires_at = new Date(expires).toISOString();
+
+    const r = await apiFetch('/api/subscriber/admin', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (!d.ok) { errEl.textContent = d.error || 'Błąd.'; errEl.style.display = ''; btn.disabled = false; btn.textContent = 'Utwórz'; return; }
+
+    document.getElementById('nsub-code-val').textContent = d.code;
+    document.getElementById('nsub-code-box').style.display = '';
+    btn.textContent = '✓ Utworzono';
+    fetchSubscribers();
+  } catch {
+    errEl.textContent = 'Błąd połączenia.'; errEl.style.display = '';
+    btn.disabled = false; btn.textContent = 'Utwórz';
+  }
+}
+
+function copySubCode() {
+  const code = document.getElementById('nsub-code-val').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    const el = document.getElementById('nsub-code-val');
+    const orig = el.textContent;
+    el.textContent = '✓ Skopiowano!';
+    setTimeout(() => { el.textContent = orig; }, 1500);
+  });
+}
+
+let _regenSubId = null;
+function openRegenCode(id) {
+  _regenSubId = id;
+  document.getElementById('regen-code-box').style.display = 'none';
+  document.getElementById('regen-err').style.display      = 'none';
+  document.getElementById('regen-btn').disabled    = false;
+  document.getElementById('regen-btn').textContent = 'Wygeneruj nowy';
+  openModal('modal-regen-code');
+}
+
+async function doRegenCode() {
+  if (!_regenSubId) return;
+  const btn   = document.getElementById('regen-btn');
+  const errEl = document.getElementById('regen-err');
+  btn.disabled = true; btn.textContent = 'Generowanie...';
+  errEl.style.display = 'none';
+  try {
+    const r = await apiFetch(`/api/subscriber/admin/${_regenSubId}/regenerate`, { method: 'POST' });
+    const d = await r.json();
+    if (!d.ok) { errEl.textContent = d.error || 'Błąd.'; errEl.style.display = ''; btn.disabled = false; btn.textContent = 'Wygeneruj nowy'; return; }
+    document.getElementById('regen-code-val').textContent = d.code;
+    document.getElementById('regen-code-box').style.display = '';
+    btn.textContent = '✓ Wygenerowano';
+  } catch {
+    errEl.textContent = 'Błąd połączenia.'; errEl.style.display = '';
+    btn.disabled = false; btn.textContent = 'Wygeneruj nowy';
+  }
+}
+
+function copyRegenCode() {
+  const code = document.getElementById('regen-code-val').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    const el = document.getElementById('regen-code-val');
+    const orig = el.textContent;
+    el.textContent = '✓ Skopiowano!';
+    setTimeout(() => { el.textContent = orig; }, 1500);
+  });
+}
+
+async function deleteSubscriber(id, email) {
+  if (!confirm(`Usuń subskrybenta ${email}? Tej akcji nie można cofnąć.`)) return;
+  try {
+    const r = await apiFetch(`/api/subscriber/admin/${id}`, { method: 'DELETE' });
+    const d = await r.json();
+    if (d.ok) fetchSubscribers();
+  } catch (err) {
+    console.error('[deleteSubscriber]', err);
+  }
 }
 
 function apiFetch(url, opts = {}) {
