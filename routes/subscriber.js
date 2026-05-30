@@ -5,6 +5,7 @@ const { pool }   = require('../lib/db');
 const { JWT_SECRET, requireAuth, requireSubscriberAuth } = require('../lib/auth');
 const { validate, z } = require('../lib/validate');
 const { sendTelegram } = require('../lib/telegram');
+const { sendSubscriberWelcome } = require('../lib/email');
 const logger     = require('../lib/logger');
 
 const router = Router();
@@ -244,6 +245,7 @@ router.post('/admin', requireAuth, validate(createSchema), async (req, res) => {
     `, [email.toLowerCase().trim(), name || null, plan, hashCode(code), waitlist_id || null, notes || null, expires_at || null]);
     if (!rows[0]) return res.status(409).json({ ok: false, error: 'Email już istnieje.' });
     res.json({ ok: true, id: rows[0].id, code });
+    sendSubscriberWelcome(email.toLowerCase().trim(), name || null, plan, code).catch(() => {});
   } catch (err) {
     logger.error({ err }, '[subscriber/admin/create]');
     res.status(500).json({ ok: false, error: 'Błąd serwera.' });
@@ -272,11 +274,15 @@ router.put('/admin/:id', requireAuth, validate(updateSubSchema), async (req, res
 router.post('/admin/:id/regenerate', requireAuth, async (req, res) => {
   const code = genCode();
   try {
-    const { rowCount } = await pool.query(
+    const { rows: subRows } = await pool.query(
+      'SELECT email, name, plan FROM subscribers WHERE id=$1', [req.params.id]
+    );
+    if (!subRows[0]) return res.status(404).json({ ok: false, error: 'Not found' });
+    await pool.query(
       'UPDATE subscribers SET code_hash=$1 WHERE id=$2', [hashCode(code), req.params.id]
     );
-    if (!rowCount) return res.status(404).json({ ok: false, error: 'Not found' });
     res.json({ ok: true, code });
+    sendSubscriberWelcome(subRows[0].email, subRows[0].name, subRows[0].plan, code).catch(() => {});
   } catch (err) {
     logger.error({ err }, '[subscriber/admin/regenerate]');
     res.status(500).json({ ok: false, error: 'Błąd serwera.' });

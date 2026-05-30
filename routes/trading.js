@@ -33,9 +33,15 @@ const orderSchema = z.object({
 const router = Router();
 
 // /status is public (health check / key config indicator — no secrets returned)
-router.get('/status', (req, res) => {
+router.get('/status', async (req, res) => {
   const { API_KEY } = require('../lib/config');
-  res.json({ ok: true, hasKeys: !!API_KEY, server: 'WaleszDesk v1.4' });
+  const { pool } = require('../lib/db');
+  try {
+    await pool.query('SELECT 1');
+    res.json({ ok: true, hasKeys: !!API_KEY, server: 'WaleszDesk v1.4', db: 'ok' });
+  } catch {
+    res.status(503).json({ ok: false, hasKeys: !!API_KEY, server: 'WaleszDesk v1.4', db: 'error' });
+  }
 });
 
 router.get('/balance',         requireAuth, async (req, res) => {
