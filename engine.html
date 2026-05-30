@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Walesz Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:      #080a0d;
+  --bg1:     #0d1117;
+  --bg2:     #111720;
+  --bg3:     #161d2a;
+  --border:  rgba(255,255,255,.06);
+  --border2: rgba(255,255,255,.10);
+  --text:    #e8eaf0;
+  --muted:   rgba(232,234,240,.35);
+  --muted2:  rgba(232,234,240,.55);
+  --accent:  #7c3aed;
+  --accent2: #9f7aea;
+  --accent-dim: rgba(124,58,237,.12);
+  --green:   #00c896;
+  --red:     #f03e3e;
+  --yellow:  #f59e0b;
+  --r:       8px;
+  --r2:      12px;
+  --font:    'Inter', sans-serif;
+  --mono:    'JetBrains Mono', monospace;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; }
+
+/* ── Layout ──────────────────────────────────────────────────────────── */
+.layout { display: flex; height: 100vh; overflow: hidden; }
+
+.sidebar {
+  width: 220px; min-width: 220px; background: var(--bg1); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.sidebar-brand {
+  padding: 20px 18px 14px;
+  font-size: 15px; font-weight: 800; letter-spacing: -.02em;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+.sidebar-brand span { color: var(--accent2); }
+
+.new-post-btn {
+  margin: 14px 14px 6px;
+  padding: 10px 0; width: calc(100% - 28px);
+  background: var(--accent); color: #fff; border: none; border-radius: var(--r);
+  font-family: var(--font); font-size: 13px; font-weight: 700; cursor: pointer; letter-spacing: .02em;
+  transition: background .15s, transform .1s;
+}
+.new-post-btn:hover { background: var(--accent2); transform: translateY(-1px); }
+
+.nav-section { padding: 16px 18px 6px; font-size: 10px; font-weight: 700; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; }
+.nav-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 18px; cursor: pointer; color: var(--muted2); font-size: 12px; font-weight: 500;
+  border-radius: 0; transition: color .15s, background .15s; border: none; background: none;
+  width: 100%; text-align: left; font-family: var(--font); text-decoration: none;
+}
+.nav-item:hover { color: var(--text); background: rgba(255,255,255,.03); }
+.nav-item.active { color: var(--text); background: rgba(124,58,237,.1); border-right: 2px solid var(--accent); }
+.nav-badge { font-size: 10px; background: var(--accent); color: #fff; padding: 1px 6px; border-radius: 10px; font-weight: 700; }
+
+.sidebar-footer {
+  margin-top: auto; padding: 14px 18px; border-top: 1px solid var(--border);
+}
+.back-link { color: var(--muted2); text-decoration: none; font-size: 11px; display: block; margin-bottom: 10px; }
+.back-link:hover { color: var(--text); }
+.platform-dots { display: flex; flex-wrap: wrap; gap: 8px; }
+.pdot { display: flex; align-items: center; gap: 4px; font-size: 10px; font-family: var(--mono); color: var(--muted2); }
+.pdot::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+.pdot.on::before { background: var(--green); }
+
+/* ── Main ────────────────────────────────────────────────────────────── */
+.main { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+/* ── Views ───────────────────────────────────────────────────────────── */
+.view { display: none; flex: 1; overflow: hidden; }
+.view.active { display: flex; flex-direction: column; }
+
+/* ── COMPOSE view ────────────────────────────────────────────────────── */
+.compose-layout { display: flex; flex: 1; overflow: hidden; }
+.compose-center { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 18px; }
+.compose-right  { width: 300px; min-width: 300px; border-left: 1px solid var(--border); overflow-y: auto; }
+
+.view-header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.view-title { font-size: 16px; font-weight: 700; }
+.view-sub { font-size: 11px; color: var(--muted2); }
+
+/* Editor */
+.editor-card { background: var(--bg1); border: 1px solid var(--border2); border-radius: var(--r2); overflow: hidden; }
+.editor-toolbar {
+  display: flex; align-items: center; gap: 2px; padding: 10px 12px;
+  border-bottom: 1px solid var(--border); flex-wrap: wrap;
+}
+.tb-btn {
+  padding: 5px 9px; border-radius: 6px; border: none; background: none;
+  color: var(--muted2); font-family: var(--font); font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.tb-btn:hover { background: rgba(255,255,255,.06); color: var(--text); }
+.tb-sep { width: 1px; height: 18px; background: var(--border2); margin: 0 4px; }
+.tb-right { margin-left: auto; }
+
+#editor {
+  width: 100%; min-height: 160px; background: transparent; border: none; outline: none;
+  color: var(--text); font-family: var(--font); font-size: 14px; line-height: 1.7;
+  padding: 16px; resize: vertical;
+}
+.editor-footer { padding: 8px 14px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; }
+.char-count { font-size: 11px; font-family: var(--mono); color: var(--muted); }
+.char-count.warn { color: var(--yellow); }
+.char-count.over { color: var(--red); }
+
+/* Platform cards */
+.platforms-label { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.platform-card {
+  background: var(--bg1); border: 1px solid var(--border); border-radius: var(--r2); overflow: hidden;
+  transition: border-color .15s;
+}
+.platform-card.selected { border-color: var(--accent); }
+.platform-card-head {
+  display: flex; align-items: center; gap: 10px; padding: 12px 16px; cursor: pointer;
+}
+.platform-card-head:hover { background: rgba(255,255,255,.02); }
+.pc-check {
+  width: 18px; height: 18px; border-radius: 5px; border: 2px solid var(--border2);
+  background: none; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  transition: border-color .15s, background .15s;
+}
+.pc-check.on { background: var(--accent); border-color: var(--accent); }
+.pc-check.on::after { content: '✓'; font-size: 11px; color: #fff; font-weight: 700; }
+.pc-icon { font-size: 16px; }
+.pc-name { font-weight: 600; flex: 1; }
+.pc-meta { font-size: 11px; color: var(--muted2); font-family: var(--mono); }
+.pc-arrow { color: var(--muted); font-size: 10px; transition: transform .2s; }
+.pc-arrow.open { transform: rotate(180deg); }
+.platform-body { padding: 12px 16px 16px; border-top: 1px solid var(--border); display: none; }
+.platform-body.open { display: block; }
+.pc-field { margin-bottom: 10px; }
+.pc-label { font-size: 10px; font-weight: 600; color: var(--muted2); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 5px; }
+.pc-input {
+  width: 100%; background: var(--bg3); border: 1px solid var(--border2); border-radius: var(--r);
+  color: var(--text); padding: 8px 10px; font-family: var(--font); font-size: 12px; outline: none;
+  transition: border-color .15s;
+}
+.pc-input:focus { border-color: var(--accent); }
+.pc-textarea { resize: vertical; min-height: 70px; }
+.char-mini { font-size: 10px; font-family: var(--mono); color: var(--muted); text-align: right; margin-top: 3px; }
+
+/* Right schedule panel */
+.schedule-panel { padding: 20px; border-bottom: 1px solid var(--border); }
+.schedule-title { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted2); margin-bottom: 14px; }
+.quick-btns { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.quick-btn {
+  padding: 5px 10px; border-radius: var(--r); border: 1px solid var(--border2);
+  background: none; color: var(--muted2); font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);
+  transition: all .15s;
+}
+.quick-btn:hover, .quick-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent2); }
+.dt-label { font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 5px; }
+#sched-dt {
+  width: 100%; background: var(--bg3); border: 1px solid var(--border2); border-radius: var(--r);
+  color: var(--text); padding: 9px 12px; font-family: var(--font); font-size: 12px; outline: none;
+}
+#sched-dt:focus { border-color: var(--accent); }
+
+.action-btns { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+.btn-publish {
+  padding: 11px; border-radius: var(--r); border: none; font-family: var(--font); font-size: 12px;
+  font-weight: 700; cursor: pointer; transition: all .15s; text-align: center;
+}
+.btn-publish.primary { background: var(--accent); color: #fff; }
+.btn-publish.primary:hover { background: var(--accent2); }
+.btn-publish.secondary { background: var(--bg3); color: var(--text); border: 1px solid var(--border2); }
+.btn-publish.secondary:hover { border-color: var(--accent); color: var(--accent2); }
+.btn-publish.ghost { background: none; color: var(--muted2); font-size: 11px; padding: 6px; }
+.btn-publish.ghost:hover { color: var(--text); }
+
+/* Right panel sections */
+.rp-section { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.rp-title { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted2); margin-bottom: 10px; }
+.rp-hint { font-size: 11px; color: var(--muted); line-height: 1.6; }
+.rp-empty { font-size: 11px; color: var(--muted); }
+.queue-item-sm { padding: 6px 0; border-bottom: 1px solid var(--border); }
+.queue-item-sm:last-child { border-bottom: none; }
+.qi-content { font-size: 11px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qi-meta { font-size: 10px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
+.draft-item-sm {
+  display: flex; align-items: center; gap: 8px; padding: 6px 0;
+  border-bottom: 1px solid var(--border); cursor: pointer;
+}
+.draft-item-sm:last-child { border-bottom: none; }
+.draft-item-sm:hover .di-text { color: var(--accent2); }
+.di-text { flex: 1; font-size: 11px; color: var(--muted2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.di-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12px; padding: 2px 4px; border-radius: 4px; }
+.di-del:hover { color: var(--red); }
+
+/* ── QUEUE view ──────────────────────────────────────────────────────── */
+.list-view-body { flex: 1; overflow-y: auto; padding: 24px; }
+.queue-card {
+  background: var(--bg1); border: 1px solid var(--border); border-radius: var(--r2); padding: 16px 20px;
+  margin-bottom: 10px; display: flex; gap: 16px; align-items: flex-start;
+}
+.qc-time { min-width: 80px; font-family: var(--mono); font-size: 11px; color: var(--muted2); padding-top: 2px; }
+.qc-content { flex: 1; }
+.qc-text { font-size: 13px; line-height: 1.55; color: var(--text); margin-bottom: 8px; white-space: pre-wrap; word-break: break-word; max-height: 80px; overflow: hidden; }
+.qc-platforms { display: flex; gap: 6px; flex-wrap: wrap; }
+.plat-pill { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: var(--accent-dim); color: var(--accent2); }
+.qc-actions { display: flex; flex-direction: column; gap: 6px; }
+.qc-btn { padding: 5px 10px; border-radius: var(--r); border: 1px solid var(--border2); background: none; color: var(--muted2); font-size: 11px; cursor: pointer; font-family: var(--font); white-space: nowrap; }
+.qc-btn:hover { color: var(--text); border-color: var(--border2); }
+.qc-btn.del:hover { color: var(--red); border-color: var(--red); }
+.status-pill { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+.status-pill.scheduled  { background: rgba(245,158,11,.1); color: var(--yellow); }
+.status-pill.published  { background: rgba(0,200,150,.1); color: var(--green); }
+.status-pill.failed     { background: rgba(240,62,62,.1); color: var(--red); }
+.status-pill.draft      { background: rgba(255,255,255,.05); color: var(--muted2); }
+.status-pill.partial    { background: rgba(245,158,11,.1); color: var(--yellow); }
+
+/* ── RESEARCH view ───────────────────────────────────────────────────── */
+.research-layout { display: flex; flex: 1; overflow: hidden; }
+.research-main  { flex: 1; overflow-y: auto; padding: 20px 24px; }
+.research-side  { width: 280px; border-left: 1px solid var(--border); overflow-y: auto; padding: 20px; }
+
+.filter-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.chip {
+  padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border2);
+  background: none; color: var(--muted2); font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font);
+  transition: all .15s;
+}
+.chip:hover { border-color: var(--accent); color: var(--accent2); }
+.chip.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent2); }
+
+.research-search { display: flex; gap: 8px; margin-bottom: 20px; }
+.rs-input {
+  flex: 1; background: var(--bg3); border: 1px solid var(--border2); border-radius: var(--r);
+  color: var(--text); padding: 8px 12px; font-family: var(--font); font-size: 12px; outline: none;
+}
+.rs-input:focus { border-color: var(--accent); }
+.rs-btn {
+  padding: 8px 14px; border-radius: var(--r); border: none; background: var(--accent); color: #fff;
+  font-size: 12px; font-weight: 700; cursor: pointer; font-family: var(--font); white-space: nowrap;
+}
+.rs-btn:hover { background: var(--accent2); }
+.rs-btn.sec { background: var(--bg3); color: var(--muted2); border: 1px solid var(--border2); }
+.rs-btn.sec:hover { color: var(--text); }
+
+.research-item {
+  background: var(--bg1); border: 1px solid var(--border); border-radius: var(--r2); padding: 16px 18px;
+  margin-bottom: 10px; transition: border-color .15s;
+}
+.research-item:hover { border-color: var(--border2); }
+.ri-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.ri-author { font-size: 12px; font-weight: 700; color: var(--accent2); }
+.ri-date { font-size: 10px; font-family: var(--mono); color: var(--muted); }
+.ri-content { font-size: 13px; line-height: 1.65; color: var(--text); white-space: pre-wrap; word-break: break-word; margin-bottom: 12px; }
+.ri-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.ri-btn { padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border2); background: none; color: var(--muted2); font-size: 11px; cursor: pointer; font-family: var(--font); transition: all .15s; }
+.ri-btn:hover { color: var(--text); border-color: var(--border2); }
+.ri-btn.use { background: var(--accent-dim); border-color: var(--accent); color: var(--accent2); }
+.ri-btn.use:hover { background: var(--accent); color: #fff; }
+.ri-btn.star.active { color: var(--yellow); border-color: var(--yellow); }
+
+/* Sources sidebar */
+.source-item { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.source-item:last-child { border-bottom: none; }
+.source-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+.source-name { flex: 1; font-size: 12px; color: var(--muted2); }
+.source-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px 4px; border-radius: 4px; }
+.source-del:hover { color: var(--red); }
+
+/* ── PLATFORMS settings ──────────────────────────────────────────────── */
+.settings-body { flex: 1; overflow-y: auto; padding: 24px; max-width: 760px; }
+.settings-section { margin-bottom: 32px; }
+.settings-section-title { font-size: 13px; font-weight: 700; margin-bottom: 14px; color: var(--text); }
+.platform-setting-card {
+  background: var(--bg1); border: 1px solid var(--border); border-radius: var(--r2); padding: 18px 20px; margin-bottom: 10px;
+  display: flex; gap: 14px; align-items: flex-start;
+}
+.psc-icon { font-size: 20px; margin-top: 2px; }
+.psc-body { flex: 1; }
+.psc-name { font-weight: 700; margin-bottom: 3px; }
+.psc-desc { font-size: 11px; color: var(--muted2); margin-bottom: 10px; }
+.psc-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.psc-field label { display: block; font-size: 10px; font-weight: 600; color: var(--muted); margin-bottom: 4px; letter-spacing: .06em; text-transform: uppercase; }
+.psc-input {
+  width: 100%; background: var(--bg3); border: 1px solid var(--border2); border-radius: var(--r);
+  color: var(--text); padding: 7px 10px; font-family: var(--font); font-size: 12px; outline: none;
+}
+.psc-input:focus { border-color: var(--accent); }
+.psc-btns { display: flex; gap: 8px; }
+.psc-btn {
+  padding: 6px 12px; border-radius: var(--r); font-family: var(--font); font-size: 11px; font-weight: 600; cursor: pointer; transition: all .15s;
+}
+.psc-btn.save { background: var(--accent); color: #fff; border: none; }
+.psc-btn.save:hover { background: var(--accent2); }
+.psc-btn.test { background: none; color: var(--muted2); border: 1px solid var(--border2); }
+.psc-btn.test:hover { color: var(--text); }
+.psc-btn.del  { background: none; color: var(--red); border: 1px solid rgba(240,62,62,.3); }
+.psc-btn.del:hover { background: rgba(240,62,62,.08); }
+.add-platform-btn {
+  display: flex; align-items: center; gap: 8px; padding: 12px 16px; width: 100%;
+  background: none; border: 1px dashed var(--border2); border-radius: var(--r2); color: var(--muted2);
+  font-family: var(--font); font-size: 12px; cursor: pointer; transition: all .15s;
+}
+.add-platform-btn:hover { border-color: var(--accent); color: var(--accent2); }
+
+/* ── Toast ───────────────────────────────────────────────────────────── */
+#toast {
+  position: fixed; bottom: 24px; right: 24px; padding: 11px 18px; border-radius: var(--r);
+  font-size: 12px; font-weight: 600; z-index: 9999; opacity: 0; pointer-events: none;
+  transition: opacity .25s; background: var(--bg3); border: 1px solid var(--border2); color: var(--text);
+}
+#toast.show { opacity: 1; }
+#toast.ok  { background: rgba(0,200,150,.12); border-color: var(--green); color: var(--green); }
+#toast.err { background: rgba(240,62,62,.12); border-color: var(--red); color: var(--red); }
+
+/* scrollbar */
+::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,.08); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ── SIDEBAR ──────────────────────────────────────────────────────────── -->
+<aside class="sidebar">
+  <div class="sidebar-brand">⚡ <span>Walesz</span> Engine</div>
+  <button class="new-post-btn" onclick="showCompose()">+ Nowy post</button>
+  <nav style="flex:1;overflow-y:auto;">
+    <div class="nav-section">Twórz</div>
+    <button class="nav-item" id="nav-queue"    onclick="showView('queue')">📋 Kolejka <span id="queue-badge" class="nav-badge" style="display:none"></span></button>
+    <button class="nav-item" id="nav-drafts"   onclick="showView('drafts')">📝 Drafty <span id="drafts-badge" class="nav-badge" style="display:none"></span></button>
+    <button class="nav-item" id="nav-published" onclick="showView('published')">✅ Opublikowane</button>
+    <div class="nav-section">Research</div>
+    <button class="nav-item" id="nav-research"  onclick="showView('research')">🔍 Research</button>
+    <div class="nav-section">Ustawienia</div>
+    <button class="nav-item" id="nav-platforms" onclick="showView('platforms')">🔌 Platformy</button>
+  </nav>
+  <div class="sidebar-footer">
+    <a href="/" class="back-link">← WaleszDesk</a>
+    <div class="platform-dots" id="platform-dots"></div>
+  </div>
+</aside>
+
+<!-- ── MAIN ──────────────────────────────────────────────────────────────── -->
+<div class="main">
+
+  <!-- COMPOSE ─────────────────────────────────────────────────────────────── -->
+  <div class="view active" id="view-compose">
+    <div class="view-header">
+      <div>
+        <div class="view-title" id="compose-title">Nowy post</div>
+        <div class="view-sub">Zaznacz tekst i naciśnij przycisk formatowania</div>
+      </div>
+    </div>
+    <div class="compose-layout">
+      <div class="compose-center">
+        <!-- Editor -->
+        <div class="editor-card">
+          <div class="editor-toolbar">
+            <button class="tb-btn" onclick="fmt('b')" title="Bold (Ctrl+B)"><b>B</b></button>
+            <button class="tb-btn" onclick="fmt('i')" title="Italic (Ctrl+I)"><i>I</i></button>
+            <button class="tb-btn" onclick="fmt('code')" title="Monospace">M</button>
+            <div class="tb-sep"></div>
+            <button class="tb-btn" onclick="fmt('link')" title="Link">🔗</button>
+            <button class="tb-btn" onclick="insertEmoji()" title="Emoji">😊</button>
+            <div class="tb-sep"></div>
+            <button class="tb-btn" onclick="fmt('quote')" title="Cytat">"</button>
+            <div class="tb-sep"></div>
+            <button class="tb-btn tb-right" onclick="clearEditor()" title="Wyczyść" style="color:var(--muted)">✕</button>
+          </div>
+          <textarea id="editor" placeholder="Co chcesz opublikować? Zaznacz tekst, żeby pogrubić lub pochylić..." oninput="onEditorInput()"></textarea>
+          <div class="editor-footer">
+            <span class="char-count" id="char-count">0</span>
+          </div>
+        </div>
+
+        <!-- Image URL -->
+        <div>
+          <div class="platforms-label">Obraz (URL)</div>
+          <input type="url" id="image-url" class="pc-input" placeholder="https://... (opcjonalnie — wyślij jako zdjęcie do Telegram)" oninput="onImageInput()">
+          <div id="image-preview" style="margin-top:8px;display:none;">
+            <img id="image-preview-img" style="max-height:120px;border-radius:var(--r);border:1px solid var(--border2);">
+          </div>
+        </div>
+
+        <!-- Platform cards -->
+        <div>
+          <div class="platforms-label">Platformy docelowe</div>
+          <div id="platform-cards">
+            <div style="color:var(--muted);font-size:12px;padding:16px 0;">Ładowanie platform...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right panel -->
+      <div class="compose-right">
+        <div class="schedule-panel">
+          <div class="schedule-title">Zaplanuj publikację</div>
+          <div class="quick-btns">
+            <button class="quick-btn" onclick="quickSched(1)">Za 1h</button>
+            <button class="quick-btn" onclick="quickSched(2)">Za 2h</button>
+            <button class="quick-btn" onclick="quickSched(6)">Za 6h</button>
+            <button class="quick-btn" onclick="quickSched(24)">Jutro</button>
+          </div>
+          <div class="dt-label">Data i godzina (Warszawa)</div>
+          <input type="datetime-local" id="sched-dt">
+        </div>
+
+        <div class="action-btns">
+          <button class="btn-publish primary"    onclick="submitPost('scheduled')">📅 Zaplanuj post</button>
+          <button class="btn-publish secondary"  onclick="submitPost('publish_now')">⚡ Opublikuj teraz</button>
+          <button class="btn-publish ghost"      onclick="submitPost('draft')">Zapisz jako draft</button>
+        </div>
+
+        <div class="rp-section">
+          <div class="rp-title">Formatowanie</div>
+          <div class="rp-hint">Zaznacz tekst i kliknij B / I / M.<br>
+          <span style="font-family:var(--mono);color:var(--muted)">Ctrl+B</span> / <span style="font-family:var(--mono);color:var(--muted)">Ctrl+I</span> / <span style="font-family:var(--mono);color:var(--muted)">Ctrl+M</span><br><br>
+          Format HTML wysyłany do Telegram:<br>
+          <span style="font-family:var(--mono);color:var(--muted)">&lt;b&gt; &lt;i&gt; &lt;code&gt; &lt;a href&gt;</span></div>
+        </div>
+
+        <div class="rp-section">
+          <div class="rp-title">Kolejka <span id="rp-queue-count" style="color:var(--muted)"></span></div>
+          <div id="rp-queue-list"><div class="rp-empty">Brak zaplanowanych postów</div></div>
+        </div>
+
+        <div class="rp-section">
+          <div class="rp-title">Drafty <span id="rp-drafts-count" style="color:var(--muted)"></span></div>
+          <div id="rp-drafts-list"><div class="rp-empty">Brak draftów</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUEUE ───────────────────────────────────────────────────────────────── -->
+  <div class="view" id="view-queue">
+    <div class="view-header">
+      <div class="view-title">📋 Kolejka</div>
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        <button class="chip active" id="qf-scheduled" onclick="setQueueFilter('scheduled',this)">Zaplanowane</button>
+        <button class="chip" id="qf-all" onclick="setQueueFilter('all',this)">Wszystkie</button>
+      </div>
+    </div>
+    <div class="list-view-body" id="queue-list"><div style="color:var(--muted);font-size:12px;">Ładowanie...</div></div>
+  </div>
+
+  <!-- DRAFTS ──────────────────────────────────────────────────────────────── -->
+  <div class="view" id="view-drafts">
+    <div class="view-header"><div class="view-title">📝 Drafty</div></div>
+    <div class="list-view-body" id="drafts-list"><div style="color:var(--muted);font-size:12px;">Ładowanie...</div></div>
+  </div>
+
+  <!-- PUBLISHED ───────────────────────────────────────────────────────────── -->
+  <div class="view" id="view-published">
+    <div class="view-header"><div class="view-title">✅ Opublikowane</div></div>
+    <div class="list-view-body" id="published-list"><div style="color:var(--muted);font-size:12px;">Ładowanie...</div></div>
+  </div>
+
+  <!-- RESEARCH ────────────────────────────────────────────────────────────── -->
+  <div class="view" id="view-research">
+    <div class="view-header">
+      <div class="view-title">🔍 Research</div>
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        <button class="rs-btn sec" onclick="refreshResearch()">↻ Odśwież</button>
+      </div>
+    </div>
+    <div class="research-layout">
+      <div class="research-main">
+        <div class="filter-chips" id="source-chips">
+          <button class="chip active" onclick="setSourceFilter(null,this)">Wszystkie</button>
+        </div>
+        <div class="research-search">
+          <input type="text" class="rs-input" id="research-search" placeholder="Szukaj w newsach..." oninput="filterResearch()">
+        </div>
+        <div id="research-items"><div style="color:var(--muted);font-size:12px;">Ładowanie...</div></div>
+      </div>
+      <div class="research-side">
+        <div class="rp-title" style="margin-bottom:12px;">Źródła</div>
+        <div id="sources-list" style="margin-bottom:16px;"></div>
+        <div class="rp-title" style="margin-bottom:8px;">Dodaj źródło</div>
+        <input type="text" class="rs-input" id="src-name" placeholder="Nazwa (np. Atif Hussain)" style="margin-bottom:6px;">
+        <select id="src-type" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);padding:7px 10px;margin-bottom:6px;font-family:var(--font);font-size:12px;outline:none;">
+          <option value="rss">RSS feed</option>
+          <option value="nitter">Twitter (via Nitter)</option>
+          <option value="manual">Ręczne wpisy</option>
+        </select>
+        <input type="text" class="rs-input" id="src-identifier" placeholder="URL lub @handle" style="margin-bottom:8px;">
+        <button class="rs-btn" onclick="addSource()" style="width:100%;">+ Dodaj</button>
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+          <div class="rp-title" style="margin-bottom:8px;">Dodaj ręcznie</div>
+          <select id="src-manual-id" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);padding:7px 10px;margin-bottom:6px;font-family:var(--font);font-size:12px;outline:none;"></select>
+          <input type="text" class="rs-input" id="manual-author" placeholder="Autor" style="margin-bottom:6px;">
+          <textarea id="manual-content" class="rs-input" placeholder="Treść..." rows="3" style="resize:vertical;margin-bottom:6px;"></textarea>
+          <input type="url" class="rs-input" id="manual-url" placeholder="URL (opcjonalnie)" style="margin-bottom:8px;">
+          <button class="rs-btn" onclick="addManualItem()" style="width:100%;">Dodaj wpis</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PLATFORMS SETTINGS ──────────────────────────────────────────────────── -->
+  <div class="view" id="view-platforms">
+    <div class="view-header"><div class="view-title">🔌 Platformy</div></div>
+    <div class="settings-body">
+      <div class="settings-section">
+        <div class="settings-section-title">Skonfigurowane kanały</div>
+        <div id="platform-settings-list"><div style="color:var(--muted);font-size:12px;">Ładowanie...</div></div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">Dodaj nową platformę</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+          <div>
+            <label style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:5px;">Typ</label>
+            <select id="new-plat-type" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);padding:8px 10px;font-family:var(--font);font-size:12px;outline:none;" onchange="renderNewPlatformFields()">
+              <option value="telegram">Telegram</option>
+              <option value="twitter">X (Twitter)</option>
+              <option value="facebook">Facebook</option>
+              <option value="instagram">Instagram</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:5px;">Nazwa</label>
+            <input type="text" id="new-plat-label" class="psc-input" placeholder="np. Walesz PRO Channel">
+          </div>
+        </div>
+        <div id="new-plat-fields" style="margin-bottom:12px;"></div>
+        <button class="psc-btn save" onclick="savePlatform()" style="padding:9px 20px;">+ Dodaj platformę</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /.main -->
+</div><!-- /.layout -->
+
+<div id="toast"></div>
+
+<script>
+const TOKEN = localStorage.getItem('wd_token') || sessionStorage.getItem('wd_token') || '';
+
+function api(url, opts = {}) {
+  return fetch(url, { ...opts, headers: { ...(opts.headers||{}), 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' } });
+}
+
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = 'show' + (type ? ' ' + type : '');
+  clearTimeout(el._t); el._t = setTimeout(() => el.className = '', 2800);
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let _platforms = [];   // from DB
+let _queue     = [];
+let _drafts    = [];
+let _published = [];
+let _research  = [];
+let _sources   = [];
+let _sourceFilter = null;
+let _queueFilter  = 'scheduled';
+let _editingId    = null;
+let _selectedPlatformKeys = new Set();
+
+// ── Views ─────────────────────────────────────────────────────────────────────
+function showView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('view-' + name)?.classList.add('active');
+  document.getElementById('nav-' + name)?.classList.add('active');
+  if (name === 'queue')     loadQueue();
+  if (name === 'drafts')    loadDrafts();
+  if (name === 'published') loadPublished();
+  if (name === 'research')  loadResearch();
+  if (name === 'platforms') loadPlatformSettings();
+}
+
+function showCompose(post) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('view-compose').classList.add('active');
+  _editingId = post ? post.id : null;
+  document.getElementById('compose-title').textContent = post ? 'Edytuj post' : 'Nowy post';
+  document.getElementById('editor').value = post ? post.content : '';
+  document.getElementById('image-url').value = post?.image_url || '';
+  document.getElementById('sched-dt').value = post?.scheduled_at ? toLocalDt(post.scheduled_at) : '';
+  _selectedPlatformKeys = new Set(post ? (post.platforms||[]).map(p=>p.key) : []);
+  renderPlatformCards(post?.platform_overrides || {});
+  updateCharCount();
+  onImageInput();
+  loadRpQueue();
+  loadRpDrafts();
+}
+
+// ── Editor ────────────────────────────────────────────────────────────────────
+function fmt(type) {
+  const ta = document.getElementById('editor');
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  const sel = ta.value.slice(s, e) || 'текст';
+  const pre = ta.value.slice(0, s), post = ta.value.slice(e);
+  let ins;
+  if (type === 'b')    ins = `<b>${sel}</b>`;
+  if (type === 'i')    ins = `<i>${sel}</i>`;
+  if (type === 'code') ins = `<code>${sel}</code>`;
+  if (type === 'quote') ins = `> ${sel}`;
+  if (type === 'link') {
+    const url = prompt('URL:', 'https://');
+    if (!url) return;
+    ins = `<a href="${url}">${sel}</a>`;
+  }
+  ta.value = pre + ins + post;
+  ta.focus();
+  ta.setSelectionRange(pre.length, pre.length + ins.length);
+  updateCharCount();
+}
+
+const EMOJIS = ['🚀','💰','📈','📉','⚡','🔥','💎','🎯','⚠️','✅','❌','📊','💡','🔑','👀','🧠','💪','🤑','👇','🔔'];
+function insertEmoji() {
+  const picker = document.createElement('div');
+  picker.style.cssText = 'position:fixed;z-index:9999;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r2);padding:10px;display:flex;flex-wrap:wrap;gap:4px;width:220px;';
+  const ta = document.getElementById('editor');
+  const rect = ta.getBoundingClientRect();
+  picker.style.top = (rect.top - 120) + 'px';
+  picker.style.left = rect.left + 'px';
+  EMOJIS.forEach(em => {
+    const btn = document.createElement('button');
+    btn.textContent = em;
+    btn.style.cssText = 'font-size:18px;background:none;border:none;cursor:pointer;padding:4px;border-radius:4px;';
+    btn.onmouseover = () => btn.style.background = 'rgba(255,255,255,.08)';
+    btn.onmouseout  = () => btn.style.background = 'none';
+    btn.onclick = () => {
+      const s = ta.selectionStart;
+      ta.value = ta.value.slice(0,s) + em + ta.value.slice(s);
+      ta.selectionStart = ta.selectionEnd = s + em.length;
+      ta.focus(); updateCharCount(); picker.remove();
+    };
+    picker.appendChild(btn);
+  });
+  document.body.appendChild(picker);
+  setTimeout(() => document.addEventListener('click', () => picker.remove(), { once: true }), 50);
+}
+
+function clearEditor() { if (confirm('Wyczyścić edytor?')) { document.getElementById('editor').value = ''; updateCharCount(); } }
+
+function onEditorInput() { updateCharCount(); }
+function updateCharCount() {
+  const len = document.getElementById('editor').value.length;
+  const el  = document.getElementById('char-count');
+  el.textContent = len;
+  el.className = 'char-count' + (len > 4096 ? ' over' : len > 3500 ? ' warn' : '');
+}
+
+document.getElementById('editor').addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); fmt('b'); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'i') { e.preventDefault(); fmt('i'); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'm') { e.preventDefault(); fmt('code'); }
+});
+
+function onImageInput() {
+  const url = document.getElementById('image-url').value.trim();
+  const prev = document.getElementById('image-preview');
+  const img  = document.getElementById('image-preview-img');
+  if (url) { img.src = url; prev.style.display = ''; }
+  else prev.style.display = 'none';
+}
+
+// ── Platform cards ────────────────────────────────────────────────────────────
+function renderPlatformCards(overrides = {}) {
+  const wrap = document.getElementById('platform-cards');
+  if (!_platforms.length) {
+    wrap.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:12px 0;">Brak skonfigurowanych platform. Przejdź do <b style="color:var(--accent2)">Ustawienia → Platformy</b> żeby dodać.</div>`;
+    return;
+  }
+  wrap.innerHTML = _platforms.map(p => {
+    const sel   = _selectedPlatformKeys.has(p.key);
+    const typeInfo = { telegram: { icon: '✈️', meta: 'Telegram' }, twitter: { icon: '𝕏', meta: 'Twitter' }, facebook: { icon: 'f', meta: 'Facebook' }, instagram: { icon: '📸', meta: 'Instagram' } }[p.type] || { icon: '•', meta: p.type };
+    const overrideVal = overrides[p.key] || '';
+    const twitterExtra = p.type === 'twitter' ? `
+      <div class="pc-field">
+        <div class="pc-label">Wersja dla X (puste = bazowy tekst)</div>
+        <textarea class="pc-input pc-textarea" id="override-${p.key}" placeholder="Opcjonalna wersja tekstu dla X..." oninput="updateOverrideCount('${p.key}')">${overrideVal}</textarea>
+        <div class="char-mini" id="oc-${p.key}">0 / 280</div>
+      </div>` : '';
+    const telegramExtra = p.type === 'telegram' ? `
+      <div class="pc-field">
+        <div class="pc-label">Wersja tekstu (puste = bazowy tekst)</div>
+        <textarea class="pc-input pc-textarea" id="override-${p.key}" placeholder="Opcjonalna wersja dla tego kanału...">${overrideVal}</textarea>
+      </div>` : '';
+    return `
+    <div class="platform-card ${sel ? 'selected' : ''}" id="pcard-${p.key}">
+      <div class="platform-card-head" onclick="togglePlatform('${p.key}')">
+        <div class="pc-check ${sel ? 'on' : ''}" id="pcheck-${p.key}"></div>
+        <span class="pc-icon">${typeInfo.icon}</span>
+        <span class="pc-name">${p.label}</span>
+        <span class="pc-meta">${typeInfo.meta}</span>
+        <span class="pc-arrow ${sel ? 'open' : ''}" id="parrow-${p.key}">▾</span>
+      </div>
+      <div class="platform-body ${sel ? 'open' : ''}" id="pbody-${p.key}">
+        ${telegramExtra}${twitterExtra}
+      </div>
+    </div>`;
+  }).join('');
+  // init twitter char counters
+  _platforms.filter(p=>p.type==='twitter').forEach(p => updateOverrideCount(p.key));
+}
+
+function togglePlatform(key) {
+  if (_selectedPlatformKeys.has(key)) _selectedPlatformKeys.delete(key);
+  else _selectedPlatformKeys.add(key);
+  const card  = document.getElementById('pcard-' + key);
+  const check = document.getElementById('pcheck-' + key);
+  const body  = document.getElementById('pbody-' + key);
+  const arrow = document.getElementById('parrow-' + key);
+  const sel   = _selectedPlatformKeys.has(key);
+  card.classList.toggle('selected', sel);
+  check.classList.toggle('on', sel);
+  body.classList.toggle('open', sel);
+  arrow.classList.toggle('open', sel);
+}
+
+function updateOverrideCount(key) {
+  const ta = document.getElementById('override-' + key);
+  const el = document.getElementById('oc-' + key);
+  if (!ta || !el) return;
+  const len = ta.value.length;
+  el.textContent = len + ' / 280';
+  el.style.color = len > 280 ? 'var(--red)' : len > 240 ? 'var(--yellow)' : 'var(--muted)';
+}
+
+// ── Scheduler ─────────────────────────────────────────────────────────────────
+function toLocalDt(isoStr) {
+  const d = new Date(isoStr);
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function quickSched(hours) {
+  document.querySelectorAll('.quick-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  const d = new Date(Date.now() + hours * 3600_000);
+  document.getElementById('sched-dt').value = toLocalDt(d.toISOString());
+}
+
+// ── Submit ────────────────────────────────────────────────────────────────────
+async function submitPost(action) {
+  const content  = document.getElementById('editor').value.trim();
+  const imageUrl = document.getElementById('image-url').value.trim() || null;
+  const dt       = document.getElementById('sched-dt').value;
+  if (action === 'scheduled' && !dt) { toast('Wybierz datę i godzinę.', 'err'); return; }
+  if (!content && !imageUrl && _selectedPlatformKeys.size === 0 && action !== 'draft') {
+    toast('Napisz coś lub wybierz platformy.', 'err'); return;
+  }
+
+  const platform_overrides = {};
+  const platforms = _platforms
+    .filter(p => _selectedPlatformKeys.has(p.key))
+    .map(p => {
+      const ov = document.getElementById('override-' + p.key);
+      if (ov && ov.value.trim()) platform_overrides[p.key] = ov.value.trim();
+      return { key: p.key, type: p.type, label: p.label, config: p.config };
+    });
+
+  const body = {
+    content,
+    platform_overrides,
+    platforms,
+    image_url: imageUrl,
+    status: action,
+    scheduled_at: action === 'scheduled' ? new Date(dt).toISOString() : null,
+  };
+
+  try {
+    const url    = _editingId ? `/api/engine/posts/${_editingId}` : '/api/engine/posts';
+    const method = _editingId ? 'PUT' : 'POST';
+    const r = await api(url, { method, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (!d.ok) { toast(d.error || 'Błąd.', 'err'); return; }
+    const msgs = { draft: 'Draft zapisany', scheduled: 'Post zaplanowany!', publish_now: 'Opublikowano!' };
+    toast(msgs[action] || 'Zapisano', 'ok');
+    if (action !== 'draft') {
+      document.getElementById('editor').value = '';
+      document.getElementById('sched-dt').value = '';
+      document.getElementById('image-url').value = '';
+      _selectedPlatformKeys.clear();
+      _editingId = null;
+      renderPlatformCards();
+      updateCharCount();
+    }
+    loadRpQueue(); loadRpDrafts(); updateBadges();
+  } catch { toast('Błąd połączenia.', 'err'); }
+}
+
+// ── Queue / Drafts / Published ────────────────────────────────────────────────
+function setQueueFilter(f, el) {
+  _queueFilter = f;
+  document.querySelectorAll('[id^=qf-]').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  loadQueue();
+}
+
+async function loadQueue() {
+  const el = document.getElementById('queue-list');
+  try {
+    const r = await api('/api/engine/posts?status=' + _queueFilter);
+    const d = await r.json();
+    if (!d.ok) return;
+    _queue = d.posts;
+    el.innerHTML = _queue.length ? _queue.map(p => renderPostCard(p)).join('') :
+      '<div style="color:var(--muted);font-size:12px;padding:20px 0;">Brak postów</div>';
+  } catch { el.innerHTML = '<div style="color:var(--red);font-size:12px;">Błąd ładowania</div>'; }
+}
+
+async function loadDrafts() {
+  const el = document.getElementById('drafts-list');
+  try {
+    const r = await api('/api/engine/posts?status=draft');
+    const d = await r.json();
+    if (!d.ok) return;
+    _drafts = d.posts;
+    el.innerHTML = _drafts.length ? _drafts.map(p => renderPostCard(p)).join('') :
+      '<div style="color:var(--muted);font-size:12px;padding:20px 0;">Brak draftów</div>';
+    updateBadges();
+  } catch { el.innerHTML = '<div style="color:var(--red);font-size:12px;">Błąd ładowania</div>'; }
+}
+
+async function loadPublished() {
+  const el = document.getElementById('published-list');
+  try {
+    const r = await api('/api/engine/posts?status=published');
+    const d = await r.json();
+    if (!d.ok) return;
+    el.innerHTML = d.posts.length ? d.posts.map(p => renderPostCard(p)).join('') :
+      '<div style="color:var(--muted);font-size:12px;padding:20px 0;">Brak opublikowanych postów</div>';
+  } catch { el.innerHTML = '<div style="color:var(--red);font-size:12px;">Błąd ładowania</div>'; }
+}
+
+function renderPostCard(p) {
+  const plats = (p.platforms || []).map(pl => `<span class="plat-pill">${pl.label}</span>`).join('');
+  const statusPill = `<span class="status-pill ${p.status}">${statusLabel(p.status)}</span>`;
+  const dt = p.scheduled_at ? fmtDt(p.scheduled_at) : p.published_at ? fmtDt(p.published_at) : fmtDt(p.created_at);
+  const preview = (p.content || '').slice(0, 120) + (p.content?.length > 120 ? '…' : '');
+  return `
+  <div class="queue-card">
+    <div class="qc-time">${dt}</div>
+    <div class="qc-content">
+      <div class="qc-text">${esc(preview)}</div>
+      <div class="qc-platforms">${plats}${statusPill}</div>
+    </div>
+    <div class="qc-actions">
+      ${p.status !== 'published' ? `<button class="qc-btn" onclick="editPost(${p.id})">Edytuj</button>` : ''}
+      ${p.status === 'draft' ? `<button class="qc-btn" onclick="publishNow(${p.id})">Opublikuj</button>` : ''}
+      <button class="qc-btn del" onclick="deletePost(${p.id})">Usuń</button>
+    </div>
+  </div>`;
+}
+
+async function editPost(id) {
+  try {
+    const r = await api('/api/engine/posts?status=all');
+    const d = await r.json();
+    const post = d.posts.find(p => p.id === id);
+    if (post) showCompose(post);
+  } catch { toast('Błąd ładowania postu.', 'err'); }
+}
+
+async function publishNow(id) {
+  try {
+    const r = await api(`/api/engine/posts/${id}`, { method: 'PUT', body: JSON.stringify({ status: 'publish_now', content: '', platforms: [], platform_overrides: {} }) });
+    toast('Opublikowano!', 'ok'); loadQueue(); loadDrafts();
+  } catch { toast('Błąd.', 'err'); }
+}
+
+async function deletePost(id) {
+  if (!confirm('Usunąć post?')) return;
+  try {
+    await api(`/api/engine/posts/${id}`, { method: 'DELETE' });
+    toast('Usunięto', 'ok'); loadQueue(); loadDrafts(); loadPublished(); updateBadges();
+  } catch { toast('Błąd.', 'err'); }
+}
+
+// Right-panel miniature queue and drafts
+async function loadRpQueue() {
+  try {
+    const r = await api('/api/engine/posts?status=scheduled');
+    const d = await r.json();
+    const el = document.getElementById('rp-queue-list');
+    const cnt = document.getElementById('rp-queue-count');
+    if (!d.ok) return;
+    if (cnt) cnt.textContent = d.posts.length ? `(${d.posts.length})` : '';
+    el.innerHTML = d.posts.length ? d.posts.slice(0,4).map(p =>
+      `<div class="queue-item-sm">
+        <div class="qi-content">${esc((p.content||'').slice(0,60))}</div>
+        <div class="qi-meta">${fmtDt(p.scheduled_at)} · ${(p.platforms||[]).map(pl=>pl.label).join(', ')}</div>
+      </div>`).join('') : '<div class="rp-empty">Brak zaplanowanych postów</div>';
+  } catch {}
+}
+
+async function loadRpDrafts() {
+  try {
+    const r = await api('/api/engine/posts?status=draft');
+    const d = await r.json();
+    const el  = document.getElementById('rp-drafts-list');
+    const cnt = document.getElementById('rp-drafts-count');
+    if (!d.ok) return;
+    if (cnt) cnt.textContent = d.posts.length ? `(${d.posts.length})` : '';
+    el.innerHTML = d.posts.length ? d.posts.slice(0,5).map(p =>
+      `<div class="draft-item-sm" onclick="editPost(${p.id})">
+        <span class="di-text">${esc((p.content||'[bez tekstu]').slice(0,50))}</span>
+        <button class="di-del" onclick="event.stopPropagation();deletePost(${p.id})">×</button>
+      </div>`).join('') : '<div class="rp-empty">Brak draftów</div>';
+  } catch {}
+}
+
+async function updateBadges() {
+  try {
+    const [rq, rd] = await Promise.all([
+      api('/api/engine/posts?status=scheduled'),
+      api('/api/engine/posts?status=draft'),
+    ]);
+    const dq = await rq.json(), dd = await rd.json();
+    const qb = document.getElementById('queue-badge');
+    const db = document.getElementById('drafts-badge');
+    if (qb) { qb.textContent = dq.posts?.length || 0; qb.style.display = dq.posts?.length ? '' : 'none'; }
+    if (db) { db.textContent = dd.posts?.length || 0; db.style.display = dd.posts?.length ? '' : 'none'; }
+  } catch {}
+}
+
+// ── Research ─────────────────────────────────────────────────────────────────
+async function loadResearch() {
+  await Promise.all([loadSources(), fetchResearchItems()]);
+}
+
+async function loadSources() {
+  try {
+    const r = await api('/api/engine/research/sources');
+    const d = await r.json();
+    if (!d.ok) return;
+    _sources = d.sources;
+    renderSourcesSidebar();
+    renderSourceChips();
+    // populate manual source select
+    const sel = document.getElementById('src-manual-id');
+    if (sel) sel.innerHTML = _sources.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  } catch {}
+}
+
+function renderSourcesSidebar() {
+  const el = document.getElementById('sources-list');
+  el.innerHTML = _sources.length ? _sources.map(s =>
+    `<div class="source-item">
+      <div class="source-dot"></div>
+      <div class="source-name">${esc(s.name)} <span style="color:var(--muted);font-size:10px;">(${s.type})</span></div>
+      <button class="source-del" onclick="deleteSource(${s.id})">×</button>
+    </div>`).join('') : '<div style="color:var(--muted);font-size:11px;">Brak źródeł</div>';
+}
+
+function renderSourceChips() {
+  const el = document.getElementById('source-chips');
+  el.innerHTML = `<button class="chip ${_sourceFilter === null ? 'active' : ''}" onclick="setSourceFilter(null,this)">Wszystkie</button>`
+    + _sources.map(s => `<button class="chip ${_sourceFilter === s.id ? 'active' : ''}" onclick="setSourceFilter(${s.id},this)">${esc(s.name)}</button>`).join('');
+}
+
+function setSourceFilter(id, el) {
+  _sourceFilter = id;
+  document.querySelectorAll('#source-chips .chip').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  fetchResearchItems();
+}
+
+async function fetchResearchItems() {
+  const el = document.getElementById('research-items');
+  try {
+    const params = new URLSearchParams({ limit: 80 });
+    if (_sourceFilter) params.set('source_id', _sourceFilter);
+    const search = document.getElementById('research-search').value.trim();
+    if (search) params.set('search', search);
+    const r = await api('/api/engine/research?' + params);
+    const d = await r.json();
+    if (!d.ok) return;
+    _research = d.items;
+    renderResearchItems();
+  } catch { el.innerHTML = '<div style="color:var(--red);font-size:12px;">Błąd ładowania</div>'; }
+}
+
+function filterResearch() {
+  clearTimeout(filterResearch._t);
+  filterResearch._t = setTimeout(fetchResearchItems, 300);
+}
+
+function renderResearchItems() {
+  const el = document.getElementById('research-items');
+  if (!_research.length) { el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:20px 0;">Brak wyników. Dodaj źródła i kliknij ↻ Odśwież.</div>'; return; }
+  el.innerHTML = _research.map(item => `
+    <div class="research-item" id="ri-${item.id}">
+      <div class="ri-head">
+        <span class="ri-author">${esc(item.author || item.source_name)}</span>
+        <span class="ri-date">${item.published_at ? fmtDt(item.published_at) : fmtDt(item.created_at)}</span>
+      </div>
+      <div class="ri-content">${esc(item.content)}</div>
+      <div class="ri-actions">
+        ${item.url ? `<a href="${item.url}" target="_blank" class="ri-btn" style="text-decoration:none;">↗ Oryginał</a>` : ''}
+        <button class="ri-btn use" onclick="useInPost(${item.id})">Użyj w poście →</button>
+      </div>
+    </div>`).join('');
+}
+
+function useInPost(id) {
+  const item = _research.find(r => r.id === id);
+  if (!item) return;
+  showCompose();
+  document.getElementById('editor').value = item.content + (item.url ? `\n\n${item.url}` : '');
+  updateCharCount();
+  toast('Treść załadowana do edytora', 'ok');
+}
+
+async function addSource() {
+  const name = document.getElementById('src-name').value.trim();
+  const type = document.getElementById('src-type').value;
+  const ident= document.getElementById('src-identifier').value.trim();
+  if (!name || !ident) { toast('Wypełnij nazwę i identyfikator', 'err'); return; }
+  try {
+    const r = await api('/api/engine/research/sources', { method: 'POST', body: JSON.stringify({ name, type, identifier: ident }) });
+    const d = await r.json();
+    if (!d.ok) { toast(d.error, 'err'); return; }
+    document.getElementById('src-name').value = '';
+    document.getElementById('src-identifier').value = '';
+    toast('Źródło dodane', 'ok');
+    await loadSources();
+  } catch { toast('Błąd.', 'err'); }
+}
+
+async function deleteSource(id) {
+  if (!confirm('Usunąć źródło i wszystkie jego wpisy?')) return;
+  try {
+    await api('/api/engine/research/sources/' + id, { method: 'DELETE' });
+    toast('Usunięto', 'ok'); await loadSources(); fetchResearchItems();
+  } catch { toast('Błąd.', 'err'); }
+}
+
+async function addManualItem() {
+  const source_id = document.getElementById('src-manual-id').value;
+  const author  = document.getElementById('manual-author').value.trim();
+  const content = document.getElementById('manual-content').value.trim();
+  const url     = document.getElementById('manual-url').value.trim() || null;
+  if (!source_id || !content) { toast('Wybierz źródło i wpisz treść', 'err'); return; }
+  try {
+    const r = await api('/api/engine/research/manual', { method: 'POST', body: JSON.stringify({ source_id: parseInt(source_id), author, content, url }) });
+    const d = await r.json();
+    if (!d.ok) { toast(d.error, 'err'); return; }
+    document.getElementById('manual-content').value = '';
+    toast('Wpis dodany', 'ok'); fetchResearchItems();
+  } catch { toast('Błąd.', 'err'); }
+}
+
+async function refreshResearch() {
+  toast('Odświeżanie w tle...', '');
+  try {
+    await api('/api/engine/research/refresh', { method: 'POST' });
+    setTimeout(fetchResearchItems, 3000);
+  } catch {}
+}
+
+// ── Platforms settings ────────────────────────────────────────────────────────
+async function loadPlatformSettings() {
+  try {
+    const r = await api('/api/engine/platforms');
+    const d = await r.json();
+    if (!d.ok) return;
+    _platforms = d.platforms;
+    renderPlatformDots();
+    renderPlatformSettingsList();
+  } catch {}
+}
+
+function renderPlatformSettingsList() {
+  const el = document.getElementById('platform-settings-list');
+  if (!_platforms.length) { el.innerHTML = '<div style="color:var(--muted);font-size:12px;">Brak platform. Dodaj poniżej.</div>'; return; }
+  el.innerHTML = _platforms.map(p => {
+    const icon = { telegram:'✈️', twitter:'𝕏', facebook:'f', instagram:'📸' }[p.type] || '•';
+    const cfgJson = JSON.stringify(p.config || {}, null, 2);
+    return `
+    <div class="platform-setting-card">
+      <div class="psc-icon">${icon}</div>
+      <div class="psc-body">
+        <div class="psc-name">${esc(p.label)} <span style="font-size:10px;font-weight:400;color:var(--muted2);">(${p.type})</span></div>
+        <div class="psc-desc">Key: <code style="color:var(--accent2)">${p.key}</code></div>
+        <div class="psc-btns">
+          ${p.type === 'telegram' ? `<button class="psc-btn test" onclick="testPlatform('${p.key}','${p.type}',${JSON.stringify(JSON.stringify(p.config))})">Test połączenia</button>` : ''}
+          <button class="psc-btn del" onclick="deletePlatform('${p.key}')">Usuń</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  renderNewPlatformFields();
+}
+
+const PLATFORM_FIELDS = {
+  telegram:  [['Bot Token', 'bot_token', 'text', '123456:ABC...'], ['Chat ID', 'chat_id', 'text', '-1001234567890']],
+  twitter:   [['Access Token', 'access_token', 'password', 'OAuth access token']],
+  facebook:  [['Page Access Token', 'page_access_token', 'password', ''], ['Page ID', 'page_id', 'text', '']],
+  instagram: [['Access Token', 'access_token', 'password', ''], ['Account ID', 'account_id', 'text', '']],
+};
+
+function renderNewPlatformFields() {
+  const type = document.getElementById('new-plat-type').value;
+  const fields = PLATFORM_FIELDS[type] || [];
+  document.getElementById('new-plat-fields').innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">` +
+    fields.map(([label, key, inputType, ph]) =>
+      `<div><label style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px;">${label}</label>
+       <input type="${inputType}" id="nf-${key}" class="psc-input" placeholder="${ph}"></div>`
+    ).join('') + '</div>';
+}
+
+async function savePlatform() {
+  const type  = document.getElementById('new-plat-type').value;
+  const label = document.getElementById('new-plat-label').value.trim();
+  if (!label) { toast('Wpisz nazwę platformy', 'err'); return; }
+  const fields = PLATFORM_FIELDS[type] || [];
+  const config = {};
+  for (const [, key] of fields) {
+    const el = document.getElementById('nf-' + key);
+    if (el) config[key] = el.value.trim();
+  }
+  const key = type + '_' + label.toLowerCase().replace(/[^a-z0-9]/g, '_');
+  try {
+    const r = await api('/api/engine/platforms', { method: 'POST', body: JSON.stringify({ key, label, type, config }) });
+    const d = await r.json();
+    if (!d.ok) { toast(d.error, 'err'); return; }
+    document.getElementById('new-plat-label').value = '';
+    fields.forEach(([, k]) => { const el = document.getElementById('nf-' + k); if (el) el.value = ''; });
+    toast('Platforma dodana!', 'ok');
+    await loadPlatformSettings();
+    renderPlatformCards();
+  } catch { toast('Błąd.', 'err'); }
+}
+
+async function deletePlatform(key) {
+  if (!confirm('Usunąć platformę?')) return;
+  try {
+    await api('/api/engine/platforms/' + encodeURIComponent(key), { method: 'DELETE' });
+    toast('Usunięto', 'ok'); await loadPlatformSettings(); renderPlatformCards();
+  } catch { toast('Błąd.', 'err'); }
+}
+
+async function testPlatform(key, type, configJson) {
+  const config = JSON.parse(configJson);
+  toast('Testowanie...', '');
+  try {
+    const r = await api('/api/engine/platforms/test', { method: 'POST', body: JSON.stringify({ type, config }) });
+    const d = await r.json();
+    toast(d.ok ? '✅ ' + d.message : '❌ ' + d.error, d.ok ? 'ok' : 'err');
+  } catch { toast('Błąd połączenia', 'err'); }
+}
+
+function renderPlatformDots() {
+  const el = document.getElementById('platform-dots');
+  const types = [...new Set(_platforms.filter(p=>p.enabled).map(p=>p.type))];
+  const names = { telegram:'TG', twitter:'X', facebook:'FB', instagram:'IG' };
+  el.innerHTML = types.map(t => `<div class="pdot on">${names[t]||t}</div>`).join('') ||
+    '<div class="pdot">Brak platform</div>';
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function statusLabel(s) {
+  return { scheduled:'📅 Zapl.', published:'✅ Pub.', failed:'❌ Błąd', draft:'📝 Draft', partial:'⚠️ Częściowo' }[s] || s;
+}
+
+function fmtDt(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const pad = n => String(n).padStart(2,'0');
+  return `${pad(d.getDate())}.${pad(d.getMonth()+1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+(async function init() {
+  // Check auth
+  if (!TOKEN) {
+    document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px;">
+      <div style="font-size:15px;font-weight:700;">Walesz Engine</div>
+      <div style="color:var(--muted2);font-size:12px;">Zaloguj się najpierw w <a href="/" style="color:var(--accent2)">WaleszDesk</a></div>
+    </div>`;
+    return;
+  }
+  try {
+    const r = await api('/api/engine/platforms');
+    const d = await r.json();
+    if (d.ok) { _platforms = d.platforms; renderPlatformDots(); renderPlatformCards(); }
+  } catch {}
+  loadRpQueue(); loadRpDrafts(); updateBadges();
+  // init datetime default
+  document.getElementById('sched-dt').value = toLocalDt(new Date(Date.now() + 3600_000).toISOString());
+  renderNewPlatformFields();
+})();
+</script>
+</body>
+</html>

@@ -93,9 +93,19 @@ router.get('/conversations/:id', requireAuth, async (req, res) => {
       ),
     ]);
     if (!convRes.rows[0]) return res.status(404).json({ ok: false, error: 'Not found' });
-    // Mark as read by admin
     await pool.query(`UPDATE conversations SET unread_admin = FALSE WHERE id=$1`, [id]);
-    res.json({ ok: true, conversation: convRes.rows[0], messages: msgRes.rows });
+
+    const msgIds = msgRes.rows.map(m => m.id);
+    let attMap = {};
+    if (msgIds.length) {
+      const attRes = await pool.query(
+        `SELECT id, ref_id, mime_type, data, filename FROM attachments WHERE ref_type='message' AND ref_id=ANY($1)`,
+        [msgIds]
+      );
+      attRes.rows.forEach(a => { (attMap[a.ref_id] = attMap[a.ref_id] || []).push(a); });
+    }
+    const messages = msgRes.rows.map(m => ({ ...m, attachments: attMap[m.id] || [] }));
+    res.json({ ok: true, conversation: convRes.rows[0], messages });
   } catch (err) {
     logger.error({ err }, '[messages conversation GET]');
     res.status(500).json({ ok: false, error: 'Błąd serwera.' });
@@ -103,10 +113,13 @@ router.get('/conversations/:id', requireAuth, async (req, res) => {
 });
 
 // ── Admin: reply ──────────────────────────────────────────────────────────────
-const replySchema = z.object({ content: z.string().min(1).max(5000) });
+const replySchema = z.object({
+  content:        z.string().min(1).max(5000),
+  attachment_ids: z.array(z.number().int()).optional(),
+});
 
 router.post('/conversations/:id/reply', requireAuth, validate(replySchema), async (req, res) => {
-  const { content } = req.body;
+  const { content, attachment_ids = [] } = req.body;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -116,10 +129,17 @@ router.post('/conversations/:id/reply', requireAuth, validate(replySchema), asyn
     );
     if (!convRows[0]) { await client.query('ROLLBACK'); return res.status(404).json({ ok: false, error: 'Not found' }); }
 
-    await client.query(
-      `INSERT INTO messages (conversation_id, sender, content) VALUES ($1, 'admin', $2)`,
+    const { rows: msgRows } = await client.query(
+      `INSERT INTO messages (conversation_id, sender, content) VALUES ($1, 'admin', $2) RETURNING id`,
       [req.params.id, content.trim()]
     );
+    const msgId = msgRows[0].id;
+    if (attachment_ids.length) {
+      await client.query(
+        `UPDATE attachments SET ref_type='message', ref_id=$1 WHERE id=ANY($2)`,
+        [msgId, attachment_ids]
+      );
+    }
     await client.query(
       `UPDATE conversations SET unread_sub=TRUE, unread_admin=FALSE, updated_at=NOW() WHERE id=$1`,
       [req.params.id]

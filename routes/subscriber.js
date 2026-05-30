@@ -319,7 +319,10 @@ const convSchema = z.object({
   subject: z.string().min(1).max(200),
   content: z.string().min(1).max(5000),
 });
-const msgSchema = z.object({ content: z.string().min(1).max(5000) });
+const msgSchema = z.object({
+  content:        z.string().min(1).max(5000),
+  attachment_ids: z.array(z.number().int()).optional(),
+});
 
 router.get('/conversations', requireSubscriberAuth, async (req, res) => {
   try {
@@ -383,8 +386,17 @@ router.get('/conversations/:id', requireSubscriberAuth, async (req, res) => {
       `SELECT id, sender, content, created_at FROM messages WHERE conversation_id=$1 ORDER BY created_at ASC`,
       [req.params.id]
     );
+    const msgIds = msgs.map(m => m.id);
+    let attMap = {};
+    if (msgIds.length) {
+      const attRes = await pool.query(
+        `SELECT id, ref_id, filename, mime_type, data FROM attachments WHERE ref_type='message' AND ref_id=ANY($1)`,
+        [msgIds]
+      );
+      attRes.rows.forEach(a => { (attMap[a.ref_id] = attMap[a.ref_id] || []).push(a); });
+    }
     await pool.query(`UPDATE conversations SET unread_sub=FALSE WHERE id=$1`, [req.params.id]);
-    res.json({ ok: true, conversation: convRows[0], messages: msgs });
+    res.json({ ok: true, conversation: convRows[0], messages: msgs.map(m => ({ ...m, attachments: attMap[m.id] || [] })) });
   } catch (err) {
     logger.error({ err }, '[subscriber/conversations/:id GET]');
     res.status(500).json({ ok: false, error: 'Błąd serwera.' });
@@ -392,7 +404,7 @@ router.get('/conversations/:id', requireSubscriberAuth, async (req, res) => {
 });
 
 router.post('/conversations/:id/messages', requireSubscriberAuth, validate(msgSchema), async (req, res) => {
-  const { content } = req.body;
+  const { content, attachment_ids = [] } = req.body;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -401,10 +413,17 @@ router.post('/conversations/:id/messages', requireSubscriberAuth, validate(msgSc
       [req.params.id, req.subscriber.sub_id]
     );
     if (!rows[0]) { await client.query('ROLLBACK'); return res.status(404).json({ ok: false, error: 'Not found' }); }
-    await client.query(
-      `INSERT INTO messages (conversation_id, sender, content) VALUES ($1, 'user', $2)`,
+    const { rows: msgRows } = await client.query(
+      `INSERT INTO messages (conversation_id, sender, content) VALUES ($1, 'user', $2) RETURNING id`,
       [req.params.id, content.trim()]
     );
+    const msgId = msgRows[0].id;
+    if (attachment_ids.length) {
+      await client.query(
+        `UPDATE attachments SET ref_type='message', ref_id=$1 WHERE id=ANY($2)`,
+        [msgId, attachment_ids]
+      );
+    }
     await client.query(
       `UPDATE conversations SET unread_admin=TRUE, unread_sub=FALSE, updated_at=NOW() WHERE id=$1`,
       [req.params.id]

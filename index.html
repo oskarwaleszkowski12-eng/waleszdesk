@@ -1023,6 +1023,11 @@ body.light-mode #login-overlay { background: var(--bg0); }
         <span class="app-sw-icon">✦</span>
         <span><span class="app-sw-name">Funded by Walesz</span><span class="app-sw-sub">Landing · waitlista</span></span>
       </a>
+      <div class="app-sw-divider"></div>
+      <a href="/engine" class="app-sw-item">
+        <span class="app-sw-icon">⚡</span>
+        <span><span class="app-sw-name">Walesz Engine</span><span class="app-sw-sub">Social media · scheduler</span></span>
+      </a>
     </div>
   </div>
 </div>
@@ -3670,6 +3675,11 @@ function renderJournalDB(trades) {
                   style="width:100%;background:var(--bg3);border:1px solid rgba(0,200,150,.2);border-radius:var(--r);color:var(--text);padding:10px;font-size:12px;outline:none;resize:vertical;font-family:var(--font-display);line-height:1.6"
                 >${t.program_notes || ''}</textarea>
                 <button class="btn accent sm" onclick="saveJournalNotes(${t.id})" style="margin-top:8px;">Zapisz</button>
+                <div style="margin-top:16px;" onclick="event.stopPropagation()">
+                  <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px;">Screenshots</div>
+                  <div id="tatts-${t.id}"></div>
+                  <button class="btn sm" onclick="addTradeAttachment(${t.id})" style="margin-top:8px;font-size:11px;">📎 Dodaj screenshot</button>
+                </div>
               </div>
             </div>
           </div>
@@ -3683,7 +3693,9 @@ function renderJournalDB(trades) {
 function toggleJournalExpand(id) {
   const row = document.getElementById('jexp-' + id);
   if (!row) return;
-  row.style.display = row.style.display === 'none' ? '' : 'none';
+  const opening = row.style.display === 'none';
+  row.style.display = opening ? '' : 'none';
+  if (opening) loadTradeAttachments(id);
 }
 
 async function toggleJournalCheck(id, key, el) {
@@ -5325,7 +5337,7 @@ async function deleteJournalPost(id, title) {
 }
 
 // ── MESSAGES ──────────────────────────────────────────────────────────────────
-let _convData = [], _activeConvId = null;
+let _convData = [], _activeConvId = null, _pendingReplyAtts = {};
 
 function relTime(iso) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -5422,6 +5434,7 @@ async function openConv(id) {
           <div class="bubble-wrap ${m.sender}">
             <div>
               <div class="bubble">${escMsg(m.content)}</div>
+              ${m.attachments && m.attachments.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">${m.attachments.map(a=>`<img src="${a.data}" alt="${a.filename||'ss'}" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid var(--border2);cursor:pointer;" onclick="viewImg('${a.data}')">`).join('')}</div>` : ''}
               <div class="bubble-time">${fullTime(m.created_at)}</div>
             </div>
           </div>`).join('') : '<div class="msg-empty"><div>Brak wiadomości</div></div>'}
@@ -5429,8 +5442,12 @@ async function openConv(id) {
       ${conv.status === 'open' ? `
       <div class="reply-area">
         <textarea class="reply-textarea" id="reply-ta-${id}" rows="3" placeholder="Napisz odpowiedź..." onkeydown="replyKeydown(event,${id})"></textarea>
+        <div id="reply-atts-${id}" style="display:flex;flex-wrap:wrap;gap:6px;padding:0 0 6px;"></div>
         <div class="reply-footer">
-          <span class="reply-hint">Ctrl + Enter aby wysłać</span>
+          <span class="reply-hint">
+            <button class="btn sm" onclick="addReplyAttachment(${id})" title="Dodaj screenshot" style="font-size:13px;padding:3px 8px;">📎</button>
+            Ctrl + Enter aby wysłać
+          </span>
           <button class="btn accent sm" onclick="sendReply(${id})">Wyślij odpowiedź</button>
         </div>
       </div>` : ''}
@@ -5450,29 +5467,55 @@ function replyKeydown(e, id) {
 
 async function sendReply(id) {
   const ta  = document.getElementById('reply-ta-' + id);
-  const btn = ta?.parentElement?.querySelector('.btn.accent');
-  if (!ta || !ta.value.trim()) return;
+  const btn = ta?.parentElement?.parentElement?.querySelector('.btn.accent');
+  if (!ta || (!ta.value.trim() && !(_pendingReplyAtts[id] || []).length)) return;
   const content = ta.value.trim();
+  const attIds  = (_pendingReplyAtts[id] || []).map(a => a.id);
   if (btn) { btn.disabled = true; btn.textContent = 'Wysyłanie...'; }
   try {
     const r = await apiFetch('/api/messages/conversations/' + id + '/reply', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ content: content || ' ', attachment_ids: attIds }),
     });
     const d = await r.json();
     if (!d.ok) { if (btn) { btn.disabled=false; btn.textContent='Wyślij odpowiedź'; } return; }
     ta.value = '';
-    // Append bubble
+    const pendAtts = _pendingReplyAtts[id] || [];
+    _pendingReplyAtts[id] = [];
+    const preview = document.getElementById('reply-atts-' + id);
+    if (preview) preview.innerHTML = '';
     const area = document.getElementById('chat-area-' + id);
     if (area) {
       const div = document.createElement('div');
       div.className = 'bubble-wrap admin';
-      div.innerHTML = `<div><div class="bubble">${escMsg(content)}</div><div class="bubble-time">${fullTime(new Date().toISOString())}</div></div>`;
+      const attsHtml = pendAtts.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">${pendAtts.map(a=>`<img src="${a.data}" alt="${a.filename||'ss'}" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid var(--border2);cursor:pointer;" onclick="viewImg('${a.data}')">`).join('')}</div>` : '';
+      div.innerHTML = `<div><div class="bubble">${content ? escMsg(content) : ''}</div>${attsHtml}<div class="bubble-time">${fullTime(new Date().toISOString())}</div></div>`;
       area.appendChild(div);
       area.scrollTop = area.scrollHeight;
     }
     if (btn) { btn.disabled=false; btn.textContent='Wyślij odpowiedź'; }
   } catch { if (btn) { btn.disabled=false; btn.textContent='Wyślij odpowiedź'; } }
+}
+
+function addReplyAttachment(id) {
+  pickFile(async file => {
+    const att = await uploadFile(file);
+    if (!att) return;
+    if (!_pendingReplyAtts[id]) _pendingReplyAtts[id] = [];
+    _pendingReplyAtts[id].push(att);
+    const preview = document.getElementById('reply-atts-' + id);
+    if (!preview) return;
+    const img = document.createElement('div');
+    img.style.cssText = 'position:relative;display:inline-block;';
+    img.innerHTML = `<img src="${att.data}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border2);cursor:pointer;" onclick="viewImg('${att.data}')">
+      <button onclick="removeReplyAtt(${id},${att.id},this.parentElement)" style="position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;border:none;background:var(--red);color:#fff;font-size:10px;cursor:pointer;">×</button>`;
+    preview.appendChild(img);
+  });
+}
+
+function removeReplyAtt(convId, attId, el) {
+  if (_pendingReplyAtts[convId]) _pendingReplyAtts[convId] = _pendingReplyAtts[convId].filter(a => a.id !== attId);
+  el?.remove();
 }
 
 async function toggleConvStatus(id, current) {
@@ -5510,6 +5553,94 @@ async function refreshUnreadBadge() {
   } catch {}
 }
 
+// ── ATTACHMENTS ───────────────────────────────────────────────────────────────
+function pickFile(cb) {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = e => { if (e.target.files[0]) cb(e.target.files[0]); };
+  inp.click();
+}
+
+function fileToBase64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload  = e => res(e.target.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+async function uploadFile(file, refType = 'pending', refId = 0) {
+  if (file.size > 5 * 1024 * 1024) { alert('Maksymalny rozmiar: 5 MB'); return null; }
+  const data = await fileToBase64(file);
+  const r = await apiFetch('/api/attachments', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ref_type: refType, ref_id: refId, filename: file.name, mime_type: file.type, data }),
+  });
+  const d = await r.json();
+  return d.ok ? { id: d.id, data, mime_type: file.type, filename: file.name } : null;
+}
+
+function attachmentGrid(atts, onRemove) {
+  if (!atts.length) return '';
+  return `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">`
+    + atts.map(a => `
+      <div style="position:relative;display:inline-block;">
+        <img src="${a.data}" alt="${a.filename||'ss'}"
+          style="width:80px;height:80px;object-fit:cover;border-radius:6px;border:1px solid var(--border2);cursor:pointer;"
+          onclick="viewImg('${a.data}')" title="${a.filename||'screenshot'}">
+        ${onRemove ? `<button onclick="${onRemove}(${a.id})"
+          style="position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;border:none;background:var(--red);color:#fff;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">×</button>` : ''}
+      </div>`).join('')
+    + '</div>';
+}
+
+function viewImg(src) {
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
+  ov.onclick = () => ov.remove();
+  ov.innerHTML = `<img src="${src}" style="max-width:92vw;max-height:92vh;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,.5);">`;
+  document.body.appendChild(ov);
+}
+
+// ── Trade attachments (journal expand) ────────────────────────────────────────
+const _tradeAtts = {};  // tradeId → [{id,data,mime_type,filename}]
+
+async function loadTradeAttachments(tradeId) {
+  if (_tradeAtts[tradeId]) return renderTradeAtts(tradeId);
+  try {
+    const r = await apiFetch(`/api/attachments/ref?type=trade&id=${tradeId}`);
+    const d = await r.json();
+    _tradeAtts[tradeId] = d.ok ? d.attachments : [];
+    renderTradeAtts(tradeId);
+  } catch (e) { console.error('[loadTradeAtts]', e); }
+}
+
+function renderTradeAtts(tradeId) {
+  const wrap = document.getElementById('tatts-' + tradeId);
+  if (!wrap) return;
+  const atts = _tradeAtts[tradeId] || [];
+  wrap.innerHTML = attachmentGrid(atts, `removeTradeAtt_${tradeId}`) ||
+    '<span style="font-size:11px;color:var(--muted)">Brak załączników</span>';
+  // Dynamically define remove function
+  window[`removeTradeAtt_${tradeId}`] = async (attId) => {
+    if (!confirm('Usuń screenshot?')) return;
+    await apiFetch(`/api/attachments/${attId}`, { method: 'DELETE' });
+    _tradeAtts[tradeId] = _tradeAtts[tradeId].filter(a => a.id !== attId);
+    renderTradeAtts(tradeId);
+  };
+}
+
+async function addTradeAttachment(tradeId) {
+  pickFile(async file => {
+    const att = await uploadFile(file, 'trade', tradeId);
+    if (!att) return;
+    if (!_tradeAtts[tradeId]) _tradeAtts[tradeId] = [];
+    _tradeAtts[tradeId].push(att);
+    renderTradeAtts(tradeId);
+  });
+}
+
 function apiFetch(url, opts = {}) {
   const token = authToken();
   const headers = { ...(opts.headers || {}), ...(token ? { 'Authorization': 'Bearer ' + token } : {}) };
@@ -5529,6 +5660,7 @@ async function doLogin() {
     const d = await r.json();
     if (!d.ok) { err.textContent = d.error || 'Wrong password'; err.style.display = ''; return; }
     sessionStorage.setItem('wd_token', d.token);
+    localStorage.setItem('wd_token', d.token);
     document.getElementById('login-overlay').style.display = 'none';
     bootApp();
   } catch (e) {

@@ -16,6 +16,7 @@ const { validate, z } = require('./lib/validate');
 const { startPoller } = require('./lib/poller');
 const setupWS   = require('./ws');
 const startBotEngine = require('./botEngine');
+const { startEngineScheduler } = require('./lib/engineScheduler');
 
 const tradingRoutes = require('./routes/trading');
 const pnlRoutes     = require('./routes/pnl');
@@ -27,6 +28,8 @@ const fundedRoutes      = require('./routes/funded');
 const waitlistRoutes    = require('./routes/waitlist');
 const subscriberRoutes  = require('./routes/subscriber');
 const messagesRoutes    = require('./routes/messages');
+const attachmentsRoutes = require('./routes/attachments');
+const engineRoutes      = require('./routes/engine');
 
 const app = express();
 
@@ -92,10 +95,13 @@ app.use('/api/funded', fundedRoutes);
 app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/subscriber', subscriberRoutes);
 app.use('/api/messages', messagesRoutes);
+app.use('/api/attachments', attachmentsRoutes);
+app.use('/api/engine', engineRoutes);
 app.get('/subscriber', (req, res) => res.sendFile(path.join(__dirname, 'subscriber.html')));
 app.get('/funded', (req, res) => res.sendFile(path.join(__dirname, 'funded.html')));
 app.get('/funded-by-walesz', (req, res) => res.sendFile(path.join(__dirname, 'funded-by-walesz.html')));
-app.get('/algo', (req, res) => res.sendFile(path.join(__dirname, 'algo.html')));
+app.get('/algo',   (req, res) => res.sendFile(path.join(__dirname, 'algo.html')));
+app.get('/engine', (req, res) => res.sendFile(path.join(__dirname, 'engine.html')));
 
 // HTTP + WebSocket server
 const server = http.createServer(app);
@@ -107,6 +113,7 @@ initDb()
   .then(async () => {
     startPoller(require('./lib/db').pool);
     startBotEngine({ pool: require('./lib/db').pool, decrypt });
+    startEngineScheduler();
     await tv.loadCredentialsFromDb();
   })
   .catch(err => logger.error({ err }, '[DB] init failed'));

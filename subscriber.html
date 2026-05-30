@@ -672,8 +672,20 @@ function calcPos(){
   }
 }
 
+/* ── ATTACHMENTS ────────────────────────────────────────────────────── */
+function pickSubFile(cb){const i=document.createElement('input');i.type='file';i.accept='image/*';i.onchange=e=>{if(e.target.files[0])cb(e.target.files[0]);};i.click();}
+function fileToB64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsDataURL(file);});}
+async function uploadSubFile(file){
+  if(file.size>5*1024*1024){alert('Maksymalny rozmiar: 5 MB');return null;}
+  const data=await fileToB64(file);
+  const r=await api('/api/attachments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ref_type:'pending',ref_id:0,filename:file.name,mime_type:file.type,data})});
+  const d=await r.json();
+  return d.ok?{id:d.id,data,mime_type:file.type,filename:file.name}:null;
+}
+function viewSubImg(src){const ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;cursor:zoom-out;';ov.onclick=()=>ov.remove();ov.innerHTML=`<img src="${src}" style="max-width:92vw;max-height:92vh;border-radius:8px;">`;document.body.appendChild(ov);}
+
 /* ── KONTAKT ────────────────────────────────────────────────────────── */
-let _subConvs=[], _activeSubConv=null, _subConvFetched=false;
+let _subConvs=[], _activeSubConv=null, _subConvFetched=false, _pendingSubAtts={};
 
 async function loadSubConversations(){
   try{
@@ -761,6 +773,7 @@ async function openSubConv(id){
           <div style="display:flex;max-width:82%;${m.sender==='user'?'align-self:flex-end;flex-direction:row-reverse;':'align-self:flex-start;'}">
             <div>
               <div style="padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.65;white-space:pre-wrap;word-break:break-word;${m.sender==='user'?'background:rgba(0,200,150,.13);border:1px solid rgba(0,200,150,.22);border-bottom-right-radius:4px;':'background:var(--bg3);border:1px solid var(--border2);border-bottom-left-radius:4px;'}">${escHtml(m.content)}</div>
+              ${m.attachments&&m.attachments.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">${m.attachments.map(a=>`<img src="${a.data}" alt="${a.filename||'ss'}" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid var(--border2);cursor:pointer;" onclick="viewSubImg('${a.data}')">`).join('')}</div>`:''}
               <div style="font-size:10px;color:var(--muted);margin-top:4px;font-family:var(--mono);${m.sender==='user'?'text-align:right;':''}">${fullTs(m.created_at)}</div>
             </div>
           </div>`).join('')}
@@ -768,7 +781,9 @@ async function openSubConv(id){
       ${isOpen?`<div style="padding:14px 18px;border-top:1px solid var(--border);flex-shrink:0;">
         <textarea id="sub-reply-${id}" rows="2" placeholder="Napisz odpowiedź... (Ctrl+Enter)" onkeydown="subReplyKey(event,${id})"
           style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);padding:9px 12px;outline:none;resize:none;font-family:var(--font);font-size:13px;line-height:1.6;transition:border-color .2s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border2)'"></textarea>
-        <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+        <div id="sub-reply-atts-${id}" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+          <button onclick="addSubReplyAtt(${id})" title="Dodaj screenshot" style="padding:5px 10px;border-radius:var(--r);border:1px solid var(--border2);background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--font);">📎</button>
           <button onclick="sendSubReply(${id})" id="sub-reply-btn-${id}" style="padding:8px 18px;border-radius:var(--r);border:none;background:var(--accent);color:#080a0d;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">Wyślij</button>
         </div>
       </div>`:''}
@@ -783,26 +798,53 @@ function subReplyKey(e,id){if(e.ctrlKey&&e.key==='Enter'){e.preventDefault();sen
 async function sendSubReply(id){
   const ta=document.getElementById('sub-reply-'+id);
   const btn=document.getElementById('sub-reply-btn-'+id);
-  if(!ta||!ta.value.trim()) return;
+  const attIds=(_pendingSubAtts[id]||[]).map(a=>a.id);
+  if(!ta||(!ta.value.trim()&&!attIds.length)) return;
   const content=ta.value.trim();
   btn.disabled=true; btn.textContent='Wysyłanie...';
   try{
-    const r=await api('/api/subscriber/conversations/'+id+'/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content})});
+    const r=await api('/api/subscriber/conversations/'+id+'/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:content||' ',attachment_ids:attIds})});
     const d=await r.json();
     if(!d.ok){btn.disabled=false;btn.textContent='Wyślij';return;}
     ta.value='';
+    const pendAtts=_pendingSubAtts[id]||[];
+    _pendingSubAtts[id]=[];
+    const prev=document.getElementById('sub-reply-atts-'+id);
+    if(prev) prev.innerHTML='';
     const area=document.getElementById('sub-chat-'+id);
     if(area){
       const div=document.createElement('div');
       div.style.cssText='display:flex;max-width:82%;align-self:flex-end;flex-direction:row-reverse;';
-      div.innerHTML=`<div><div style="padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.65;white-space:pre-wrap;word-break:break-word;background:rgba(0,200,150,.13);border:1px solid rgba(0,200,150,.22);border-bottom-right-radius:4px;">${escHtml(content)}</div><div style="font-size:10px;color:var(--muted);margin-top:4px;font-family:var(--mono);text-align:right;">${fullTs(new Date().toISOString())}</div></div>`;
+      const attsHtml=pendAtts.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">${pendAtts.map(a=>`<img src="${a.data}" alt="${a.filename||'ss'}" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid rgba(255,255,255,.15);cursor:pointer;" onclick="viewSubImg('${a.data}')">`).join('')}</div>`:'';
+      div.innerHTML=`<div><div style="padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.65;white-space:pre-wrap;word-break:break-word;background:rgba(0,200,150,.13);border:1px solid rgba(0,200,150,.22);border-bottom-right-radius:4px;">${content?escHtml(content):''}</div>${attsHtml}<div style="font-size:10px;color:var(--muted);margin-top:4px;font-family:var(--mono);text-align:right;">${fullTs(new Date().toISOString())}</div></div>`;
       area.appendChild(div);
       area.scrollTop=area.scrollHeight;
     }
     const c=_subConvs.find(x=>x.id===id);
-    if(c){c.last_message=content;c.last_sender='user';c.updated_at=new Date().toISOString();renderSubConvList();}
+    if(c){c.last_message=content||'[screenshot]';c.last_sender='user';c.updated_at=new Date().toISOString();renderSubConvList();}
     btn.disabled=false; btn.textContent='Wyślij';
   }catch(e){btn.disabled=false;btn.textContent='Wyślij';console.error(e);}
+}
+
+function addSubReplyAtt(id){
+  pickSubFile(async file=>{
+    const att=await uploadSubFile(file);
+    if(!att) return;
+    if(!_pendingSubAtts[id]) _pendingSubAtts[id]=[];
+    _pendingSubAtts[id].push(att);
+    const prev=document.getElementById('sub-reply-atts-'+id);
+    if(!prev) return;
+    const wrap=document.createElement('div');
+    wrap.style.cssText='position:relative;display:inline-block;';
+    wrap.innerHTML=`<img src="${att.data}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid rgba(255,255,255,.15);cursor:pointer;" onclick="viewSubImg('${att.data}')">
+      <button onclick="removeSubAtt(${id},${att.id},this.parentElement)" style="position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;border:none;background:#e53e3e;color:#fff;font-size:10px;cursor:pointer;">×</button>`;
+    prev.appendChild(wrap);
+  });
+}
+
+function removeSubAtt(convId,attId,el){
+  if(_pendingSubAtts[convId]) _pendingSubAtts[convId]=_pendingSubAtts[convId].filter(a=>a.id!==attId);
+  el?.remove();
 }
 
 function openNewConvForm(){
