@@ -2094,7 +2094,7 @@ function bootApp() {
   startLiveDashboard();
 }
 
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   // theme
   const _themeBtn = document.getElementById('theme-toggle');
   if (localStorage.getItem('wd_theme') === 'light') {
@@ -2106,7 +2106,14 @@ window.addEventListener('DOMContentLoaded', () => {
     _themeBtn.textContent = isLight ? '☀️' : '🌙';
     localStorage.setItem('wd_theme', isLight ? 'light' : 'dark');
   });
-  if (checkAuth()) bootApp();
+  // If sessionStorage hint present, boot immediately (avoids network round-trip for active tabs)
+  if (sessionStorage.getItem('wd_session')) { bootApp(); return; }
+  // Otherwise, verify cookie with server (handles new tabs, browser restarts)
+  try {
+    const r = await fetch('/api/auth/me', { credentials: 'include' });
+    if (r.ok) { sessionStorage.setItem('wd_session', '1'); bootApp(); }
+    else showLoginOverlay();
+  } catch { showLoginOverlay(); }
 });
 
 // ── PANELS ─────────────────────────────────────────────
@@ -4220,9 +4227,7 @@ let _ws = null;
 function initWS() {
   if (_ws && _ws.readyState < 2) return; // already open/connecting
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  const token = authToken();
-  if (!token) return;
-  _ws = new WebSocket(`${proto}://${location.host}/ws?token=${token}`);
+  _ws = new WebSocket(`${proto}://${location.host}/ws`);
 
   _ws.onopen = () => {
     wsActive = true;
@@ -5059,7 +5064,7 @@ function refreshAll() {
 }
 
 // ── AUTH ──────────────────────────────────────────────
-function authToken() { return sessionStorage.getItem('wd_token') || ''; }
+function authToken() { return ''; } // kept for API compat; auth via httpOnly cookie
 
 // ── WAITLIST ────────────────────────────────────────────
 const WL_PLAN_LABELS = { pro: 'Pro', vip: 'VIP', mentoring: 'Mentoring' };
@@ -5644,9 +5649,7 @@ async function addTradeAttachment(tradeId) {
 }
 
 function apiFetch(url, opts = {}) {
-  const token = authToken();
-  const headers = { ...(opts.headers || {}), ...(token ? { 'Authorization': 'Bearer ' + token } : {}) };
-  return fetch(url, { ...opts, headers });
+  return fetch(url, { ...opts, credentials: 'include' });
 }
 
 async function doLogin() {
@@ -5654,15 +5657,15 @@ async function doLogin() {
   const err = document.getElementById('login-err');
   err.style.display = 'none';
   try {
-    const r = await apiFetch('/api/auth/login', {
+    const r = await fetch('/api/auth/login', {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: pw }),
     });
     const d = await r.json();
     if (!d.ok) { err.textContent = d.error || 'Wrong password'; err.style.display = ''; return; }
-    sessionStorage.setItem('wd_token', d.token);
-    localStorage.setItem('wd_token', d.token);
+    sessionStorage.setItem('wd_session', '1');
     document.getElementById('login-overlay').style.display = 'none';
     bootApp();
   } catch (e) {
@@ -5671,18 +5674,18 @@ async function doLogin() {
 }
 
 function checkAuth() {
-  const token = authToken();
-  if (!token) { showLoginOverlay(); return false; }
-  // quick local expiry check (JWT payload is base64)
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    if (payload.exp * 1000 < Date.now()) { sessionStorage.removeItem('wd_token'); showLoginOverlay(); return false; }
-  } catch { sessionStorage.removeItem('wd_token'); showLoginOverlay(); return false; }
+  if (!sessionStorage.getItem('wd_session')) { showLoginOverlay(); return false; }
   return true;
 }
 
 function showLoginOverlay() {
   document.getElementById('login-overlay').style.display = 'flex';
+}
+
+async function logout() {
+  await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
+  sessionStorage.removeItem('wd_session');
+  showLoginOverlay();
 }
 
 if ('serviceWorker' in navigator) {

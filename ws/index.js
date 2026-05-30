@@ -6,8 +6,15 @@ const logger              = require('../lib/logger');
 function setupWS(server, jwtSecret) {
   const wss = new WebSocketServer({ server, path: '/ws' });
 
+  function parseCookie(cookieStr, name) {
+    if (!cookieStr) return null;
+    const m = cookieStr.split(';').find(c => c.trim().startsWith(name + '='));
+    return m ? decodeURIComponent(m.trim().slice(name.length + 1)) : null;
+  }
+
   wss.on('connection', (ws, req) => {
-    const token = new URL(req.url, 'ws://x').searchParams.get('token');
+    const token = parseCookie(req.headers.cookie, 'wd_admin') ||
+      new URL(req.url, 'ws://x').searchParams.get('token'); // fallback for legacy clients
     try {
       const payload = jwt.verify(token, jwtSecret);
       if (payload.role !== 'admin') { ws.close(1008, 'Forbidden'); return; }

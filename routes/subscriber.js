@@ -40,11 +40,27 @@ router.post('/login', validate(loginSchema), async (req, res) => {
       { role: 'subscriber', sub_id: sub.id, plan: sub.plan, name: sub.name || null },
       JWT_SECRET, { expiresIn: '30d' }
     );
-    res.json({ ok: true, token, plan: sub.plan, name: sub.name });
+    res.cookie('wd_sub', token, {
+      httpOnly: true,
+      secure:   process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge:   30 * 24 * 60 * 60 * 1000,
+    });
+    res.json({ ok: true, plan: sub.plan, name: sub.name });
   } catch (err) {
     logger.error({ err }, '[subscriber/login]');
     res.status(500).json({ ok: false, error: 'Błąd serwera.' });
   }
+});
+
+// ── Public: logout ────────────────────────────────────────────────────────────
+router.post('/logout', (req, res) => {
+  res.clearCookie('wd_sub', {
+    httpOnly: true,
+    secure:   process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+  });
+  res.json({ ok: true });
 });
 
 // ── Subscriber: me ────────────────────────────────────────────────────────────

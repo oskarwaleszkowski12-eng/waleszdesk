@@ -388,7 +388,7 @@ body{background:var(--bg0);color:var(--text);font-family:var(--font);min-height:
 
 <script>
 /* ── STATE ──────────────────────────────────────────────────────────── */
-let _tok = null, _plan = null, _name = null;
+let _plan = null, _name = null;
 let _equityChart = null, _perfData = null, _curPeriod = 30;
 let _tradesFetched = false, _journalFetched = false;
 let _calcRisk = 0.5;
@@ -398,8 +398,9 @@ function toggleSw(){document.getElementById('app-sw-menu').classList.toggle('ope
 document.addEventListener('click',e=>{if(!e.target.closest('.app-sw'))document.getElementById('app-sw-menu').classList.remove('open')});
 
 /* ── AUTH ───────────────────────────────────────────────────────────── */
-function logout(){
-  sessionStorage.removeItem('sub_tok'); sessionStorage.removeItem('sub_plan'); sessionStorage.removeItem('sub_name');
+async function logout(){
+  await fetch('/api/subscriber/logout',{method:'POST',credentials:'include'}).catch(()=>{});
+  sessionStorage.removeItem('sub_plan'); sessionStorage.removeItem('sub_name');
   location.reload();
 }
 
@@ -412,18 +413,18 @@ async function doLogin(){
   if(!email||!code){errEl.textContent='Uzupełnij email i kod.';errEl.style.display='';return;}
   btn.disabled=true; btn.textContent='Logowanie...';
   try{
-    const r=await fetch('/api/subscriber/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,code})});
+    const r=await fetch('/api/subscriber/login',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,code})});
     const d=await r.json();
     if(!d.ok){errEl.textContent=d.error||'Błąd logowania.';errEl.style.display='';return;}
-    sessionStorage.setItem('sub_tok',d.token); sessionStorage.setItem('sub_plan',d.plan); sessionStorage.setItem('sub_name',d.name||'');
-    showDash(d.token,d.plan,d.name);
+    sessionStorage.setItem('sub_plan',d.plan); sessionStorage.setItem('sub_name',d.name||'');
+    showDash(d.plan,d.name);
   }catch{errEl.textContent='Błąd połączenia.';errEl.style.display='';}
   finally{btn.disabled=false;btn.textContent='Zaloguj';}
 }
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('login-wrap').style.display!=='none')doLogin()});
 
-function showDash(tok,plan,name){
-  _tok=tok; _plan=plan; _name=name;
+function showDash(plan,name){
+  _plan=plan; _name=name;
   document.getElementById('login-wrap').style.display='none';
   document.getElementById('dash').style.display='block';
   document.getElementById('logout-btn').style.display='';
@@ -436,7 +437,7 @@ function showDash(tok,plan,name){
 }
 
 function api(url,opts={}){
-  return fetch(url,{...opts,headers:{...(opts.headers||{}),'Authorization':'Bearer '+_tok}});
+  return fetch(url,{...opts,credentials:'include'});
 }
 
 /* ── TABS ───────────────────────────────────────────────────────────── */
@@ -892,12 +893,23 @@ document.addEventListener('click', e => {
 });
 
 /* ── INIT ───────────────────────────────────────────────────────────── */
-(function(){
-  const tok=sessionStorage.getItem('sub_tok');
+(async function(){
+  calcPos();
   const plan=sessionStorage.getItem('sub_plan');
   const name=sessionStorage.getItem('sub_name');
-  if(tok&&plan) showDash(tok,plan,name);
-  calcPos();
+  if(plan){ showDash(plan,name); return; }
+  // No session hint — verify cookie with server
+  try{
+    const r=await fetch('/api/subscriber/me',{credentials:'include'});
+    if(r.ok){
+      const d=await r.json();
+      if(d.ok&&d.subscriber){
+        sessionStorage.setItem('sub_plan',d.subscriber.plan);
+        sessionStorage.setItem('sub_name',d.subscriber.name||'');
+        showDash(d.subscriber.plan,d.subscriber.name||'');
+      }
+    }
+  }catch{}
 })();
 </script>
 </body>

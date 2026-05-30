@@ -544,10 +544,8 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 <div id="toast"></div>
 
 <script>
-const TOKEN = localStorage.getItem('wd_token') || sessionStorage.getItem('wd_token') || '';
-
 function api(url, opts = {}) {
-  return fetch(url, { ...opts, headers: { ...(opts.headers||{}), 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' } });
+  return fetch(url, { ...opts, credentials: 'include', headers: { ...(opts.headers||{}), 'Content-Type': 'application/json' } });
 }
 
 function toast(msg, type = '') {

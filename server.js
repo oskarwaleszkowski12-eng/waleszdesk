@@ -1,11 +1,12 @@
-const express   = require('express');
-const cors      = require('cors');
-const path      = require('path');
-const jwt       = require('jsonwebtoken');
-const http      = require('http');
-const helmet    = require('helmet');
-const rateLimit = require('express-rate-limit');
-const pinoHttp  = require('pino-http');
+const express      = require('express');
+const cors         = require('cors');
+const cookieParser = require('cookie-parser');
+const path         = require('path');
+const jwt          = require('jsonwebtoken');
+const http         = require('http');
+const helmet       = require('helmet');
+const rateLimit    = require('express-rate-limit');
+const pinoHttp     = require('pino-http');
 
 const logger    = require('./lib/logger');
 const config    = require('./lib/config');
@@ -51,7 +52,8 @@ app.use((req, res, next) => {
 app.use(pinoHttp({ logger, autoLogging: { ignore: req => req.url === '/api/status' } }));
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json());
-app.use(cors({ origin: config.ALLOWED_ORIGIN }));
+app.use(cookieParser());
+app.use(cors({ origin: config.ALLOWED_ORIGIN, credentials: true }));
 app.use(express.static(path.join(__dirname)));
 
 const limiter     = rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false });
@@ -71,23 +73,47 @@ const publicAlgoRoutes = new Set([
   '/algo/verify-invite',
 ]);
 
+const COOKIE_OPTS = {
+  httpOnly: true,
+  secure:   process.env.NODE_ENV === 'production',
+  sameSite: 'strict',
+};
+
 app.post('/api/auth/login', validate(loginSchema), (req, res) => {
   const { password } = req.body;
   if (!config.ADMIN_PASS || password !== config.ADMIN_PASS)
     return res.status(401).json({ ok: false, error: 'Invalid password' });
   const token = jwt.sign({ role: 'admin' }, config.JWT_SECRET, { expiresIn: '24h' });
+  res.cookie('wd_admin', token, { ...COOKIE_OPTS, maxAge: 24 * 60 * 60 * 1000 });
   logger.info('[auth] login success');
-  res.json({ ok: true, token });
+  res.json({ ok: true });
 });
 
-// Auth guard — public: /status, /auth/*, selected onboarding /algo routes, POST /waitlist
+app.post('/api/auth/logout', (req, res) => {
+  res.clearCookie('wd_admin', COOKIE_OPTS);
+  res.json({ ok: true });
+});
+
+app.get('/api/auth/me', (req, res) => {
+  const token = req.cookies?.wd_admin;
+  if (!token) return res.status(401).json({ ok: false });
+  try {
+    const payload = jwt.verify(token, config.JWT_SECRET);
+    if (payload.role !== 'admin') return res.status(403).json({ ok: false });
+    res.json({ ok: true, role: 'admin' });
+  } catch {
+    res.status(401).json({ ok: false });
+  }
+});
+
+// Auth guard — public: /status, /auth/*, /subscriber/* (own auth), selected algo routes, POST /waitlist, POST /messages
 app.use('/api', (req, res, next) => {
   if (
     req.path === '/status' ||
     req.path.startsWith('/auth/') ||
+    req.path.startsWith('/subscriber/') ||
     publicAlgoRoutes.has(req.path) ||
     (req.path === '/waitlist' && req.method === 'POST') ||
-    (req.path === '/subscriber/login' && req.method === 'POST') ||
     (req.path === '/messages' && req.method === 'POST')
   ) return next();
   requireAuth(req, res, next);

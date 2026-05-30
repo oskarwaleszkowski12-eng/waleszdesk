@@ -1954,21 +1954,19 @@ const API_BASE = window.location.origin.includes('localhost') || window.location
   ? 'http://localhost:3001'
   : window.location.origin;
 
-let _jwt = localStorage.getItem('wd_jwt') || null;
 let _tvPTicket = null;
 let _liveInterval = null;
 
 async function api(method, path, body) {
   const opts = {
     method,
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
   };
-  if (_jwt) opts.headers['Authorization'] = 'Bearer ' + _jwt;
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(API_BASE + path, opts);
   if (res.status === 401) {
-    _jwt = null;
-    localStorage.removeItem('wd_jwt');
+    sessionStorage.removeItem('wd_session');
     return { ok: false, error: 'Session expired — zaloguj się ponownie' };
   }
   return res.json();
@@ -1993,9 +1991,8 @@ async function wdLogin() {
   if (!pass) return;
   showConnectError('');
   const r = await api('POST', '/api/auth/login', { password: pass });
-  if (!r.ok || !r.token) return showConnectError('Błędne hasło WaleszDesk');
-  _jwt = r.token;
-  localStorage.setItem('wd_jwt', _jwt);
+  if (!r.ok) return showConnectError('Błędne hasło WaleszDesk');
+  sessionStorage.setItem('wd_session', '1');
   connectStep('creds');
 }
 
@@ -2007,7 +2004,7 @@ async function openConnectModal() {
   setEnv('demo');
   document.getElementById('overlay-connect').classList.add('open');
 
-  if (!_jwt) {
+  if (!sessionStorage.getItem('wd_session')) {
     connectStep('login');
     return;
   }
@@ -2037,7 +2034,7 @@ async function initiateConnect(username, password, isDemo) {
   if (password) body.password = password;
   const r = await api('POST', '/api/funded/auth/init', body);
   if (!r.ok) {
-    if (!_jwt) { connectStep('login'); return; }
+    if (!sessionStorage.getItem('wd_session')) { connectStep('login'); return; }
     connectStep('creds');
     return showConnectError(r.error || 'Błąd połączenia');
   }
@@ -2139,7 +2136,7 @@ function startLivePolling() {
 }
 
 async function refreshLiveData() {
-  if (!_jwt) return;
+  if (!sessionStorage.getItem('wd_session')) return;
   const r = await api('GET', '/api/funded/account');
   if (!r.ok) {
     if (r.error && r.error.includes('zaloguj')) {
@@ -2154,7 +2151,7 @@ async function refreshLiveData() {
 }
 
 async function refreshPositions() {
-  if (!_jwt) return;
+  if (!sessionStorage.getItem('wd_session')) return;
   const r = await api('GET', '/api/funded/positions');
   if (!r.ok) return;
   renderPositions(r.data);
@@ -2224,7 +2221,7 @@ function renderLiveAccount(d) {
 
 // ── INIT CHECK ────────────────────────────────────────────
 async function initTvStatus() {
-  if (!_jwt) return;
+  if (!sessionStorage.getItem('wd_session')) return;
   const r = await api('GET', '/api/funded/status');
   if (r.ok && r.connected) {
     setTvStatus(true, 'Connected');
@@ -2233,16 +2230,27 @@ async function initTvStatus() {
 }
 
 // ── AUTH GATE ─────────────────────────────────────────────
-if (!_jwt) {
-  document.body.style.display = 'none';
-  window.location.replace('/?redirect=funded');
-} else {
-  loadState();
-  updateDate();
-  renderAccounts();
-  setupCalc();
-  initTvStatus();
-}
+(async () => {
+  const hasHint = !!sessionStorage.getItem('wd_session');
+  if (hasHint) {
+    loadState(); updateDate(); renderAccounts(); setupCalc(); initTvStatus();
+    return;
+  }
+  // No session hint — verify cookie with server
+  try {
+    const r = await fetch('/api/auth/me', { credentials: 'include' });
+    if (r.ok) {
+      sessionStorage.setItem('wd_session', '1');
+      loadState(); updateDate(); renderAccounts(); setupCalc(); initTvStatus();
+    } else {
+      document.body.style.display = 'none';
+      window.location.replace('/?redirect=funded');
+    }
+  } catch {
+    document.body.style.display = 'none';
+    window.location.replace('/?redirect=funded');
+  }
+})();
 
 function toggleAppSw() {
   document.getElementById('appSwMenu').classList.toggle('open');

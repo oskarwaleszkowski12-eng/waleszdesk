@@ -122,3 +122,29 @@ Applied all critical audit findings:
 - lib/engineScheduler.js: added _schedulerRunning + _researchRunning concurrency guards; fixed ON CONFLICT for NULL external_id items; added maxContentLength:5MB to axios
 - engine.html: editPost() and publishNow() now check d.ok before proceeding
 - subscriber.html: openSubConv() now shows error message instead of silently returning on d.ok=false
+
+## 2026-05-30 01:00 Europe/Warsaw - Claude
+
+Second deep audit pass — 6 issues found and fixed:
+- ws/index.js: subscriber JWTs could connect and receive admin's Bybit balance/positions — added role==='admin' guard
+- routes/bots.js + index.html: GET /test-connection passed API keys as URL query params (logged by server) — changed to POST with body, updated 2 callers in index.html
+- routes/messages.js: admin reply attachment claim missing AND ref_type='pending' guard — fixed
+- lib/poller.js: no concurrency guard on 15s interval — added _polling flag (same pattern as engineScheduler)
+- routes/messages.js + subscriber.js: N+1 correlated subqueries in conversation list endpoints — replaced with CTE + DISTINCT ON
+- lib/engineScheduler.js: stale pending attachments never cleaned up — added hourly cleanup job (DELETE WHERE ref_type='pending' AND created_at < NOW()-24h)
+- routes/subscriber.js: PUT /admin/:id had no input validation — added updateSubSchema with enum check + 404 handling
+
+---
+[2026-05-30] Claude — httpOnly cookie migration (CRIT-1 follow-up)
+
+Migrated JWT storage from localStorage/sessionStorage to httpOnly cookies:
+- npm install cookie-parser
+- lib/auth.js: _extractToken() reads wd_admin/wd_sub cookie first, Bearer fallback
+- server.js: cookieParser() middleware, login sets wd_admin httpOnly cookie, new /api/auth/logout + /api/auth/me, global guard now bypasses /subscriber/* (own auth handles it)
+- ws/index.js: parseCookie() reads wd_admin from req.headers.cookie; keeps ?token= fallback
+- routes/subscriber.js: login sets wd_sub cookie, new POST /logout endpoint
+- index.html: apiFetch uses credentials:'include', doLogin no longer stores token, DOMContentLoaded checks sessionStorage hint then /api/auth/me, initWS no longer passes token in URL
+- funded.html: api() uses credentials:'include', _jwt replaced with sessionStorage('wd_session') hint, auth gate calls /api/auth/me on cold load
+- engine.html: TOKEN var removed, api() uses credentials:'include'
+- subscriber.html: _tok removed, api() uses credentials:'include', logout calls /api/subscriber/logout, init calls /api/subscriber/me on cold load
+node --check: all JS files pass
