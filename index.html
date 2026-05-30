@@ -5063,9 +5063,6 @@ function refreshAll() {
   flashStat('s-botstotal', botsData.length + ' total', null);
 }
 
-// ── AUTH ──────────────────────────────────────────────
-function authToken() { return ''; } // kept for API compat; auth via httpOnly cookie
-
 // ── WAITLIST ────────────────────────────────────────────
 const WL_PLAN_LABELS = { pro: 'Pro', vip: 'VIP', mentoring: 'Mentoring' };
 const WL_PLAN_COLORS = { pro: 'var(--accent)', vip: '#c9a84c', mentoring: '#a07de0' };
@@ -5674,11 +5671,6 @@ async function doLogin() {
   } catch (e) {
     err.textContent = 'Server error'; err.style.display = '';
   }
-}
-
-function checkAuth() {
-  if (!sessionStorage.getItem('wd_session')) { showLoginOverlay(); return false; }
-  return true;
 }
 
 function showLoginOverlay() {
