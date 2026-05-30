@@ -8,8 +8,10 @@ const router  = Router();
 const MAX_KB  = 5120; // 5 MB
 
 function flexAuth(req, res, next) {
+  // Cookie first (wd_admin or wd_sub), then Bearer header fallback
   const h = req.headers['authorization'] || '';
-  const token = h.startsWith('Bearer ') ? h.slice(7) : null;
+  const token = req.cookies?.wd_admin || req.cookies?.wd_sub ||
+    (h.startsWith('Bearer ') ? h.slice(7) : null);
   if (!token) return res.status(401).json({ ok: false, error: 'Unauthorized' });
   try { req.jwt = jwt.verify(token, JWT_SECRET); next(); }
   catch { res.status(401).json({ ok: false, error: 'Invalid token' }); }
