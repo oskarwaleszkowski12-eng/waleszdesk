@@ -61,14 +61,27 @@ router.get('/unread-count', requireAuth, async (req, res) => {
 router.get('/conversations', requireAuth, async (req, res) => {
   try {
     const { rows } = await pool.query(`
+      WITH last_msg AS (
+        SELECT DISTINCT ON (conversation_id)
+          conversation_id, content
+        FROM messages
+        ORDER BY conversation_id, created_at DESC
+      ),
+      msg_counts AS (
+        SELECT conversation_id, COUNT(*)::int AS message_count
+        FROM messages
+        GROUP BY conversation_id
+      )
       SELECT
         c.id, c.from_email, c.from_name, c.subject, c.source,
         c.status, c.unread_admin, c.unread_sub, c.created_at, c.updated_at,
         s.name AS subscriber_name, s.plan AS subscriber_plan,
-        (SELECT content FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_message,
-        (SELECT COUNT(*)::int FROM messages WHERE conversation_id = c.id) AS message_count
+        lm.content AS last_message,
+        COALESCE(mc.message_count, 0) AS message_count
       FROM conversations c
-      LEFT JOIN subscribers s ON s.id = c.subscriber_id
+      LEFT JOIN subscribers s  ON s.id  = c.subscriber_id
+      LEFT JOIN last_msg lm    ON lm.conversation_id = c.id
+      LEFT JOIN msg_counts mc  ON mc.conversation_id = c.id
       ORDER BY c.updated_at DESC
     `);
     res.json({ ok: true, conversations: rows });
@@ -136,7 +149,7 @@ router.post('/conversations/:id/reply', requireAuth, validate(replySchema), asyn
     const msgId = msgRows[0].id;
     if (attachment_ids.length) {
       await client.query(
-        `UPDATE attachments SET ref_type='message', ref_id=$1 WHERE id=ANY($2)`,
+        `UPDATE attachments SET ref_type='message', ref_id=$1 WHERE id=ANY($2) AND ref_type='pending'`,
         [msgId, attachment_ids]
       );
     }

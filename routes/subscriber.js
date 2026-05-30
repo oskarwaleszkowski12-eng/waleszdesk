@@ -234,11 +234,18 @@ router.post('/admin', requireAuth, validate(createSchema), async (req, res) => {
   }
 });
 
-router.put('/admin/:id', requireAuth, async (req, res) => {
+const updateSubSchema = z.object({
+  status:     z.enum(['active', 'suspended', 'expired']),
+  notes:      z.string().max(5000).optional().nullable(),
+  expires_at: z.string().optional().nullable(),
+});
+
+router.put('/admin/:id', requireAuth, validate(updateSubSchema), async (req, res) => {
   const { status, notes, expires_at } = req.body;
   try {
-    await pool.query('UPDATE subscribers SET status=$1,notes=$2,expires_at=$3 WHERE id=$4',
+    const { rowCount } = await pool.query('UPDATE subscribers SET status=$1,notes=$2,expires_at=$3 WHERE id=$4',
       [status, notes || null, expires_at || null, req.params.id]);
+    if (!rowCount) return res.status(404).json({ ok: false, error: 'Not found' });
     res.json({ ok: true });
   } catch (err) {
     logger.error({ err }, '[subscriber/admin/update]');
@@ -327,12 +334,24 @@ const msgSchema = z.object({
 router.get('/conversations', requireSubscriberAuth, async (req, res) => {
   try {
     const { rows } = await pool.query(`
+      WITH last_msg AS (
+        SELECT DISTINCT ON (conversation_id)
+          conversation_id, content, sender
+        FROM messages
+        ORDER BY conversation_id, created_at DESC
+      ),
+      msg_counts AS (
+        SELECT conversation_id, COUNT(*)::int AS message_count
+        FROM messages
+        GROUP BY conversation_id
+      )
       SELECT
         c.id, c.subject, c.status, c.unread_sub, c.created_at, c.updated_at,
-        (SELECT content FROM messages WHERE conversation_id=c.id ORDER BY created_at DESC LIMIT 1) AS last_message,
-        (SELECT sender  FROM messages WHERE conversation_id=c.id ORDER BY created_at DESC LIMIT 1) AS last_sender,
-        (SELECT COUNT(*)::int FROM messages WHERE conversation_id=c.id) AS message_count
+        lm.content AS last_message, lm.sender AS last_sender,
+        COALESCE(mc.message_count, 0) AS message_count
       FROM conversations c
+      LEFT JOIN last_msg   lm ON lm.conversation_id = c.id
+      LEFT JOIN msg_counts mc ON mc.conversation_id = c.id
       WHERE c.subscriber_id=$1
       ORDER BY c.updated_at DESC
     `, [req.subscriber.sub_id]);

@@ -18,6 +18,24 @@ Notes: short note
 
 ```text
 Agent: Claude
+Task: Security + perf fixes — WS auth, API key logging, N+1, poller, attachment cleanup
+Paths:
+- ws/index.js
+- routes/bots.js
+- routes/messages.js
+- routes/subscriber.js
+- lib/poller.js
+- lib/engineScheduler.js
+- index.html
+Started: 2026-05-30 00:00 Europe/Warsaw
+Status: active
+Notes: 6 issues found in deep audit pass.
+```
+
+## Released Claims
+
+```text
+Agent: Claude
 Task: Audit fixes — auth, indexes, scheduler, frontend validation
 Paths:
 - routes/journal.js

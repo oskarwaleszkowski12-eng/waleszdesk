@@ -8,7 +8,10 @@ function setupWS(server, jwtSecret) {
 
   wss.on('connection', (ws, req) => {
     const token = new URL(req.url, 'ws://x').searchParams.get('token');
-    try { jwt.verify(token, jwtSecret); } catch { ws.close(1008, 'Unauthorized'); return; }
+    try {
+      const payload = jwt.verify(token, jwtSecret);
+      if (payload.role !== 'admin') { ws.close(1008, 'Forbidden'); return; }
+    } catch { ws.close(1008, 'Unauthorized'); return; }
     ws.isAlive = true;
     ws.on('pong', () => { ws.isAlive = true; });
     ws.on('error', () => {});

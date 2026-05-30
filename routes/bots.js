@@ -45,8 +45,8 @@ function botClientDetails(row) {
   return { exchange: 'bybit', apiKey: API_KEY, apiSecret: API_SECRET, passphrase: undefined };
 }
 
-router.get('/test-connection', async (req, res) => {
-  const { key, secret, exchange, passphrase } = req.query;
+router.post('/test-connection', async (req, res) => {
+  const { key, secret, exchange, passphrase } = req.body;
   if (!key || !secret) return res.status(400).json({ ok: false, error: 'key and secret required' });
   try {
     const client = createExchangeClient(exchange || 'bybit', key, secret, passphrase);

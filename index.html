@@ -2538,8 +2538,9 @@ async function testBotConnection() {
   res.textContent = '';
   try {
     const pass = document.getElementById('bot-api-passphrase')?.value.trim() || '';
-    const url  = `/api/bots/test-connection?key=${encodeURIComponent(key)}&secret=${encodeURIComponent(secret)}&exchange=${encodeURIComponent(currentBotExchange)}` + (pass ? `&passphrase=${encodeURIComponent(pass)}` : '');
-    const d = await (await apiFetch(url)).json();
+    const body = { key, secret, exchange: currentBotExchange };
+    if (pass) body.passphrase = pass;
+    const d = await (await apiFetch('/api/bots/test-connection', { method: 'POST', body: JSON.stringify(body) })).json();
     if (d.ok) {
       res.textContent = `✓ Połączono — Saldo: $${parseFloat(d.balance).toFixed(2)}`;
       res.style.color = 'var(--green)';
@@ -3837,8 +3838,9 @@ async function saveKeys(ex) {
   // Verify balance in background
   try {
     const pass = state.apiKeys[ex+'_pass'] || '';
-    const url  = `/api/bots/test-connection?key=${encodeURIComponent(key)}&secret=${encodeURIComponent(sec)}&exchange=${ex}` + (pass ? `&passphrase=${encodeURIComponent(pass)}` : '');
-    const d = await (await apiFetch(url)).json();
+    const body = { key, secret: sec, exchange: ex };
+    if (pass) body.passphrase = pass;
+    const d = await (await apiFetch('/api/bots/test-connection', { method: 'POST', body: JSON.stringify(body) })).json();
     if (d.ok) updateApiDot(ex, true, `$${parseFloat(d.balance).toFixed(2)}`);
     else      updateApiDot(ex, false, d.error || 'Invalid keys');
   } catch { /* leave as saved */ }
