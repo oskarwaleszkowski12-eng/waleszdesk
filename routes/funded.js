@@ -1,9 +1,11 @@
 const { Router } = require('express');
 const logger     = require('../lib/logger');
 const { validate, z } = require('../lib/validate');
+const { requireAuth } = require('../lib/auth');
 const tv         = require('../lib/tradovate');
 
 const router = Router();
+router.use(requireAuth);
 
 // ── AUTH STATUS ───────────────────────────────────────────
 router.get('/status', (req, res) => {

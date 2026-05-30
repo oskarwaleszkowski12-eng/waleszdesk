@@ -1,8 +1,10 @@
 const { Router } = require('express');
 const { pool }   = require('../lib/db');
 const logger     = require('../lib/logger');
+const { requireAuth } = require('../lib/auth');
 
 const router = Router();
+router.use(requireAuth);
 
 router.get('/stats', async (req, res) => {
   try {
@@ -22,7 +24,7 @@ router.get('/stats', async (req, res) => {
       pool.query(`
         SELECT DATE(close_time AT TIME ZONE 'UTC') AS day, SUM(pnl) AS daily_pnl
         FROM trades WHERE pnl IS NOT NULL
-        GROUP BY DATE(close_time AT TIME ZONE 'UTC') HAVING SUM(pnl) != 0 ORDER BY day DESC
+        GROUP BY DATE(close_time AT TIME ZONE 'UTC') HAVING SUM(pnl) != 0 ORDER BY day DESC LIMIT 365
       `),
     ]);
     const r = summary.rows[0];

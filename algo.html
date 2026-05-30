@@ -483,7 +483,7 @@ async function loadTemplates() {
       list.appendChild(el);
     });
   } catch(e) {
-    list.innerHTML = `<div class="empty-state">${e.message}</div>`;
+    list.innerHTML = `<div class="empty-state">${escHtml(e.message)}</div>`;
   }
 }
 

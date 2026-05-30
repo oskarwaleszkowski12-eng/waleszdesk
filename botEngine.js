@@ -1,9 +1,14 @@
 'use strict';
 const { createExchangeClient } = require('./exchanges');
 const logger                   = require('./lib/logger');
-const { sendTelegram }         = require('./lib/telegram');
+const { sendTelegram, escapeHtml } = require('./lib/telegram');
+
+let _engineStarted = false;
 
 module.exports = function startBotEngine({ pool, decrypt }) {
+  if (_engineStarted) { logger.warn('[botEngine] already started — skipping duplicate start'); return; }
+  _engineStarted = true;
+
   const botLocks = new Set();
 
   // ── Precision helpers ──────────────────────────────────────────────────────
@@ -27,13 +32,10 @@ module.exports = function startBotEngine({ pool, decrypt }) {
         return createExchangeClient(bot.exchange || 'bybit', apiKey, apiSecret, passphrase);
       }
     } catch (e) {
-      console.error(`[bot:${bot.id}] key decrypt failed:`, e.message);
+      logger.error({ botId: bot.id, err: e }, '[botEngine] key decrypt failed — bot will be set to error');
     }
-    // Fallback to global Bybit env keys
-    const apiKey    = process.env.BYBIT_API_KEY;
-    const apiSecret = process.env.BYBIT_API_SECRET;
-    if (!apiKey || !apiSecret) return null;
-    return createExchangeClient('bybit', apiKey, apiSecret);
+    // No fallback to global keys — a decrypt failure means we don't know whose account to trade
+    return null;
   }
 
   // ── Capital guard ─────────────────────────────────────────────────────────
@@ -66,24 +68,30 @@ module.exports = function startBotEngine({ pool, decrypt }) {
   }
 
   async function mergeStats(id, delta) {
-    const { rows } = await pool.query(`SELECT stats FROM bots WHERE id=$1`, [id]);
-    if (!rows.length) return;
-    const s = rows[0].stats || {};
+    // Atomic read-modify-write using SQL jsonb operators — avoids race condition
     await pool.query(
-      `UPDATE bots SET stats=$1, updated_at=NOW() WHERE id=$2`,
-      [JSON.stringify({
-        ...s,
-        total_pnl:      (parseFloat(s.total_pnl      || 0) + (delta.total_pnl      || 0)),
-        trades:         (parseInt(  s.trades          || 0) + (delta.trades         || 0)),
-        unrealised_pnl: delta.unrealised_pnl !== undefined ? delta.unrealised_pnl : parseFloat(s.unrealised_pnl || 0),
-      }), id]
+      `UPDATE bots SET
+         stats = jsonb_set(
+           jsonb_set(
+             jsonb_set(stats, '{total_pnl}',      to_jsonb(COALESCE((stats->>'total_pnl')::float,0)      + $2::float)),
+             '{trades}',         to_jsonb(COALESCE((stats->>'trades')::int,0)          + $3::int)
+           ),
+           '{unrealised_pnl}',   CASE WHEN $4::boolean THEN to_jsonb($5::float) ELSE stats->'unrealised_pnl' END
+         ),
+         updated_at = NOW()
+       WHERE id=$1`,
+      [id,
+       delta.total_pnl      || 0,
+       delta.trades         || 0,
+       delta.unrealised_pnl !== undefined,
+       delta.unrealised_pnl !== undefined ? delta.unrealised_pnl : 0]
     );
   }
 
   async function recordTrade(botId, { orderId, side, qty, price, status = 'open', meta = {} }) {
     await pool.query(
       `INSERT INTO bot_trades (bot_id,order_id,side,qty,price,status,meta) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-      [botId, orderId, side, qty, price, status, JSON.stringify(meta)]
+      [botId, orderId || null, side, qty, price, status, JSON.stringify(meta)]
     );
   }
 
@@ -122,13 +130,15 @@ module.exports = function startBotEngine({ pool, decrypt }) {
       }
       const qty = fmtQty(sym, calcQty(sym, cfg.base_order_size, price));
       if (qty <= 0) return;
-      const { orderId } = await client.placeOrder({ symbol: sym, side: enter, type: 'Market', qty });
-      await recordTrade(bot.id, { orderId, side: enter, qty, price, status: 'filled', meta: { type: 'base' } });
+      const result = await client.placeOrder({ symbol: sym, side: enter, type: 'Market', qty });
+      const orderId = result?.orderId || null;
+      // Save state before recording trade so a crash doesn't place a second base order
       state.base_order_placed    = true;
       state.safety_orders_placed = 0;
       state.initial_entry        = price;
       state.last_safety_ts       = 0;
       await saveState(bot.id, { ...cfg, state });
+      await recordTrade(bot.id, { orderId, side: enter, qty, price, status: 'filled', meta: { type: 'base' } });
       logger.info({ botId: bot.id, price, qty }, '[dca] base order placed');
       return;
     }
@@ -139,15 +149,16 @@ module.exports = function startBotEngine({ pool, decrypt }) {
       : (price - avgEntry) / avgEntry * 100;
 
     if (pnlPct >= cfg.take_profit) {
-      const { orderId } = await client.closePosition(sym, enter, posSize);
-      await recordTrade(bot.id, { orderId, side: exit, qty: posSize, price, status: 'filled', meta: { type: 'tp', pnl: unreal } });
+      const result = await client.closePosition(sym, enter, posSize);
+      const orderId = result?.orderId || null;
       await mergeStats(bot.id, { total_pnl: unreal, trades: 1, unrealised_pnl: 0 });
       state.base_order_placed    = false;
       state.safety_orders_placed = 0;
       state.initial_entry        = null;
       await saveState(bot.id, { ...cfg, state });
+      await recordTrade(bot.id, { orderId, side: exit, qty: posSize, price, status: 'filled', meta: { type: 'tp', pnl: unreal } });
       logger.info({ botId: bot.id, pnlPct: pnlPct.toFixed(2), pnl: unreal.toFixed(2) }, '[dca] TP hit');
-      sendTelegram(`✅ <b>Bot ${bot.id} TP hit</b>\n${sym} +${pnlPct.toFixed(2)}% / $${unreal.toFixed(2)}`);
+      sendTelegram(`✅ <b>Bot ${bot.id} TP hit</b>\n${escapeHtml(sym)} +${pnlPct.toFixed(2)}% / $${unreal.toFixed(2)}`);
       return;
     }
 
@@ -167,8 +178,9 @@ module.exports = function startBotEngine({ pool, decrypt }) {
     }
     const qty = fmtQty(sym, calcQty(sym, cfg.safety_order_size, price));
     if (qty <= 0) return;
-    const { orderId } = await client.placeOrder({ symbol: sym, side: enter, type: 'Market', qty });
-    await recordTrade(bot.id, { orderId, side: enter, qty, price, status: 'filled', meta: { type: 'safety', n: placed + 1 } });
+    const result2 = await client.placeOrder({ symbol: sym, side: enter, type: 'Market', qty });
+    const orderId2 = result2?.orderId || null;
+    await recordTrade(bot.id, { orderId: orderId2, side: enter, qty, price, status: 'filled', meta: { type: 'safety', n: placed + 1 } });
     state.safety_orders_placed = placed + 1;
     state.last_safety_ts       = Date.now();
     await saveState(bot.id, { ...cfg, state });
@@ -205,7 +217,8 @@ module.exports = function startBotEngine({ pool, decrypt }) {
         const qty  = fmtQty(sym, calcQty(sym, cfg.order_size, lvl));
         if (qty <= 0) continue;
         try {
-          const { orderId } = await client.placeOrder({ symbol: sym, side, type: 'Limit', qty, price: fmtPrice(sym, lvl) });
+          const result = await client.placeOrder({ symbol: sym, side, type: 'Limit', qty, price: fmtPrice(sym, lvl) });
+          const orderId = result?.orderId || null;
           await recordTrade(bot.id, { orderId, side, qty, price: lvl, status: 'open', meta: { type: 'grid', level: lvl, step } });
         } catch (e) {
           logger.error({ botId: bot.id, lvl, err: e }, '[grid] init order failed');
@@ -213,7 +226,7 @@ module.exports = function startBotEngine({ pool, decrypt }) {
       }
       state.initialized = true;
       await saveState(bot.id, { ...cfg, state });
-      console.log(`[grid:${bot.id}] initialized`);
+      logger.info({ botId: bot.id }, '[grid] initialized');
       return;
     }
 
@@ -225,6 +238,19 @@ module.exports = function startBotEngine({ pool, decrypt }) {
 
     for (const trade of openTrades) {
       if (liveIds.has(String(trade.order_id))) continue;
+
+      // Verify order actually filled (not just cancelled) before acting
+      let filled = true;
+      try {
+        const orderStatus = await client.getOrderStatus(sym, String(trade.order_id));
+        if (orderStatus && orderStatus.status !== 'Filled') filled = false;
+      } catch { /* if check fails, assume filled to avoid stalling the grid */ }
+
+      if (!filled) {
+        await pool.query(`UPDATE bot_trades SET status='cancelled' WHERE id=$1`, [trade.id]);
+        continue;
+      }
+
       await pool.query(`UPDATE bot_trades SET status='filled' WHERE id=$1`, [trade.id]);
 
       const fp    = parseFloat(trade.price);
@@ -239,7 +265,8 @@ module.exports = function startBotEngine({ pool, decrypt }) {
         try {
           const qty = fmtQty(sym, calcQty(sym, cfg.order_size, newP));
           if (qty > 0) {
-            const { orderId } = await client.placeOrder({ symbol: sym, side: newS, type: 'Limit', qty, price: fmtPrice(sym, newP) });
+            const result = await client.placeOrder({ symbol: sym, side: newS, type: 'Limit', qty, price: fmtPrice(sym, newP) });
+            const orderId = result?.orderId || null;
             await recordTrade(bot.id, { orderId, side: newS, qty, price: newP, status: 'open', meta: { type: 'grid', level: newP, step: tStep } });
             const profit = isBuy ? (newP - fp) * fq : (fp - newP) * fq;
             await mergeStats(bot.id, { total_pnl: profit, trades: 1 });
@@ -256,7 +283,7 @@ module.exports = function startBotEngine({ pool, decrypt }) {
   async function tick() {
     let bots;
     try {
-      const { rows } = await pool.query(`SELECT * FROM bots WHERE status='active'`);
+      const { rows } = await pool.query(`SELECT * FROM bots WHERE status='active' LIMIT 100`);
       bots = rows;
     } catch (e) {
       logger.error({ err: e }, '[botEngine] DB error');
@@ -266,10 +293,10 @@ module.exports = function startBotEngine({ pool, decrypt }) {
     let running = 0;
     for (const bot of bots) {
       if (botLocks.has(bot.id)) continue;
-      if (running >= 10) break; // cap concurrent ticks to avoid thundering herd
+      if (running >= 10) break;
       const client = getBotClient(bot);
       if (!client) {
-        await setBotStatus(bot.id, 'error', 'No API keys configured').catch(() => {});
+        await setBotStatus(bot.id, 'error', 'No API keys or decrypt failed').catch(() => {});
         continue;
       }
       botLocks.add(bot.id);
@@ -278,7 +305,7 @@ module.exports = function startBotEngine({ pool, decrypt }) {
         .catch(e => {
           logger.error({ botId: bot.id, err: e }, '[botEngine] uncaught tick error');
           setBotStatus(bot.id, 'error', e.message).catch(() => {});
-          sendTelegram(`🚨 <b>Bot ${bot.id} error</b>\n${e.message}`);
+          sendTelegram(`🚨 <b>Bot ${bot.id} error</b>\n${escapeHtml(e.message)}`);
         })
         .finally(() => { botLocks.delete(bot.id); running--; });
     }

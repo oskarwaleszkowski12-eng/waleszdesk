@@ -2,8 +2,10 @@ const { Router } = require('express');
 const { bybitGet } = require('../lib/bybit');
 const { pool }     = require('../lib/db');
 const logger       = require('../lib/logger');
+const { requireAuth } = require('../lib/auth');
 
 const router = Router();
+router.use(requireAuth);
 
 router.get('/', async (req, res) => {
   try {

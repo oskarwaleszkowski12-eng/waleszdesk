@@ -49,48 +49,80 @@ router.post('/verify-keys', validate(verifyKeysSchema), async (req, res) => {
 });
 
 router.post('/launch', validate(launchSchema), async (req, res) => {
+  const { apiKey, apiSecret, apiPassphrase, exchange, templateId, allocatedCapital, inviteCode } = req.body;
+  const ex   = (exchange || 'bybit').toLowerCase();
+  const code = inviteCode.trim().toUpperCase();
+
+  // Verify exchange keys and get balance/uid BEFORE opening a DB transaction
+  let balance, uid;
   try {
-    const { apiKey, apiSecret, apiPassphrase, exchange, templateId, allocatedCapital, inviteCode } = req.body;
+    const client = createExchangeClient(ex, apiKey, apiSecret, apiPassphrase);
+    const result = await client.getBalance().catch(e => { throw new Error('Key verification failed: ' + e.message); });
+    balance = result.total;
+    uid     = await client.getUID().catch(() => 'unknown');
+  } catch (err) {
+    return res.status(400).json({ ok: false, error: err.message });
+  }
 
-    const { rows: codeRows } = await pool.query(`SELECT id FROM invite_codes WHERE code=$1 AND used=FALSE`, [inviteCode.trim().toUpperCase()]);
-    if (!codeRows.length) return res.status(400).json({ ok: false, error: 'Invalid or already used invite code' });
+  const client2 = await pool.connect();
+  try {
+    await client2.query('BEGIN');
 
-    const ex = (exchange || 'bybit').toLowerCase();
-    const { rows: tmplRows } = await pool.query(`SELECT * FROM algo_templates WHERE id=$1 AND active=true`, [templateId]);
-    if (!tmplRows.length) return res.status(404).json({ ok: false, error: 'Template not found or inactive' });
+    // Lock the invite code row for this transaction (prevents TOCTOU race)
+    const { rows: codeRows } = await client2.query(
+      `SELECT id FROM invite_codes WHERE code=$1 AND used=FALSE FOR UPDATE`, [code]
+    );
+    if (!codeRows.length) {
+      await client2.query('ROLLBACK');
+      return res.status(400).json({ ok: false, error: 'Invalid or already used invite code' });
+    }
+
+    const { rows: tmplRows } = await client2.query(`SELECT * FROM algo_templates WHERE id=$1 AND active=true`, [templateId]);
+    if (!tmplRows.length) {
+      await client2.query('ROLLBACK');
+      return res.status(404).json({ ok: false, error: 'Template not found or inactive' });
+    }
     const tmpl = tmplRows[0];
 
-    if (allocatedCapital < parseFloat(tmpl.min_capital || 50))
+    if (allocatedCapital < parseFloat(tmpl.min_capital || 50)) {
+      await client2.query('ROLLBACK');
       return res.status(400).json({ ok: false, error: `Minimum capital is $${tmpl.min_capital}` });
-
-    const client = createExchangeClient(ex, apiKey, apiSecret, apiPassphrase);
-    const { total: balance } = await client.getBalance().catch(e => { throw new Error('Key verification failed: ' + e.message); });
-    if (allocatedCapital > balance * 0.5)
+    }
+    if (allocatedCapital > balance * 0.5) {
+      await client2.query('ROLLBACK');
       return res.status(400).json({ ok: false, error: `Max 50% of balance ($${(balance * 0.5).toFixed(2)})` });
+    }
 
-    const uid = await client.getUID().catch(() => 'unknown');
-    const { rows: existing } = await pool.query(`SELECT id FROM algo_users WHERE uid=$1 AND exchange=$2`, [uid, ex]);
-    if (existing.length) return res.json({ ok: false, error: 'UID already registered. Contact support.' });
+    const { rows: existing } = await client2.query(`SELECT id FROM algo_users WHERE uid=$1 AND exchange=$2`, [uid, ex]);
+    if (existing.length) {
+      await client2.query('ROLLBACK');
+      return res.json({ ok: false, error: 'UID already registered. Contact support.' });
+    }
 
-    const { rows: botRows } = await pool.query(
+    const { rows: botRows } = await client2.query(
       `INSERT INTO bots (name,type,symbol,status,config,stats,api_key_enc,api_secret_enc,api_passphrase_enc,exchange,allocated_balance)
        VALUES ($1,$2,$3,'active',$4,'{}', $5,$6,$7,$8,$9) RETURNING *`,
       [`[Algo] ${tmpl.name}`, tmpl.type, tmpl.symbol,
        JSON.stringify({ ...tmpl.config, symbol: tmpl.symbol, state: {} }),
        encrypt(apiKey), encrypt(apiSecret), apiPassphrase ? encrypt(apiPassphrase) : null, ex, allocatedCapital]
     );
-    await pool.query(
+    await client2.query(
       `INSERT INTO algo_users (api_key_enc,api_secret_enc,api_passphrase_enc,exchange,uid,balance_at_signup,bot_template_id,allocated_capital,bot_id,status)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'active')`,
       [encrypt(apiKey), encrypt(apiSecret), apiPassphrase ? encrypt(apiPassphrase) : null,
        ex, uid, balance, templateId, allocatedCapital, botRows[0].id]
     );
-    await pool.query(`UPDATE invite_codes SET used=TRUE WHERE code=$1`, [inviteCode.trim().toUpperCase()]);
+    await client2.query(`UPDATE invite_codes SET used=TRUE WHERE code=$1`, [code]);
+    await client2.query('COMMIT');
+
     logger.info({ uid, botId: botRows[0].id, templateId }, '[algo] launched');
     res.json({ ok: true, botId: botRows[0].id, uid });
   } catch (err) {
+    await client2.query('ROLLBACK');
     logger.error({ err }, '[algo/launch]');
     res.status(500).json({ ok: false, error: err.message });
+  } finally {
+    client2.release();
   }
 });
 
@@ -157,6 +189,7 @@ router.patch('/admin/templates/:id', async (req, res) => {
     if (!updates.length) return res.status(400).json({ ok: false, error: 'Nothing to update' });
     vals.push(req.params.id);
     const { rows } = await pool.query(`UPDATE algo_templates SET ${updates.join(',')} WHERE id=$${idx} RETURNING *`, vals);
+    if (!rows[0]) return res.status(404).json({ ok: false, error: 'Template not found' });
     res.json({ ok: true, template: rows[0] });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });

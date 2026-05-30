@@ -3,6 +3,7 @@ const axios      = require('axios');
 const { bybitGet, bybitPost } = require('../lib/bybit');
 const logger     = require('../lib/logger');
 const { validate, z } = require('../lib/validate');
+const { requireAuth } = require('../lib/auth');
 
 const numStr = z.union([z.string(), z.number()]).transform(v => parseFloat(v));
 
@@ -31,12 +32,13 @@ const orderSchema = z.object({
 
 const router = Router();
 
+// /status is public (health check / key config indicator — no secrets returned)
 router.get('/status', (req, res) => {
   const { API_KEY } = require('../lib/config');
   res.json({ ok: true, hasKeys: !!API_KEY, server: 'WaleszDesk v1.4' });
 });
 
-router.get('/balance', async (req, res) => {
+router.get('/balance',         requireAuth, async (req, res) => {
   try {
     let result = null;
     for (const accountType of ['UNIFIED', 'CONTRACT', 'SPOT']) {
@@ -69,7 +71,7 @@ router.get('/balance', async (req, res) => {
   }
 });
 
-router.get('/positions', async (req, res) => {
+router.get('/positions',       requireAuth, async (req, res) => {
   try {
     const data = await bybitGet('/v5/position/list', { category: 'linear', settleCoin: 'USDT' });
     if (data.retCode !== 0) return res.status(400).json({ ok: false, error: data.retMsg });
@@ -88,7 +90,7 @@ router.get('/positions', async (req, res) => {
   }
 });
 
-router.get('/orders', async (req, res) => {
+router.get('/orders',          requireAuth, async (req, res) => {
   try {
     const data = await bybitGet('/v5/order/history', { category: 'linear', limit: '20' });
     if (data.retCode !== 0) return res.status(400).json({ ok: false, error: data.retMsg });
@@ -99,7 +101,7 @@ router.get('/orders', async (req, res) => {
   }
 });
 
-router.get('/ticker', async (req, res) => {
+router.get('/ticker',          requireAuth, async (req, res) => {
   try {
     const symbol = (req.query.symbol || 'BTCUSDT').toUpperCase();
     const { data } = await axios.get('https://api.bybit.com/v5/market/tickers', {
@@ -114,7 +116,7 @@ router.get('/ticker', async (req, res) => {
   }
 });
 
-router.post('/set-tpsl', validate(setTpSlSchema), async (req, res) => {
+router.post('/set-tpsl',       requireAuth, validate(setTpSlSchema), async (req, res) => {
   try {
     const { symbol, type, price } = req.body;
     const params = { category: 'linear', symbol, positionIdx: 0, tpTriggerBy: 'MarkPrice', slTriggerBy: 'MarkPrice' };
@@ -131,7 +133,7 @@ router.post('/set-tpsl', validate(setTpSlSchema), async (req, res) => {
   }
 });
 
-router.post('/close-position', validate(closePositionSchema), async (req, res) => {
+router.post('/close-position', requireAuth, validate(closePositionSchema), async (req, res) => {
   try {
     const { symbol, side, qty } = req.body;
     const closeSide = side === 'Buy' ? 'Sell' : 'Buy';
@@ -155,7 +157,7 @@ router.post('/close-position', validate(closePositionSchema), async (req, res) =
   }
 });
 
-router.post('/order', validate(orderSchema), async (req, res) => {
+router.post('/order',          requireAuth, validate(orderSchema), async (req, res) => {
   try {
     const { symbol, side, orderType, qty, price, stopLoss, takeProfit, leverage } = req.body;
     if (leverage)

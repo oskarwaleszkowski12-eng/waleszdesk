@@ -1213,7 +1213,8 @@ function buildAccountCard(a) {
   // days since start
   const days = a.startDate ? Math.floor((Date.now() - new Date(a.startDate)) / 86400000) : 0;
 
-  const label = a.label || `${a.firm} ${fmtK(a.size)}`;
+  const label = escHtml(a.label || `${a.firm} ${fmtK(a.size)}`);
+  const safeId = escHtml(a.id);
 
   return `
 <div class="account-card">
@@ -1223,7 +1224,7 @@ function buildAccountCard(a) {
         <div class="acc-dot" style="background:${firm.color};box-shadow:0 0 6px ${firm.color}40;"></div>
         <div>
           <div class="acc-firm-name">${label}</div>
-          <div class="acc-label">${firm.name}</div>
+          <div class="acc-label">${escHtml(firm.name)}</div>
         </div>
       </div>
       <div style="display:flex;gap:6px;align-items:center;">
@@ -1269,9 +1270,9 @@ function buildAccountCard(a) {
   <div class="account-card-bottom">
     <div class="acc-meta">${a.startDate || '—'} · Day ${days}${a.minDays ? ` · Min ${a.minDays}d` : ''}</div>
     <div class="acc-actions">
-      <button class="btn sm" onclick="openUpdateModal('${a.id}')">Update</button>
-      <button class="btn sm" onclick="openAccountModal('${a.id}')">Edit</button>
-      <button class="btn sm danger" onclick="deleteAccount('${a.id}')">✕</button>
+      <button class="btn sm" onclick="openUpdateModal('${safeId}')">Update</button>
+      <button class="btn sm" onclick="openAccountModal('${safeId}')">Edit</button>
+      <button class="btn sm danger" onclick="deleteAccount('${safeId}')">✕</button>
     </div>
   </div>
 </div>`;
@@ -1319,19 +1320,20 @@ function renderPnL() {
   }
   empty.style.display = 'none';
   tbody.innerHTML = [...sorted].reverse().map(t => {
-    const acc = state.accounts.find(a => a.id === t.accountId);
-    const accName = acc ? (acc.label || acc.firm) : '—';
+    const acc     = state.accounts.find(a => a.id === t.accountId);
+    const accName = escHtml(acc ? (acc.label || acc.firm) : '—');
+    const dirSafe = /^(long|short)$/i.test(t.dir) ? t.dir : 'long';
     return `<tr>
-      <td style="font-family:var(--font-mono)">${t.date}</td>
+      <td style="font-family:var(--font-mono)">${escHtml(t.date)}</td>
       <td>${accName}</td>
-      <td style="font-weight:700">${t.pair}</td>
-      <td><span class="side-b side-${t.dir}">${t.dir.toUpperCase()}</span></td>
-      <td style="font-family:var(--font-mono)">${t.lots}</td>
-      <td style="font-family:var(--font-mono)">${t.entry || '—'}</td>
-      <td style="font-family:var(--font-mono)">${t.exit || '—'}</td>
-      <td style="font-family:var(--font-mono)">${t.sl || '—'}</td>
+      <td style="font-weight:700">${escHtml(t.pair)}</td>
+      <td><span class="side-b side-${dirSafe}">${dirSafe.toUpperCase()}</span></td>
+      <td style="font-family:var(--font-mono)">${escHtml(t.lots)}</td>
+      <td style="font-family:var(--font-mono)">${escHtml(t.entry || '—')}</td>
+      <td style="font-family:var(--font-mono)">${escHtml(t.exit || '—')}</td>
+      <td style="font-family:var(--font-mono)">${escHtml(t.sl || '—')}</td>
       <td style="font-family:var(--font-mono);font-weight:700;color:${t.pnl >= 0 ? 'var(--green)' : 'var(--red)'}">${t.pnl >= 0 ? '+' : ''}${fmtUSD(t.pnl)}</td>
-      <td><button class="btn sm danger" onclick="deleteTrade('${t.id}')">✕</button></td>
+      <td><button class="btn sm danger" onclick="deleteTrade('${escHtml(t.id)}')">✕</button></td>
     </tr>`;
   }).join('');
 }
@@ -1916,13 +1918,14 @@ function updateAccountSelects() {
     const prefix = sid === 'filter-account' ? '<option value="">All Accounts</option>' :
                    sid === 'calc-account-link' ? '<option value="">— manual (no account) —</option>' : '';
     el.innerHTML = prefix + state.accounts.map(a =>
-      `<option value="${a.id}">${a.label || a.firm} ($${fmtK(a.size)})</option>`
+      `<option value="${escHtml(a.id)}">${escHtml(a.label || a.firm)} ($${fmtK(a.size)})</option>`
     ).join('');
     if (cur) el.value = cur;
   });
 }
 
 // ── UTILS ──────────────────────────────────────────────────
+function escHtml(s) { return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function fmtUSD(v) {
   return '$' + Math.abs(parseFloat(v)||0).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
 }
@@ -2098,7 +2101,7 @@ function startTotpTimer(minutes) {
   function tick() {
     const m = Math.floor(secs / 60), s = secs % 60;
     el.textContent = `Kod ważny: ${m}:${s.toString().padStart(2,'0')}`;
-    if (secs <= 0) { clearInterval(_timerInterval); el.textContent = 'Kod wygasł — inicjuję nowy...'; initiateConnect(); }
+    if (secs <= 0) { clearInterval(_timerInterval); el.textContent = 'Kod wygasł — inicjuję nowy...'; initiateConnect(undefined, undefined, _tvEnv === 'demo'); }
     secs--;
   }
   tick();
@@ -2180,15 +2183,19 @@ function renderPositions(positions) {
     return `
     <div class="pos-card">
       <div class="pos-card-top">
-        <span class="pos-symbol">${p.symbol}</span>
+        <span class="pos-symbol">${escHtml(p.symbol)}</span>
         <span class="pos-side ${isLong ? 'long' : 'short'}">${isLong ? 'LONG' : 'SHORT'}</span>
       </div>
       <div class="pos-row"><span>Contracts</span><span>${Math.abs(p.netPos)}</span></div>
       <div class="pos-row"><span>Avg Price</span><span>${p.netPrice ?? '—'}</span></div>
       <div class="pos-pnl" style="color:${pnlCol};">${pnlSign}$${Math.abs(pnl).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
-      <button class="btn danger sm" style="width:100%;" onclick="closePosition(${p.id},'${p.symbol}')">Close Position</button>
+      <button class="btn danger sm" style="width:100%;" data-pos-id="${parseInt(p.id)||0}" data-pos-sym="${escHtml(p.symbol)}">Close Position</button>
     </div>`;
   }).join('');
+  // Attach close handlers via delegation (avoids symbol injection in onclick)
+  grid.querySelectorAll('[data-pos-id]').forEach(btn => {
+    btn.addEventListener('click', () => closePosition(btn.dataset.posId, btn.dataset.posSym));
+  });
 }
 
 async function closePosition(posId, symbol) {
@@ -2225,11 +2232,17 @@ async function initTvStatus() {
   }
 }
 
-loadState();
-updateDate();
-renderAccounts();
-setupCalc();
-initTvStatus();
+// ── AUTH GATE ─────────────────────────────────────────────
+if (!_jwt) {
+  document.body.style.display = 'none';
+  window.location.replace('/?redirect=funded');
+} else {
+  loadState();
+  updateDate();
+  renderAccounts();
+  setupCalc();
+  initTvStatus();
+}
 
 function toggleAppSw() {
   document.getElementById('appSwMenu').classList.toggle('open');
