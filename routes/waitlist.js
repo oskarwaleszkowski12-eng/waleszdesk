@@ -5,6 +5,7 @@ const { validate, z } = require('../lib/validate');
 const logger  = require('../lib/logger');
 const { sendWaitlistConfirmation } = require('../lib/email');
 const { sendTelegram } = require('../lib/telegram');
+const { requireAuth } = require('../lib/auth');
 
 const waitlistSchema = z.object({
   email:   z.string().email(),
@@ -35,7 +36,7 @@ router.post('/', validate(waitlistSchema), async (req, res) => {
   }
 });
 
-router.get('/', async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT id, email, plan, name, created_at FROM waitlist ORDER BY created_at DESC`

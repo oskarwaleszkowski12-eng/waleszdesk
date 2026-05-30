@@ -864,6 +864,7 @@ async function editPost(id) {
   try {
     const r = await api('/api/engine/posts?status=all');
     const d = await r.json();
+    if (!d.ok) { toast('Błąd ładowania postu.', 'err'); return; }
     const post = d.posts.find(p => p.id === id);
     if (post) showCompose(post);
   } catch { toast('Błąd ładowania postu.', 'err'); }
@@ -872,6 +873,8 @@ async function editPost(id) {
 async function publishNow(id) {
   try {
     const r = await api(`/api/engine/posts/${id}`, { method: 'PUT', body: JSON.stringify({ status: 'publish_now', content: '', platforms: [], platform_overrides: {} }) });
+    const d = await r.json();
+    if (!d.ok) { toast(d.error || 'Błąd publikacji.', 'err'); return; }
     toast('Opublikowano!', 'ok'); loadQueue(); loadDrafts();
   } catch { toast('Błąd.', 'err'); }
 }

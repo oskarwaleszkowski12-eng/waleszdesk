@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { pool }   = require('../lib/db');
 const logger     = require('../lib/logger');
 const { validate, z } = require('../lib/validate');
+const { requireAuth } = require('../lib/auth');
 
 const journalPatchSchema = z.object({
   notes:         z.string().max(5000).optional(),
@@ -10,10 +11,13 @@ const journalPatchSchema = z.object({
 });
 
 const router = Router();
+router.use(requireAuth);
 
 router.get('/', async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM trades ORDER BY close_time DESC NULLS LAST');
+    const limit = Math.min(parseInt(req.query.limit) || 500, 1000);
+    const offset = parseInt(req.query.offset) || 0;
+    const { rows } = await pool.query('SELECT * FROM trades ORDER BY close_time DESC NULLS LAST LIMIT $1 OFFSET $2', [limit, offset]);
     res.json({ ok: true, trades: rows });
   } catch (err) {
     logger.error({ err }, '[journal GET]');

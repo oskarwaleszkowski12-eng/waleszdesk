@@ -757,7 +757,7 @@ async function openSubConv(id){
   try{
     const r=await api('/api/subscriber/conversations/'+id);
     const d=await r.json();
-    if(!d.ok) return;
+    if(!d.ok){ thread.innerHTML='<div style="padding:20px;color:var(--muted2);font-size:13px;">Błąd ładowania rozmowy.</div>'; return; }
     // Mark local unread
     const c=_subConvs.find(x=>x.id===id);
     if(c){c.unread_sub=false;renderSubConvList();updateKontaktBadge();}
