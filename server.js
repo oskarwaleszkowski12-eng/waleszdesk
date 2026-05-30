@@ -10,6 +10,7 @@ const pinoHttp     = require('pino-http');
 
 const logger    = require('./lib/logger');
 const config    = require('./lib/config');
+const { serveWithCsp } = require('./lib/csp');
 const { initDb } = require('./lib/db');
 const { decrypt } = require('./lib/crypto');
 const { requireAuth } = require('./lib/auth');
@@ -54,14 +55,25 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json());
 app.use(cookieParser());
 app.use(cors({ origin: config.ALLOWED_ORIGIN, credentials: true }));
-app.use(express.static(path.join(__dirname)));
+
+// ── HTML pages with CSP nonce (must be before express.static) ────────────────
+const ROOT = path.join(__dirname);
+app.get('/',                 serveWithCsp(path.join(ROOT, 'index.html')));
+app.get('/funded',           serveWithCsp(path.join(ROOT, 'funded.html')));
+app.get('/funded-by-walesz', serveWithCsp(path.join(ROOT, 'funded-by-walesz.html')));
+app.get('/subscriber',       serveWithCsp(path.join(ROOT, 'subscriber.html')));
+app.get('/algo',             serveWithCsp(path.join(ROOT, 'algo.html')));
+app.get('/engine',           serveWithCsp(path.join(ROOT, 'engine.html')));
+app.get('/:page.html',       (req, res) => res.redirect(301, '/' + req.params.page));
+
+// Static assets (JS, CSS, images, etc.) — index:false so / uses route above
+app.use(express.static(ROOT, { index: false }));
 
 const limiter     = rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false });
 const authLimiter = rateLimit({ windowMs: 60_000, max: 10,  standardHeaders: true, legacyHeaders: false });
 app.use('/api/', limiter);
 app.use('/api/auth/', authLimiter);
 app.use('/api/subscriber/', authLimiter);
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 // Auth
 const loginSchema = z.object({ password: z.string().min(1) });
@@ -132,11 +144,6 @@ app.use('/api/subscriber', subscriberRoutes);
 app.use('/api/messages', messagesRoutes);
 app.use('/api/attachments', attachmentsRoutes);
 app.use('/api/engine', engineRoutes);
-app.get('/subscriber', (req, res) => res.sendFile(path.join(__dirname, 'subscriber.html')));
-app.get('/funded', (req, res) => res.sendFile(path.join(__dirname, 'funded.html')));
-app.get('/funded-by-walesz', (req, res) => res.sendFile(path.join(__dirname, 'funded-by-walesz.html')));
-app.get('/algo',   (req, res) => res.sendFile(path.join(__dirname, 'algo.html')));
-app.get('/engine', (req, res) => res.sendFile(path.join(__dirname, 'engine.html')));
 
 // HTTP + WebSocket server
 const server = http.createServer(app);
