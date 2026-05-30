@@ -420,7 +420,7 @@ router.post('/conversations/:id/messages', requireSubscriberAuth, validate(msgSc
     const msgId = msgRows[0].id;
     if (attachment_ids.length) {
       await client.query(
-        `UPDATE attachments SET ref_type='message', ref_id=$1 WHERE id=ANY($2)`,
+        `UPDATE attachments SET ref_type='message', ref_id=$1 WHERE id=ANY($2) AND ref_type='pending'`,
         [msgId, attachment_ids]
       );
     }

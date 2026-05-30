@@ -20,7 +20,9 @@ router.post('/', flexAuth, async (req, res) => {
   const { ref_type = 'pending', ref_id = 0, filename = 'image', mime_type, data } = req.body;
   if (!mime_type?.startsWith('image/'))
     return res.status(400).json({ ok: false, error: 'Tylko obrazy (image/*).' });
-  const sizeKb = Math.round((data?.length || 0) * 0.75 / 1024);
+  if (!/^data:image\/[a-z]+;base64,[A-Za-z0-9+/]+=*$/.test(data || ''))
+    return res.status(400).json({ ok: false, error: 'Nieprawidłowy format danych obrazu.' });
+  const sizeKb = Math.round((data.length) * 0.75 / 1024);
   if (sizeKb > MAX_KB)
     return res.status(400).json({ ok: false, error: 'Maksymalny rozmiar to 5 MB.' });
   if (req.jwt.role === 'subscriber' && ref_type !== 'pending')

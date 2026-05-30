@@ -98,10 +98,19 @@ const platformSchema = z.object({
   sort_order: z.number().int().default(0),
 });
 
+const SENSITIVE_KEYS = ['bot_token', 'access_token', 'page_access_token'];
+function maskConfig(cfg) {
+  return Object.fromEntries(
+    Object.entries(cfg || {}).map(([k, v]) =>
+      SENSITIVE_KEYS.includes(k) ? [k, v ? '***' : ''] : [k, v]
+    )
+  );
+}
+
 router.get('/platforms', async (req, res) => {
   try {
     const { rows } = await pool.query(`SELECT * FROM engine_platforms ORDER BY sort_order, id`);
-    res.json({ ok: true, platforms: rows });
+    res.json({ ok: true, platforms: rows.map(p => ({ ...p, config: maskConfig(p.config) })) });
   } catch (err) {
     res.status(500).json({ ok: false, error: 'Server error' });
   }
@@ -133,12 +142,14 @@ router.delete('/platforms/:key', async (req, res) => {
   }
 });
 
-router.post('/platforms/test', async (req, res) => {
-  const { type, config } = req.body;
+router.post('/platforms/test/:key', async (req, res) => {
   try {
-    if (type === 'telegram') {
+    const { rows } = await pool.query(`SELECT * FROM engine_platforms WHERE key=$1`, [req.params.key]);
+    if (!rows[0]) return res.status(404).json({ ok: false, error: 'Platform not found' });
+    const p = rows[0];
+    if (p.type === 'telegram') {
       const { postToTelegram } = require('../lib/platforms/telegram');
-      await postToTelegram(config, '✅ Walesz Engine — test połączenia');
+      await postToTelegram(p.config, '✅ Walesz Engine — test połączenia');
       return res.json({ ok: true, message: 'Wiadomość testowa wysłana!' });
     }
     res.json({ ok: false, error: 'Test nie zaimplementowany dla tej platformy' });

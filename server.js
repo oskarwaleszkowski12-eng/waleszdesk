@@ -31,6 +31,14 @@ const messagesRoutes    = require('./routes/messages');
 const attachmentsRoutes = require('./routes/attachments');
 const engineRoutes      = require('./routes/engine');
 
+// Fail fast if critical secrets are missing
+['JWT_SECRET', 'ENCRYPTION_KEY', 'ADMIN_PASSWORD'].forEach(k => {
+  if (!process.env[k]) {
+    console.error(`FATAL: env var ${k} is not set — refusing to start`);
+    process.exit(1);
+  }
+});
+
 const app = express();
 
 // Force HTTPS in production (Railway terminates TLS and sets x-forwarded-proto)
@@ -50,6 +58,7 @@ const limiter     = rateLimit({ windowMs: 60_000, max: 120, standardHeaders: tru
 const authLimiter = rateLimit({ windowMs: 60_000, max: 10,  standardHeaders: true, legacyHeaders: false });
 app.use('/api/', limiter);
 app.use('/api/auth/', authLimiter);
+app.use('/api/subscriber/', authLimiter);
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 // Auth

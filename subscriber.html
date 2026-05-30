@@ -566,7 +566,7 @@ async function loadTrades(){
         <td>${t.exit_price?parseFloat(t.exit_price).toFixed(2):'—'}</td>
         <td>${t.size?parseFloat(t.size).toFixed(4):'—'}</td>
         <td style="font-weight:700;color:${pnl>=0?'var(--green)':'var(--red)'}">${(pnl>=0?'+':'')+pnl.toFixed(2)}</td>
-        <td>${hasNotes?`<span class="notes-preview">${t.notes.slice(0,60)}${t.notes.length>60?'…':''}</span>`:'<span style="color:var(--muted)">—</span>'}</td>
+        <td>${hasNotes?`<span class="notes-preview">${escHtml(t.notes.slice(0,60))}${t.notes.length>60?'…':''}</span>`:'<span style="color:var(--muted)">—</span>'}</td>
       </tr>
       <tr id="notes-${t.id}" style="display:none" class="expand-tr">
         <td colspan="8"><div class="expand-notes">${hasNotes?escHtml(t.notes):''}</div></td>
@@ -723,10 +723,10 @@ function renderSubConvList(){
     const active=c.id===_activeSubConv?'background:var(--bg3);border-color:var(--border2);':'';
     return `<div onclick="openSubConv(${c.id})" style="padding:12px 14px;background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;transition:all .15s;${active}">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
-        <div style="font-size:12px;font-weight:${unread?'700':'600'};color:${unread?'var(--text)':'var(--muted2)'};max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${c.subject}</div>
+        <div style="font-size:12px;font-weight:${unread?'700':'600'};color:${unread?'var(--text)':'var(--muted2)'};max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(c.subject)}</div>
         ${unread?'<span style="width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block;flex-shrink:0;"></span>':''}
       </div>
-      <div style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${(c.last_message||'').slice(0,50)||'—'}</div>
+      <div style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml((c.last_message||'').slice(0,50))||'—'}</div>
       <div style="font-size:10px;color:var(--muted);margin-top:3px;">${relTime(c.updated_at)} · ${c.status==='closed'?'<span style="color:var(--muted)">zamknięta</span>':c.message_count+' wiad.'}</div>
     </div>`;
   }).join('');
@@ -773,7 +773,7 @@ async function openSubConv(id){
           <div style="display:flex;max-width:82%;${m.sender==='user'?'align-self:flex-end;flex-direction:row-reverse;':'align-self:flex-start;'}">
             <div>
               <div style="padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.65;white-space:pre-wrap;word-break:break-word;${m.sender==='user'?'background:rgba(0,200,150,.13);border:1px solid rgba(0,200,150,.22);border-bottom-right-radius:4px;':'background:var(--bg3);border:1px solid var(--border2);border-bottom-left-radius:4px;'}">${escHtml(m.content)}</div>
-              ${m.attachments&&m.attachments.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">${m.attachments.map(a=>`<img src="${a.data}" alt="${a.filename||'ss'}" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid var(--border2);cursor:pointer;" onclick="viewSubImg('${a.data}')">`).join('')}</div>`:''}
+              ${m.attachments&&m.attachments.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">${m.attachments.map(a=>`<img src="${a.data}" data-img="1" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid var(--border2);cursor:pointer;">`).join('')}</div>`:''}
               <div style="font-size:10px;color:var(--muted);margin-top:4px;font-family:var(--mono);${m.sender==='user'?'text-align:right;':''}">${fullTs(m.created_at)}</div>
             </div>
           </div>`).join('')}
@@ -836,8 +836,13 @@ function addSubReplyAtt(id){
     if(!prev) return;
     const wrap=document.createElement('div');
     wrap.style.cssText='position:relative;display:inline-block;';
-    wrap.innerHTML=`<img src="${att.data}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid rgba(255,255,255,.15);cursor:pointer;" onclick="viewSubImg('${att.data}')">
-      <button onclick="removeSubAtt(${id},${att.id},this.parentElement)" style="position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;border:none;background:#e53e3e;color:#fff;font-size:10px;cursor:pointer;">×</button>`;
+    const img=document.createElement('img');
+    img.src=att.data; img.dataset.img='1';
+    img.style.cssText='width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid rgba(255,255,255,.15);cursor:pointer;';
+    const xBtn=document.createElement('button');
+    xBtn.textContent='×'; xBtn.style.cssText='position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;border:none;background:#e53e3e;color:#fff;font-size:10px;cursor:pointer;';
+    xBtn.onclick=()=>removeSubAtt(id,att.id,wrap);
+    wrap.appendChild(img); wrap.appendChild(xBtn);
     prev.appendChild(wrap);
   });
 }
@@ -880,6 +885,11 @@ async function sendNewConv(){
     openSubConv(d.id);
   }catch(e){errEl.textContent='Błąd połączenia.';errEl.style.display='';btn.disabled=false;btn.textContent='Wyślij';}
 }
+
+// Delegated image viewer — avoids putting base64 in onclick attributes
+document.addEventListener('click', e => {
+  if (e.target.tagName === 'IMG' && e.target.dataset.img) viewSubImg(e.target.src);
+});
 
 /* ── INIT ───────────────────────────────────────────────────────────── */
 (function(){

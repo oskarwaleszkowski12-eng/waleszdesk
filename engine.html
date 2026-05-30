@@ -841,7 +841,7 @@ async function loadPublished() {
 }
 
 function renderPostCard(p) {
-  const plats = (p.platforms || []).map(pl => `<span class="plat-pill">${pl.label}</span>`).join('');
+  const plats = (p.platforms || []).map(pl => `<span class="plat-pill">${esc(pl.label)}</span>`).join('');
   const statusPill = `<span class="status-pill ${p.status}">${statusLabel(p.status)}</span>`;
   const dt = p.scheduled_at ? fmtDt(p.scheduled_at) : p.published_at ? fmtDt(p.published_at) : fmtDt(p.created_at);
   const preview = (p.content || '').slice(0, 120) + (p.content?.length > 120 ? '…' : '');
@@ -896,7 +896,7 @@ async function loadRpQueue() {
     el.innerHTML = d.posts.length ? d.posts.slice(0,4).map(p =>
       `<div class="queue-item-sm">
         <div class="qi-content">${esc((p.content||'').slice(0,60))}</div>
-        <div class="qi-meta">${fmtDt(p.scheduled_at)} · ${(p.platforms||[]).map(pl=>pl.label).join(', ')}</div>
+        <div class="qi-meta">${fmtDt(p.scheduled_at)} · ${(p.platforms||[]).map(pl=>esc(pl.label)).join(', ')}</div>
       </div>`).join('') : '<div class="rp-empty">Brak zaplanowanych postów</div>';
   } catch {}
 }
@@ -1004,7 +1004,7 @@ function renderResearchItems() {
       </div>
       <div class="ri-content">${esc(item.content)}</div>
       <div class="ri-actions">
-        ${item.url ? `<a href="${item.url}" target="_blank" class="ri-btn" style="text-decoration:none;">↗ Oryginał</a>` : ''}
+        ${item.url && /^https?:\/\//.test(item.url) ? `<a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer" class="ri-btn" style="text-decoration:none;">↗ Oryginał</a>` : ''}
         <button class="ri-btn use" onclick="useInPost(${item.id})">Użyj w poście →</button>
       </div>
     </div>`).join('');
@@ -1089,10 +1089,10 @@ function renderPlatformSettingsList() {
       <div class="psc-icon">${icon}</div>
       <div class="psc-body">
         <div class="psc-name">${esc(p.label)} <span style="font-size:10px;font-weight:400;color:var(--muted2);">(${p.type})</span></div>
-        <div class="psc-desc">Key: <code style="color:var(--accent2)">${p.key}</code></div>
+        <div class="psc-desc">Key: <code style="color:var(--accent2)">${esc(p.key)}</code></div>
         <div class="psc-btns">
-          ${p.type === 'telegram' ? `<button class="psc-btn test" onclick="testPlatform('${p.key}','${p.type}',${JSON.stringify(JSON.stringify(p.config))})">Test połączenia</button>` : ''}
-          <button class="psc-btn del" onclick="deletePlatform('${p.key}')">Usuń</button>
+          ${p.type === 'telegram' ? `<button class="psc-btn test" onclick="testPlatform('${esc(p.key)}')">Test połączenia</button>` : ''}
+          <button class="psc-btn del" onclick="deletePlatform('${esc(p.key)}')">Usuń</button>
         </div>
       </div>
     </div>`;
@@ -1148,11 +1148,10 @@ async function deletePlatform(key) {
   } catch { toast('Błąd.', 'err'); }
 }
 
-async function testPlatform(key, type, configJson) {
-  const config = JSON.parse(configJson);
+async function testPlatform(key) {
   toast('Testowanie...', '');
   try {
-    const r = await api('/api/engine/platforms/test', { method: 'POST', body: JSON.stringify({ type, config }) });
+    const r = await api('/api/engine/platforms/test/' + encodeURIComponent(key), { method: 'POST' });
     const d = await r.json();
     toast(d.ok ? '✅ ' + d.message : '❌ ' + d.error, d.ok ? 'ok' : 'err');
   } catch { toast('Błąd połączenia', 'err'); }

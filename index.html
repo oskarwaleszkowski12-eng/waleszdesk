@@ -2369,7 +2369,7 @@ async function placeOrderAuto() {
       setTimeout(() => showPanel('journal', document.querySelectorAll('.nav-btn')[2]), 800);
     } else {
       res.classList.add('err');
-      res.innerHTML = '✗ ERROR: ' + data.error;
+      res.textContent = '✗ ERROR: ' + data.error;
       showToast('Error: ' + data.error, 'err');
     }
   } catch(e) {
