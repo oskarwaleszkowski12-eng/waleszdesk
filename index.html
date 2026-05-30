@@ -5666,6 +5666,9 @@ async function doLogin() {
     const d = await r.json();
     if (!d.ok) { err.textContent = d.error || 'Wrong password'; err.style.display = ''; return; }
     sessionStorage.setItem('wd_session', '1');
+    const redirect = new URLSearchParams(location.search).get('redirect');
+    if (redirect === 'funded') { location.replace('/funded'); return; }
+    if (redirect === 'engine') { location.replace('/engine'); return; }
     document.getElementById('login-overlay').style.display = 'none';
     bootApp();
   } catch (e) {

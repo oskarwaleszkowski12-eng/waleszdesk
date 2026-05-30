@@ -1182,12 +1182,17 @@ function fmtDt(iso) {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (async function init() {
-  // Check auth
-  if (!TOKEN) {
-    document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px;">
-      <div style="font-size:15px;font-weight:700;">Walesz Engine</div>
-      <div style="color:var(--muted2);font-size:12px;">Zaloguj się najpierw w <a href="/" style="color:var(--accent2)">WaleszDesk</a></div>
-    </div>`;
+  // Verify auth via cookie
+  try {
+    const me = await fetch('/api/auth/me', { credentials: 'include' });
+    if (!me.ok) {
+      document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px;">
+        <div style="font-size:15px;font-weight:700;">Walesz Engine</div>
+        <div style="color:var(--muted2);font-size:12px;">Zaloguj się najpierw w <a href="/?redirect=engine" style="color:var(--accent2)">WaleszDesk</a></div>
+      </div>`;
+      return;
+    }
+  } catch {
     return;
   }
   try {
