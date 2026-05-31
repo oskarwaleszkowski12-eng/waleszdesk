@@ -1,6 +1,7 @@
 const { WebSocketServer } = require('ws');
 const jwt                 = require('jsonwebtoken');
 const { bybitGet }        = require('../lib/bybit');
+const { pool }            = require('../lib/db');
 const logger              = require('../lib/logger');
 
 function setupWS(server, jwtSecret) {
@@ -89,7 +90,24 @@ function setupWS(server, jwtSecret) {
     }
   }
 
-  setInterval(broadcastLiveData, 5_000);
+  async function broadcastBotStats() {
+    if (wss.clients.size === 0) return;
+    try {
+      const { rows } = await pool.query(`
+        SELECT b.id, b.name, b.type, b.symbol, b.status, b.config, b.stats,
+          b.exchange, b.subaccount_name, b.allocated_balance,
+          (SELECT COUNT(*) FROM bot_trades WHERE bot_id=b.id)::int                   AS trade_count,
+          (SELECT COUNT(*) FROM bot_trades WHERE bot_id=b.id AND status='open')::int AS open_orders
+        FROM bots b ORDER BY b.created_at DESC
+      `);
+      broadcast({ type: 'bot_stats', bots: rows });
+    } catch (e) {
+      logger.error({ err: e }, '[ws] bot_stats error');
+    }
+  }
+
+  setInterval(broadcastLiveData,  5_000);
+  setInterval(broadcastBotStats, 10_000);
   logger.info('[ws] server ready');
 }
 

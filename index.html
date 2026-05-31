@@ -4240,6 +4240,29 @@ function initWS() {
 
   _ws.onmessage = ({ data }) => {
     let msg; try { msg = JSON.parse(data); } catch { return; }
+
+    if (msg.type === 'bot_stats' && Array.isArray(msg.bots)) {
+      if (!botsData.length) {
+        botsData = msg.bots;
+        renderBots();
+        updateStats();
+      } else {
+        const map = new Map(botsData.map(b => [b.id, b]));
+        let changed = false;
+        msg.bots.forEach(b => {
+          const ex = map.get(b.id);
+          if (ex) {
+            if (ex.status !== b.status || JSON.stringify(ex.stats) !== JSON.stringify(b.stats) || ex.trade_count !== b.trade_count) {
+              Object.assign(ex, b); // merge DB fields — live_balance preserved (not in WS msg)
+              changed = true;
+            }
+          }
+        });
+        if (changed) renderBots();
+      }
+      return;
+    }
+
     if (msg.type !== 'live_data') return;
 
     // Balance
