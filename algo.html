@@ -261,6 +261,10 @@ input.has-btn{border-radius:var(--r) 0 0 var(--r)}
 </div>
 
 <script>
+// one-time cleanup of old encrypted key remnants from previous algo.html version
+localStorage.removeItem('algo_ak');
+localStorage.removeItem('algo_sk');
+
 let algoState = {
   step: 1,
   exchange: 'bybit',

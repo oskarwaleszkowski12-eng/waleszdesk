@@ -1653,6 +1653,7 @@ async function placeCalcOrder() {
   const price = type === 'Limit' ? parseFloat(document.getElementById('order-price').value) : undefined;
 
   if (!_orderSide || !sym || qty < 1) return;
+  if (!confirm(`Zlecenie: ${_orderSide} ${qty} kontraktów ${sym} (${type}). Potwierdzasz?`)) return;
   if (type === 'Limit' && (!price || price <= 0)) {
     statusEl.style.color = 'var(--red)';
     statusEl.textContent = 'Enter a valid limit price.';

@@ -48,8 +48,11 @@ app.set('trust proxy', 1);
 
 // Force HTTPS in production (Railway terminates TLS and sets x-forwarded-proto)
 app.use((req, res, next) => {
-  if (process.env.NODE_ENV === 'production' && req.headers['x-forwarded-proto'] !== 'https')
-    return res.redirect(301, 'https://' + req.headers.host + req.url);
+  if (process.env.NODE_ENV === 'production' && req.headers['x-forwarded-proto'] !== 'https') {
+    const host = req.headers.host || '';
+    if (!/^[a-zA-Z0-9.\-:]+$/.test(host)) return res.status(400).end();
+    return res.redirect(301, 'https://' + host + req.url);
+  }
   next();
 });
 
@@ -72,12 +75,13 @@ app.get('/:page.html',       (req, res) => res.redirect(301, '/' + req.params.pa
 // Static assets (JS, CSS, images, etc.) — index:false so / uses route above
 app.use(express.static(ROOT, { index: false }));
 
-const limiter     = rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false });
-const authLimiter = rateLimit({ windowMs: 60_000, max: 10,  standardHeaders: true, legacyHeaders: false });
+const limiter          = rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false });
+const authLimiter      = rateLimit({ windowMs: 60_000, max: 10,  standardHeaders: true, legacyHeaders: false });
+const algoFlowLimiter  = rateLimit({ windowMs: 60_000, max: 30,  standardHeaders: true, legacyHeaders: false });
 app.use('/api/', limiter);
 app.use('/api/auth/', authLimiter);
 app.use('/api/subscriber/', authLimiter);
-app.use('/api/algo/', authLimiter);
+app.use('/api/algo/', algoFlowLimiter);
 
 // Auth
 const loginSchema = z.object({ password: z.string().min(1) });
