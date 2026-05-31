@@ -228,7 +228,7 @@ router.get('/admin/invite-codes', async (req, res) => {
 router.post('/admin/invite-codes', async (req, res) => {
   try {
     const { label } = req.body || {};
-    const code = crypto.randomBytes(4).toString('hex').toUpperCase();
+    const code = crypto.randomBytes(8).toString('hex').toUpperCase();
     const { rows } = await pool.query(`INSERT INTO invite_codes (code,label) VALUES ($1,$2) RETURNING *`, [code, label||'']);
     res.json({ ok: true, code: rows[0] });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }

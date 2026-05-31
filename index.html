@@ -978,8 +978,8 @@ body.light-mode #login-overlay { background: var(--bg0); }
   <div style="display:flex;flex-direction:column;gap:12px;width:280px">
     <input id="login-pw" type="password" placeholder="Password" autocomplete="current-password"
       style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);padding:11px 14px;color:var(--text);font-family:var(--font-mono);font-size:14px;outline:none;width:100%"
-      onkeydown="if(event.key==='Enter')doLogin()">
-    <button onclick="doLogin()"
+      >
+    <button id="login-btn"
       style="background:var(--accent);color:#000;border:none;border-radius:var(--r);padding:11px;font-family:var(--font-display);font-size:14px;font-weight:600;cursor:pointer;letter-spacing:1px">
       LOGIN
     </button>
@@ -990,25 +990,25 @@ body.light-mode #login-overlay { background: var(--bg0); }
 <div class="topbar">
   <div class="logo">WALESZ<em>DESK</em></div>
   <nav class="nav">
-    <button class="nav-btn active" onclick="showPanel('bots',this)">Bots</button>
-    <button class="nav-btn" onclick="showPanel('risk',this)">Risk / Order</button>
-    <button class="nav-btn" onclick="showPanel('journal',this)">Journal</button>
-    <button class="nav-btn" onclick="showPanel('positions',this)">Pozycje</button>
-    <button class="nav-btn" onclick="showPanel('pnl',this)">P&amp;L</button>
-    <button class="nav-btn" onclick="showPanel('api',this)">API</button>
-    <button class="nav-btn" onclick="showPanel('algo',this)">Algo</button>
-    <button class="nav-btn" onclick="showPanel('waitlist',this)">Waitlist</button>
-    <button class="nav-btn" onclick="showPanel('subscribers',this)">Subskrybenci</button>
-    <button class="nav-btn" id="nav-messages-btn" onclick="showPanel('messages',this)" style="position:relative;">Wiadomości<span id="msg-badge" style="display:none;position:absolute;top:2px;right:2px;width:8px;height:8px;border-radius:50%;background:var(--red);"></span></button>
+    <button class="nav-btn active" data-panel="bots">Bots</button>
+    <button class="nav-btn" data-panel="risk">Risk / Order</button>
+    <button class="nav-btn" data-panel="journal">Journal</button>
+    <button class="nav-btn" data-panel="positions">Pozycje</button>
+    <button class="nav-btn" data-panel="pnl">P&amp;L</button>
+    <button class="nav-btn" data-panel="api">API</button>
+    <button class="nav-btn" data-panel="algo">Algo</button>
+    <button class="nav-btn" data-panel="waitlist">Waitlist</button>
+    <button class="nav-btn" data-panel="subscribers">Subskrybenci</button>
+    <button class="nav-btn" id="nav-messages-btn" data-panel="messages" style="position:relative;">Wiadomości<span id="msg-badge" style="display:none;position:absolute;top:2px;right:2px;width:8px;height:8px;border-radius:50%;background:var(--red);"></span></button>
   </nav>
   <div class="conn-badge">
     <div class="conn-dot" id="conn-dot"></div>
     <span id="conn-label">Offline</span>
   </div>
-  <button class="btn sm" id="dash-r-toggle" onclick="toggleDashRMode()" style="margin-left:8px;font-size:11px;">$ mode</button>
+  <button class="btn sm" id="dash-r-toggle" style="margin-left:8px;font-size:11px;">$ mode</button>
   <button id="theme-toggle" title="Toggle light/dark mode">🌙</button>
   <div class="app-sw">
-    <button class="app-sw-btn" onclick="toggleAppSw()" title="Przełącz aplikację">⊞</button>
+    <button class="app-sw-btn" id="index-app-sw-btn" title="Przełącz aplikację">⊞</button>
     <div class="app-sw-menu" id="appSwMenu">
       <a href="/" class="app-sw-item current">
         <span class="app-sw-icon">📊</span>
@@ -1041,7 +1041,7 @@ body.light-mode #login-overlay { background: var(--bg0); }
     <div class="stat"><div class="stat-label">Active Bots</div><div class="stat-val" id="s-bots">0</div><div class="stat-sub" id="s-botstotal">0 total</div></div>
     <div class="stat"><div class="stat-label">Avg R:R</div><div class="stat-val acc" id="s-rr">—</div><div class="stat-sub">Journal</div></div>
     <div class="stat"><div class="stat-label">Today P&L</div><div class="stat-val" id="s-today">$0.00</div><div class="stat-sub" id="s-todaytrades">0 today</div></div>
-    <div class="stat clickable" onclick="fetchBalance()" title="Click to refresh">
+    <div class="stat clickable" id="balance-stat" title="Click to refresh">
       <div class="stat-label">Bybit Balance <span id="bal-spin" style="display:none">↻</span></div>
       <div class="stat-val acc" id="s-balance">—</div>
       <div class="stat-sub" id="s-balance-sub">Click to fetch</div>
@@ -1053,9 +1053,9 @@ body.light-mode #login-overlay { background: var(--bg0); }
     <div class="section-head">
       <div class="section-title">Trading Bots</div>
       <div style="display:flex;gap:8px;align-items:center;">
-        <button class="btn sm" onclick="pauseAllBots()">⏸ Pause All</button>
-        <button class="btn sm danger" onclick="stopAllBots()">⏹ Stop All</button>
-        <button class="btn accent" onclick="openAddBot()">+ New Bot</button>
+        <button class="btn sm" id="pause-all-btn">⏸ Pause All</button>
+        <button class="btn sm danger" id="stop-all-btn">⏹ Stop All</button>
+        <button class="btn accent" id="open-add-bot-btn">+ New Bot</button>
       </div>
     </div>
     <div class="bots-grid" id="bots-grid"></div>
@@ -1066,8 +1066,8 @@ body.light-mode #login-overlay { background: var(--bg0); }
     <div class="section-head">
       <div class="section-title">Position Calculator</div>
       <div class="ex-row">
-        <button class="ex-btn active" id="ex-bybit" onclick="setEx('bybit')">Bybit</button>
-        <button class="ex-btn" id="ex-blofin" onclick="setEx('blofin')">BloFin</button>
+        <button class="ex-btn active" id="ex-bybit" data-ex="bybit">Bybit</button>
+        <button class="ex-btn" id="ex-blofin" data-ex="blofin">BloFin</button>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 440px;gap:16px;align-items:start;">
@@ -1079,24 +1079,24 @@ body.light-mode #login-overlay { background: var(--bg0); }
         <div style="margin-bottom:16px;">
           <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px;">Symbol</div>
           <div class="token-grid" id="token-grid"></div>
-          <input type="text" id="symbol" value="BTCUSDT" oninput="onSymbol()" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:8px 12px;font-size:12px;font-family:var(--font-mono);outline:none;" placeholder="or type manually">
+          <input type="text" id="symbol" value="BTCUSDT" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:8px 12px;font-size:12px;font-family:var(--font-mono);outline:none;" placeholder="or type manually">
         </div>
 
         <!-- Balance + Risk -->
         <div class="fields-2">
           <div class="field">
             <label>Account Balance (USDT)</label>
-            <input type="number" id="balance" value="16.22" oninput="calc()">
+            <input type="number" id="balance" value="16.22">
           </div>
           <div class="field">
             <label>Risk % <span style="font-size:9px;color:var(--muted2);font-weight:400;text-transform:none;letter-spacing:0">max 2%</span></label>
-            <div style="display:flex;gap:5px;margin-bottom:7px;">
-              <button onclick="setRisk(0.5)" id="risk-0.5" class="token-btn" style="flex:1;padding:7px 4px;font-size:12px;font-weight:700;">0.5%</button>
-              <button onclick="setRisk(1)" id="risk-1" class="token-btn" style="flex:1;padding:7px 4px;font-size:12px;font-weight:700;">1%</button>
-              <button onclick="setRisk(1.5)" id="risk-1.5" class="token-btn" style="flex:1;padding:7px 4px;font-size:12px;font-weight:700;">1.5%</button>
-              <button onclick="setRisk(2)" id="risk-2" class="token-btn" style="flex:1;padding:7px 4px;font-size:12px;font-weight:700;">2%</button>
+            <div id="risk-buttons-row" style="display:flex;gap:5px;margin-bottom:7px;">
+              <button id="risk-0.5" class="token-btn" data-risk="0.5" style="flex:1;padding:7px 4px;font-size:12px;font-weight:700;">0.5%</button>
+              <button id="risk-1" class="token-btn" data-risk="1" style="flex:1;padding:7px 4px;font-size:12px;font-weight:700;">1%</button>
+              <button id="risk-1.5" class="token-btn" data-risk="1.5" style="flex:1;padding:7px 4px;font-size:12px;font-weight:700;">1.5%</button>
+              <button id="risk-2" class="token-btn" data-risk="2" style="flex:1;padding:7px 4px;font-size:12px;font-weight:700;">2%</button>
             </div>
-            <input type="number" id="riskpct" value="1" step="0.1" min="0.1" max="2" oninput="onRiskInput()" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:9px 12px;font-size:13px;font-family:var(--font-mono);outline:none;">
+            <input type="number" id="riskpct" value="1" step="0.1" min="0.1" max="2" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:9px 12px;font-size:13px;font-family:var(--font-mono);outline:none;">
           </div>
         </div>
 
@@ -1104,11 +1104,11 @@ body.light-mode #login-overlay { background: var(--bg0); }
         <div class="fields-2">
           <div class="field">
             <label>Entry Price</label>
-            <input type="number" id="entry" placeholder="Twoja cena wejścia" oninput="calc()">
+            <input type="number" id="entry" placeholder="Twoja cena wejścia">
           </div>
           <div class="field">
             <label>Stop Loss <span style="font-size:9px;background:rgba(245,101,101,.1);color:var(--red);padding:2px 7px;border-radius:4px;font-weight:700;">RĘCZNY</span></label>
-            <input type="number" id="sl" placeholder="Twój SL z analizy" oninput="calc()" style="border-color:rgba(245,101,101,.3);">
+            <input type="number" id="sl" placeholder="Twój SL z analizy" style="border-color:rgba(245,101,101,.3);">
             <div class="sl-hint" id="sl-hint">Wpisz Entry + SL → kalkulator obliczy pozycję</div>
           </div>
         </div>
@@ -1117,11 +1117,11 @@ body.light-mode #login-overlay { background: var(--bg0); }
         <div class="fields-2">
           <div class="field">
             <label>Take Profit <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;font-size:9px;">optional</span></label>
-            <input type="number" id="tp" placeholder="0.00" oninput="calc()">
+            <input type="number" id="tp" placeholder="0.00">
           </div>
           <div class="field">
             <label>Leverage</label>
-            <input type="number" id="lev" value="10" min="1" max="125" oninput="calc()">
+            <input type="number" id="lev" value="10" min="1" max="125">
           </div>
         </div>
 
@@ -1129,7 +1129,7 @@ body.light-mode #login-overlay { background: var(--bg0); }
         <div class="fields-2">
           <div class="field">
             <label>Slippage % <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;font-size:9px;">est.</span></label>
-            <input type="number" id="slippage" value="0.05" step="0.01" min="0" oninput="calc()" placeholder="0.05">
+            <input type="number" id="slippage" value="0.05" step="0.01" min="0" placeholder="0.05">
             <div class="sl-hint">Limit ~0.02% · Market ~0.05-0.1%</div>
           </div>
         </div>
@@ -1143,7 +1143,7 @@ body.light-mode #login-overlay { background: var(--bg0); }
           </div>
           <div class="field">
             <label>Order Type</label>
-            <select id="ordertype" onchange="calc()"><option value="Limit">Limit (Maker 0.02%)</option><option value="Market">Market (Taker 0.055%)</option></select>
+            <select id="ordertype"><option value="Limit">Limit (Maker 0.02%)</option><option value="Market">Market (Taker 0.055%)</option></select>
           </div>
         </div>
 
@@ -1193,10 +1193,10 @@ body.light-mode #login-overlay { background: var(--bg0); }
 
         <div class="backend-badge" id="backend-badge"></div>
 
-        <button class="place-btn" id="place-btn" onclick="placeOrderAuto()">Place Order on Bybit</button>
+        <button class="place-btn" id="place-btn">Place Order on Bybit</button>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <button class="btn sm" onclick="copyParams()" style="width:100%;justify-content:center;">📋 Copy Params</button>
+          <button class="btn sm" id="copy-params-btn" style="width:100%;justify-content:center;">📋 Copy Params</button>
           <a id="bybit-link" href="https://www.bybit.com/trade/usdt/BTCUSDT" target="_blank" style="text-decoration:none;">
             <button class="btn sm" style="width:100%;justify-content:center;">Open Exchange ↗</button>
           </a>
@@ -1214,16 +1214,16 @@ body.light-mode #login-overlay { background: var(--bg0); }
       <div class="section-title">Trading Journal</div>
       <div style="display:flex;align-items:center;gap:8px;">
         <span id="journal-count" style="font-size:11px;color:var(--muted2);font-family:var(--font-mono);"></span>
-        <button class="btn sm accent" onclick="openPreTradeChecklist()">✓ Pre-Trade</button>
-        <button class="btn sm" id="journal-r-toggle" onclick="toggleJournalRMode()">R mode</button>
-        <button class="btn sm" onclick="exportJournalCSV()">↓ Export CSV</button>
-        <button class="btn sm" onclick="fetchJournalDB()">↻ Refresh</button>
+        <button class="btn sm accent" id="pretrade-btn">✓ Pre-Trade</button>
+        <button class="btn sm" id="journal-r-toggle">R mode</button>
+        <button class="btn sm" id="export-csv-btn">↓ Export CSV</button>
+        <button class="btn sm" id="refresh-journal-btn">↻ Refresh</button>
       </div>
     </div>
     <div class="card" style="padding:12px 16px;margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-      <input id="jf-symbol" type="text" placeholder="Symbol…" oninput="applyJournalFilters()"
+      <input id="jf-symbol" type="text" placeholder="Symbol…"
         style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--font-mono);font-size:12px;padding:6px 10px;width:130px;outline:none;">
-      <select id="jf-result" onchange="applyJournalFilters()"
+      <select id="jf-result"
         style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--font-display);font-size:12px;padding:6px 10px;outline:none;">
         <option value="">All Results</option>
         <option value="win">Win</option>
@@ -1232,13 +1232,13 @@ body.light-mode #login-overlay { background: var(--bg0); }
       </select>
       <div style="display:flex;align-items:center;gap:6px;">
         <span style="font-size:11px;color:var(--muted2);font-weight:600;">Od</span>
-        <input id="jf-date-from" type="date" onchange="applyJournalFilters()"
+        <input id="jf-date-from" type="date"
           style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--font-mono);font-size:12px;padding:6px 10px;outline:none;">
         <span style="font-size:11px;color:var(--muted2);font-weight:600;">Do</span>
-        <input id="jf-date-to" type="date" onchange="applyJournalFilters()"
+        <input id="jf-date-to" type="date"
           style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--font-mono);font-size:12px;padding:6px 10px;outline:none;">
       </div>
-      <button class="btn sm" onclick="clearJournalFilters()" style="margin-left:auto;">Wyczyść</button>
+      <button class="btn sm" id="clear-filters-btn" style="margin-left:auto;">Wyczyść</button>
     </div>
 
     <div class="card" style="padding:0;overflow:hidden;">
@@ -1280,7 +1280,7 @@ body.light-mode #login-overlay { background: var(--bg0); }
       <div class="section-title">Open Positions</div>
       <div style="display:flex;align-items:center;gap:10px;">
         <span id="pos-last-refresh" style="font-size:11px;color:var(--muted2);font-family:var(--font-mono);">Auto-refresh: 10s</span>
-        <button class="btn sm accent" onclick="fetchPositions()">↻ Refresh</button>
+        <button class="btn sm accent" id="refresh-positions-btn">↻ Refresh</button>
       </div>
     </div>
     <div class="card" id="positions-card">
@@ -1298,13 +1298,13 @@ body.light-mode #login-overlay { background: var(--bg0); }
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
         <div id="pnl-history-label" style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);">Last 7 Days — Closed P&amp;L</div>
         <div style="display:flex;align-items:center;gap:6px;">
-          <div style="display:flex;gap:4px;">
-            <button class="btn sm active" data-days="7" onclick="setPnlPeriod(this,7)">7D</button>
-            <button class="btn sm" data-days="30" onclick="setPnlPeriod(this,30)">30D</button>
-            <button class="btn sm" data-days="90" onclick="setPnlPeriod(this,90)">90D</button>
-            <button class="btn sm" data-days="180" onclick="setPnlPeriod(this,180)">180D</button>
+          <div id="pnl-period-bar" style="display:flex;gap:4px;">
+            <button class="btn sm active" data-days="7">7D</button>
+            <button class="btn sm" data-days="30">30D</button>
+            <button class="btn sm" data-days="90">90D</button>
+            <button class="btn sm" data-days="180">180D</button>
           </div>
-          <button class="btn sm" onclick="fetchPnlHistory()">↻</button>
+          <button class="btn sm" id="refresh-pnl-btn">↻</button>
         </div>
       </div>
       <div id="pnl-history-chart" style="width:100%;height:110px;position:relative;"></div>
@@ -1343,7 +1343,7 @@ body.light-mode #login-overlay { background: var(--bg0); }
     <div class="section-head"><div class="section-title">Alerts</div>
       <div style="display:flex;gap:8px;align-items:center;">
         <span id="alert-notif-status" style="font-size:11px;color:var(--muted2);"></span>
-        <button class="btn sm" onclick="requestAlertPermission()">Enable Notifications</button>
+        <button class="btn sm" id="req-notif-btn">Enable Notifications</button>
       </div>
     </div>
 
@@ -1363,7 +1363,7 @@ body.light-mode #login-overlay { background: var(--bg0); }
           </div>
           <input id="al-price" type="number" step="any" placeholder="Target price ($)"
             style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--font-mono);font-size:12px;padding:7px 10px;outline:none;width:100%;box-sizing:border-box;">
-          <button class="btn accent" onclick="addPriceAlert()">+ Add Price Alert</button>
+          <button class="btn accent" id="add-price-alert-btn">+ Add Price Alert</button>
         </div>
       </div>
 
@@ -1381,7 +1381,7 @@ body.light-mode #login-overlay { background: var(--bg0); }
           </div>
           <input id="al-pnl" type="number" step="any" placeholder="Amount ($)"
             style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--font-mono);font-size:12px;padding:7px 10px;outline:none;width:100%;box-sizing:border-box;">
-          <button class="btn accent" onclick="addPnlAlert()">+ Add P&amp;L Alert</button>
+          <button class="btn accent" id="add-pnl-alert-btn">+ Add P&amp;L Alert</button>
         </div>
       </div>
     </div>
@@ -1393,7 +1393,7 @@ body.light-mode #login-overlay { background: var(--bg0); }
           <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:4px;">BTC Spike Alert ($1000 / 5min)</div>
           <div style="font-size:12px;color:var(--muted2);">Powiadomienie gdy BTC zmieni się o ≥$1000 w ciągu 5 minut</div>
         </div>
-        <button id="btc-spike-toggle" class="btn sm" onclick="toggleBtcSpike()" style="min-width:52px;">OFF</button>
+        <button id="btc-spike-toggle" class="btn sm" style="min-width:52px;">OFF</button>
       </div>
     </div>
 
@@ -1423,8 +1423,8 @@ body.light-mode #login-overlay { background: var(--bg0); }
           <label for="bybit-testnet" style="font-size:11px;color:var(--muted2);cursor:pointer;">Testnet mode</label>
         </div>
         <div style="display:flex;gap:8px;">
-          <button class="btn accent sm" onclick="saveKeys('bybit')">Save</button>
-          <button class="btn danger sm" onclick="clearKeys('bybit')">Clear</button>
+          <button class="btn accent sm" data-api-action="save" data-ex="bybit">Save</button>
+          <button class="btn danger sm" data-api-action="clear" data-ex="bybit">Clear</button>
         </div>
         <div class="api-status"><div class="conn-dot" id="bybit-dot"></div><span id="bybit-label">Not configured</span></div>
       </div>
@@ -1438,8 +1438,8 @@ body.light-mode #login-overlay { background: var(--bg0); }
         <div class="field"><label>API Key</label><input type="password" id="binance-key" placeholder="Paste API key"></div>
         <div class="field"><label>API Secret</label><input type="password" id="binance-secret" placeholder="Paste API secret"></div>
         <div style="display:flex;gap:8px;margin-top:16px;">
-          <button class="btn accent sm" onclick="saveKeys('binance')">Save</button>
-          <button class="btn danger sm" onclick="clearKeys('binance')">Clear</button>
+          <button class="btn accent sm" data-api-action="save" data-ex="binance">Save</button>
+          <button class="btn danger sm" data-api-action="clear" data-ex="binance">Clear</button>
         </div>
         <div class="api-status"><div class="conn-dot" id="binance-dot"></div><span id="binance-label">Not configured</span></div>
       </div>
@@ -1454,8 +1454,8 @@ body.light-mode #login-overlay { background: var(--bg0); }
         <div class="field"><label>API Secret</label><input type="password" id="okx-secret" placeholder="Paste API secret"></div>
         <div class="field"><label>Passphrase</label><input type="password" id="okx-pass" placeholder="Paste passphrase"></div>
         <div style="display:flex;gap:8px;">
-          <button class="btn accent sm" onclick="saveKeys('okx')">Save</button>
-          <button class="btn danger sm" onclick="clearKeys('okx')">Clear</button>
+          <button class="btn accent sm" data-api-action="save" data-ex="okx">Save</button>
+          <button class="btn danger sm" data-api-action="clear" data-ex="okx">Clear</button>
         </div>
         <div class="api-status"><div class="conn-dot" id="okx-dot"></div><span id="okx-label">Not configured</span></div>
       </div>
@@ -1470,8 +1470,8 @@ body.light-mode #login-overlay { background: var(--bg0); }
         <div class="field"><label>API Secret</label><input type="password" id="bitget-secret" placeholder="Paste API secret"></div>
         <div class="field"><label>Passphrase</label><input type="password" id="bitget-pass" placeholder="Paste passphrase"></div>
         <div style="display:flex;gap:8px;">
-          <button class="btn accent sm" onclick="saveKeys('bitget')">Save</button>
-          <button class="btn danger sm" onclick="clearKeys('bitget')">Clear</button>
+          <button class="btn accent sm" data-api-action="save" data-ex="bitget">Save</button>
+          <button class="btn danger sm" data-api-action="clear" data-ex="bitget">Clear</button>
         </div>
         <div class="api-status"><div class="conn-dot" id="bitget-dot"></div><span id="bitget-label">Not configured</span></div>
       </div>
@@ -1485,8 +1485,8 @@ body.light-mode #login-overlay { background: var(--bg0); }
         <div class="field"><label>API Key</label><input type="password" id="mexc-key" placeholder="Paste API key"></div>
         <div class="field"><label>API Secret</label><input type="password" id="mexc-secret" placeholder="Paste API secret"></div>
         <div style="display:flex;gap:8px;margin-top:16px;">
-          <button class="btn accent sm" onclick="saveKeys('mexc')">Save</button>
-          <button class="btn danger sm" onclick="clearKeys('mexc')">Clear</button>
+          <button class="btn accent sm" data-api-action="save" data-ex="mexc">Save</button>
+          <button class="btn danger sm" data-api-action="clear" data-ex="mexc">Clear</button>
         </div>
         <div class="api-status"><div class="conn-dot" id="mexc-dot"></div><span id="mexc-label">Not configured</span></div>
       </div>
@@ -1501,8 +1501,8 @@ body.light-mode #login-overlay { background: var(--bg0); }
         <div class="field"><label>API Secret</label><input type="password" id="blofin-secret" placeholder="Paste API secret"></div>
         <div class="field"><label>Passphrase</label><input type="password" id="blofin-pass" placeholder="Paste passphrase"></div>
         <div style="display:flex;gap:8px;">
-          <button class="btn accent sm" onclick="saveKeys('blofin')">Save</button>
-          <button class="btn danger sm" onclick="clearKeys('blofin')">Clear</button>
+          <button class="btn accent sm" data-api-action="save" data-ex="blofin">Save</button>
+          <button class="btn danger sm" data-api-action="clear" data-ex="blofin">Clear</button>
         </div>
         <div class="api-status"><div class="conn-dot" id="blofin-dot"></div><span id="blofin-label">Not configured</span></div>
       </div>
@@ -1515,9 +1515,9 @@ body.light-mode #login-overlay { background: var(--bg0); }
     <div class="section-head">
       <div class="section-title">Algo Access</div>
       <div style="display:flex;gap:8px;align-items:center;">
-        <button class="btn sm" onclick="fetchAlgoAdmin()">↻ Refresh</button>
+        <button class="btn sm" id="fetch-algo-btn">↻ Refresh</button>
         <a href="/algo" target="_blank" class="btn sm" style="text-decoration:none;">↗ Client Page</a>
-        <button class="btn accent" onclick="openAddTemplate()">+ Template</button>
+        <button class="btn accent" id="open-add-template-btn">+ Template</button>
       </div>
     </div>
 
@@ -1543,7 +1543,7 @@ body.light-mode #login-overlay { background: var(--bg0); }
 
     <div class="algo-section-label" style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;">
       <span>Invite Codes</span>
-      <button class="btn accent sm" onclick="openGenerateInvite()">+ Generate</button>
+      <button class="btn accent sm" id="open-invite-btn">+ Generate</button>
     </div>
     <div class="card" style="padding:0;overflow:hidden;">
       <div class="au-table-wrap">
@@ -1561,8 +1561,8 @@ body.light-mode #login-overlay { background: var(--bg0); }
     <div class="section-head">
       <div class="section-title">Funded by Walesz — Waitlista</div>
       <div style="display:flex;gap:8px;align-items:center;">
-        <button class="btn sm" onclick="fetchWaitlist()">↻ Refresh</button>
-        <button class="btn sm" id="wl-copy-btn" onclick="copyWaitlistEmails()">⎘ Kopiuj emaile</button>
+        <button class="btn sm" id="fetch-waitlist-btn">↻ Refresh</button>
+        <button class="btn sm" id="wl-copy-btn">⎘ Kopiuj emaile</button>
         <a href="/funded-by-walesz" target="_blank" class="btn sm" style="text-decoration:none;">↗ Landing</a>
       </div>
     </div>
@@ -1610,8 +1610,8 @@ body.light-mode #login-overlay { background: var(--bg0); }
     <div class="section-head">
       <div class="section-title">Funded by Walesz — Subskrybenci</div>
       <div style="display:flex;gap:8px;align-items:center;">
-        <button class="btn sm" onclick="fetchSubscribers()">↻ Refresh</button>
-        <button class="btn sm accent" onclick="openNewSubscriber()">+ Nowy subskrybent</button>
+        <button class="btn sm" id="fetch-subscribers-btn">↻ Refresh</button>
+        <button class="btn sm accent" id="open-new-sub-btn">+ Nowy subskrybent</button>
         <a href="/subscriber" target="_blank" class="btn sm" style="text-decoration:none;">↗ Panel</a>
       </div>
     </div>
@@ -1661,7 +1661,7 @@ body.light-mode #login-overlay { background: var(--bg0); }
     <div style="margin-top:24px;">
       <div class="section-head" style="margin-bottom:12px;">
         <div class="section-title" style="font-size:11px;">Wpisy dziennika dla subskrybentów</div>
-        <button class="btn sm accent" onclick="openNewPost()">+ Nowy wpis</button>
+        <button class="btn sm accent" id="open-new-post-btn">+ Nowy wpis</button>
       </div>
       <div class="card" style="padding:0;overflow:hidden;">
         <div id="jp-loading" style="padding:24px;text-align:center;color:var(--muted2);font-size:12px;">Kliknij Refresh subskrybentów aby załadować</div>
@@ -1677,13 +1677,13 @@ body.light-mode #login-overlay { background: var(--bg0); }
     <div class="section-head" style="margin-bottom:12px;">
       <div class="section-title">Wiadomości</div>
       <div style="display:flex;gap:8px;">
-        <select id="msg-filter" onchange="applyMsgFilter()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:12px;padding:5px 10px;outline:none;font-family:var(--font-display);">
+        <select id="msg-filter" style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:12px;padding:5px 10px;outline:none;font-family:var(--font-display);">
           <option value="all">Wszystkie</option>
           <option value="unread">Nieprzeczytane</option>
           <option value="open">Otwarte</option>
           <option value="closed">Zamknięte</option>
         </select>
-        <button class="btn sm" onclick="fetchConversations()">↻ Refresh</button>
+        <button class="btn sm" id="fetch-convs-btn">↻ Refresh</button>
       </div>
     </div>
     <div class="msg-layout">
@@ -1724,8 +1724,8 @@ body.light-mode #login-overlay { background: var(--bg0); }
     </div>
     <div id="np-err" style="display:none;color:var(--red);font-size:12px;margin-top:8px;"></div>
     <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
-      <button class="btn" onclick="closeModal('modal-new-post')">Anuluj</button>
-      <button class="btn accent" id="np-create-btn" onclick="createJournalPost()">Opublikuj</button>
+      <button class="btn" data-close-modal="modal-new-post">Anuluj</button>
+      <button class="btn accent" id="np-create-btn">Opublikuj</button>
     </div>
   </div>
 </div>
@@ -1752,14 +1752,14 @@ body.light-mode #login-overlay { background: var(--bg0); }
 
     <div id="nsub-code-box" style="display:none;margin-top:14px;padding:14px 16px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);">
       <div style="font-size:10px;color:var(--muted2);margin-bottom:6px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;">Kod dostępu — wyślij subskrybentowi!</div>
-      <div id="nsub-code-val" style="font-family:var(--font-mono);font-size:20px;font-weight:500;color:var(--accent);letter-spacing:3px;cursor:pointer;" onclick="copySubCode()" title="Kliknij aby skopiować"></div>
+      <div id="nsub-code-val" style="font-family:var(--font-mono);font-size:20px;font-weight:500;color:var(--accent);letter-spacing:3px;cursor:pointer;" title="Kliknij aby skopiować"></div>
       <div style="font-size:11px;color:var(--muted2);margin-top:6px;">Kliknij kod aby skopiować · nie możemy go odtworzyć</div>
     </div>
 
     <div id="nsub-err" style="display:none;color:var(--red);font-size:12px;margin-top:8px;"></div>
     <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
-      <button class="btn" onclick="closeModal('modal-new-subscriber')">Zamknij</button>
-      <button class="btn accent" id="nsub-create-btn" onclick="createSubscriber()">Utwórz</button>
+      <button class="btn" data-close-modal="modal-new-subscriber">Zamknij</button>
+      <button class="btn accent" id="nsub-create-btn">Utwórz</button>
     </div>
   </div>
 </div>
@@ -1771,12 +1771,12 @@ body.light-mode #login-overlay { background: var(--bg0); }
     <div style="font-size:13px;color:var(--muted2);margin-bottom:16px;">Stary kod przestanie działać. Nowy kod musisz przesłać subskrybentowi ręcznie.</div>
     <div id="regen-code-box" style="display:none;padding:14px 16px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);margin-bottom:12px;">
       <div style="font-size:10px;color:var(--muted2);margin-bottom:6px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;">Nowy kod</div>
-      <div id="regen-code-val" style="font-family:var(--font-mono);font-size:20px;font-weight:500;color:var(--accent);letter-spacing:3px;cursor:pointer;" onclick="copyRegenCode()" title="Kliknij aby skopiować"></div>
+      <div id="regen-code-val" style="font-family:var(--font-mono);font-size:20px;font-weight:500;color:var(--accent);letter-spacing:3px;cursor:pointer;" title="Kliknij aby skopiować"></div>
     </div>
     <div id="regen-err" style="display:none;color:var(--red);font-size:12px;margin-bottom:8px;"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button class="btn" onclick="closeModal('modal-regen-code')">Zamknij</button>
-      <button class="btn accent" id="regen-btn" onclick="doRegenCode()">Wygeneruj nowy</button>
+      <button class="btn" data-close-modal="modal-regen-code">Zamknij</button>
+      <button class="btn accent" id="regen-btn">Wygeneruj nowy</button>
     </div>
   </div>
 </div>
@@ -1795,8 +1795,8 @@ body.light-mode #login-overlay { background: var(--bg0); }
     </div>
     <div id="invite-err" style="display:none;color:var(--red);font-size:12px;margin-top:8px;"></div>
     <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
-      <button class="btn" onclick="closeModal('modal-invite')">Close</button>
-      <button class="btn accent" id="invite-gen-btn" onclick="generateInvite()">Generate</button>
+      <button class="btn" data-close-modal="modal-invite">Close</button>
+      <button class="btn accent" id="invite-gen-btn">Generate</button>
     </div>
   </div>
 </div>
@@ -1837,8 +1837,8 @@ body.light-mode #login-overlay { background: var(--bg0); }
     <div id="tmpl-err" style="display:none;color:var(--red);font-size:11px;margin-bottom:12px;padding:8px;background:rgba(245,101,101,.06);border-radius:var(--r);border:1px solid rgba(245,101,101,.2);"></div>
 
     <div class="modal-actions">
-      <button class="btn sm" onclick="closeModal('modal-algo-template')">Cancel</button>
-      <button class="btn accent sm" onclick="saveTemplate()">Save Template</button>
+      <button class="btn sm" data-close-modal="modal-algo-template">Cancel</button>
+      <button class="btn accent sm" id="save-template-btn">Save Template</button>
     </div>
   </div>
 </div>
@@ -1849,8 +1849,8 @@ body.light-mode #login-overlay { background: var(--bg0); }
     <div class="modal-title" id="tpsl-modal-title">Ustaw TP/SL</div>
     <p id="tpsl-modal-msg" style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:4px;"></p>
     <div class="modal-actions">
-      <button class="btn" onclick="cancelTpSl()">Anuluj</button>
-      <button class="btn accent" onclick="executeTpSl()">Potwierdź</button>
+      <button class="btn" id="cancel-tpsl-btn">Anuluj</button>
+      <button class="btn accent" id="execute-tpsl-btn">Potwierdź</button>
     </div>
   </div>
 </div>
@@ -1861,8 +1861,8 @@ body.light-mode #login-overlay { background: var(--bg0); }
     <div class="modal-title">Zamknij pozycję</div>
     <p id="close-modal-msg" style="font-size:13px;color:var(--muted);line-height:1.6;white-space:pre-line;margin-bottom:4px;"></p>
     <div class="modal-actions">
-      <button class="btn" onclick="cancelClose()">Anuluj</button>
-      <button class="btn danger" onclick="executeClose()">Potwierdź zamknięcie</button>
+      <button class="btn" id="cancel-close-btn">Anuluj</button>
+      <button class="btn danger" id="execute-close-btn">Potwierdź zamknięcie</button>
     </div>
   </div>
 </div>
@@ -1878,7 +1878,7 @@ body.light-mode #login-overlay { background: var(--bg0); }
         <div class="bm-header-title">New Trading Bot</div>
         <div class="bm-header-sub">Configure your automated strategy</div>
       </div>
-      <button class="bm-close" onclick="closeBotModal()">✕</button>
+      <button class="bm-close" id="bm-close-btn">✕</button>
     </div>
 
     <div class="bm-body">
@@ -1905,19 +1905,19 @@ body.light-mode #login-overlay { background: var(--bg0); }
       <div class="field" style="margin-bottom:16px;">
         <label>Exchange</label>
         <div class="bm-exchanges">
-          <button class="bm-ex-btn active" id="bm-ex-bybit"   onclick="setBotExchange('bybit')"  ><span class="ex-badge ex-bybit"   style="pointer-events:none;">Bybit</span></button>
-          <button class="bm-ex-btn"        id="bm-ex-binance" onclick="setBotExchange('binance')" ><span class="ex-badge ex-binance" style="pointer-events:none;">Binance</span></button>
-          <button class="bm-ex-btn"        id="bm-ex-okx"     onclick="setBotExchange('okx')"    ><span class="ex-badge ex-okx"     style="pointer-events:none;">OKX</span></button>
-          <button class="bm-ex-btn"        id="bm-ex-bitget"  onclick="setBotExchange('bitget')" ><span class="ex-badge ex-bitget"  style="pointer-events:none;">Bitget</span></button>
-          <button class="bm-ex-btn"        id="bm-ex-mexc"    onclick="setBotExchange('mexc')"   ><span class="ex-badge ex-mexc"    style="pointer-events:none;">MEXC</span></button>
-          <button class="bm-ex-btn"        id="bm-ex-blofin"  onclick="setBotExchange('blofin')" ><span class="ex-badge ex-blofin"  style="pointer-events:none;">BloFin</span></button>
+          <button class="bm-ex-btn active" id="bm-ex-bybit"  ><span class="ex-badge ex-bybit"   style="pointer-events:none;">Bybit</span></button>
+          <button class="bm-ex-btn"       id="bm-ex-binance"><span class="ex-badge ex-binance" style="pointer-events:none;">Binance</span></button>
+          <button class="bm-ex-btn"       id="bm-ex-okx"    ><span class="ex-badge ex-okx"     style="pointer-events:none;">OKX</span></button>
+          <button class="bm-ex-btn"       id="bm-ex-bitget" ><span class="ex-badge ex-bitget"  style="pointer-events:none;">Bitget</span></button>
+          <button class="bm-ex-btn"       id="bm-ex-mexc"   ><span class="ex-badge ex-mexc"    style="pointer-events:none;">MEXC</span></button>
+          <button class="bm-ex-btn"       id="bm-ex-blofin" ><span class="ex-badge ex-blofin"  style="pointer-events:none;">BloFin</span></button>
         </div>
       </div>
 
       <!-- Pill tab switcher -->
       <div class="bm-tabs">
-        <button id="bot-tab-strategy-btn" class="bm-tab active" onclick="setBotTab('strategy')">Strategia</button>
-        <button id="bot-tab-account-btn"  class="bm-tab"        onclick="setBotTab('account')">Subkonto &amp; Kapitał</button>
+        <button id="bot-tab-strategy-btn" class="bm-tab active">Strategia</button>
+        <button id="bot-tab-account-btn"  class="bm-tab">Subkonto &amp; Kapitał</button>
       </div>
 
       <!-- ── TAB: Strategia ── -->
@@ -1925,12 +1925,12 @@ body.light-mode #login-overlay { background: var(--bg0); }
 
         <!-- Type cards -->
         <div class="bm-type-cards">
-          <div id="btn-type-dca" class="bm-type-card active" onclick="setBotType('dca')">
+          <div id="btn-type-dca" class="bm-type-card active">
             <div class="bm-card-icon">📉</div>
             <div class="bm-card-title">DCA Bot</div>
             <div class="bm-card-desc">Dollar Cost Averaging — safety orders on price dips</div>
           </div>
-          <div id="btn-type-grid" class="bm-type-card" onclick="setBotType('grid')">
+          <div id="btn-type-grid" class="bm-type-card">
             <div class="bm-card-icon">⚡</div>
             <div class="bm-card-title">Grid Bot</div>
             <div class="bm-card-desc">Buy low sell high within a defined price range</div>
@@ -1997,7 +1997,7 @@ body.light-mode #login-overlay { background: var(--bg0); }
           <div class="bm-input-wrap">
             <span class="bm-icon">🔒</span>
             <input class="bm-input" type="password" id="bot-api-secret" placeholder="Paste API Secret" autocomplete="off" spellcheck="false" style="padding-right:58px;">
-            <button class="bm-vis-btn" id="btn-secret-vis" onclick="toggleSecretVis()">Show</button>
+            <button class="bm-vis-btn" id="btn-secret-vis">Show</button>
           </div>
         </div>
         <div class="field" id="bot-passphrase-wrap" style="display:none;">
@@ -2015,7 +2015,7 @@ body.light-mode #login-overlay { background: var(--bg0); }
           </div>
           <div class="bm-hint">Reference only — does not restrict bot trades</div>
         </div>
-        <button class="bm-test-btn" onclick="testBotConnection()">
+        <button class="bm-test-btn" id="bm-test-btn">
           <span id="bm-test-label">🔗 Test Connection</span>
           <span class="bm-spinner" id="bm-test-spinner" style="display:none;"></span>
         </button>
@@ -2024,7 +2024,7 @@ body.light-mode #login-overlay { background: var(--bg0); }
 
       <div id="bot-cap-warn" style="display:none;color:var(--red);font-size:11px;margin-bottom:12px;padding:8px;background:rgba(245,101,101,.06);border-radius:var(--r);border:1px solid rgba(245,101,101,.2);"></div>
 
-      <button class="bm-launch-btn" onclick="addBot()">🚀 Launch Bot</button>
+      <button class="bm-launch-btn" id="bm-launch-btn">🚀 Launch Bot</button>
 
     </div>
   </div>
@@ -2038,7 +2038,7 @@ body.light-mode #login-overlay { background: var(--bg0); }
         <div style="font-size:15px;font-weight:700;color:var(--text);" id="logs-modal-title">Bot Logs</div>
         <div style="font-size:11px;color:var(--muted2);margin-top:2px;" id="logs-modal-sub"></div>
       </div>
-      <button class="btn sm" onclick="closeModal('modal-bot-logs')">✕ Close</button>
+      <button class="btn sm" data-close-modal="modal-bot-logs">✕ Close</button>
     </div>
     <div style="padding:16px 22px;" id="bot-logs-content"></div>
   </div>
@@ -2051,8 +2051,8 @@ body.light-mode #login-overlay { background: var(--bg0); }
     <div id="pretrade-items" style="margin:12px 0;display:flex;flex-direction:column;gap:8px;"></div>
     <div style="font-size:11px;color:var(--muted);text-align:center;margin-bottom:12px;" id="pretrade-counter">0 / 8 zaznaczonych</div>
     <div class="modal-actions">
-      <button class="btn" onclick="closeModal('modal-pretrade');resetPreTradeChecklist()">Anuluj</button>
-      <button class="btn accent" id="pretrade-proceed-btn" onclick="proceedAfterChecklist()" disabled style="opacity:0.4;cursor:not-allowed;">Wchodzę w trade ✓</button>
+      <button class="btn" id="cancel-pretrade-btn">Anuluj</button>
+      <button class="btn accent" id="pretrade-proceed-btn" disabled style="opacity:0.4;cursor:not-allowed;">Wchodzę w trade ✓</button>
     </div>
   </div>
 </div>
@@ -2060,6 +2060,9 @@ body.light-mode #login-overlay { background: var(--bg0); }
 <div id="toast"></div>
 
 <script>
+// ── UTILS ─────────────────────────────────────────────
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');}
+
 // ── STATE ──────────────────────────────────────────────
 let state = {
   exchange: 'bybit',
@@ -2141,7 +2144,7 @@ function showPanel(id, el) {
 function initTokenGrid() {
   const g = document.getElementById('token-grid');
   g.innerHTML = TOKENS.map(t =>
-    `<button class="token-btn" id="tb-${t.sym}" onclick="selectToken('${t.sym}')">${t.label}</button>`
+    `<button class="token-btn" id="tb-${t.sym}" data-tok="${t.sym}">${t.label}</button>`
   ).join('');
   selectToken('BTCUSDT');
 }
@@ -2882,7 +2885,7 @@ let _botsRenderHash = '';
 function renderBots() {
   const g = document.getElementById('bots-grid');
   if (!botsData.length) {
-    g.innerHTML = `<div class="add-card" onclick="openAddBot()"><div class="add-icon">+</div><div>Add First Bot</div></div>`;
+    g.innerHTML = `<div class="add-card" data-action="open-bot"><div class="add-icon">+</div><div>Add First Bot</div></div>`;
     _botsRenderHash = '';
     return;
   }
@@ -2913,7 +2916,7 @@ function renderBots() {
     const ex      = b.exchange || 'bybit';
     const exBadge = `<span class="ex-badge ex-${ex}" style="font-size:9px;padding:1px 6px;">${ex.toUpperCase()}</span>`;
     const subLine = b.subaccount_name || b.api_key_masked
-      ? `<div style="font-size:10px;color:var(--muted2);margin-top:2px;">${b.subaccount_name || ''}${b.api_key_masked ? ' · ' + b.api_key_masked : ''}</div>`
+      ? `<div style="font-size:10px;color:var(--muted2);margin-top:2px;">${escHtml(b.subaccount_name || '')}${b.api_key_masked ? ' · ' + escHtml(b.api_key_masked) : ''}</div>`
       : '';
     const unrealLine = unreal !== 0
       ? `<span class="${unreal >= 0 ? 'pos' : 'neg'}" style="font-size:10px;">${unreal >= 0 ? '+' : ''}$${Math.abs(unreal).toFixed(2)} unreal</span>`
@@ -2922,31 +2925,31 @@ function renderBots() {
     const safeName = b.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 
     const menuActions = b.status === 'stopped'
-      ? `<div class="bmi green" onclick="resumeBot(${b.id});closeBotMenus()">▶ Resume</div>
-         <div class="bmi red"   onclick="deleteBotPermanent(${b.id},'${safeName}');closeBotMenus()">&#128465; Delete</div>`
+      ? `<div class="bmi green" data-action="resume" data-id="${b.id}">▶ Resume</div>
+         <div class="bmi red"   data-action="delete" data-id="${b.id}" data-name="${safeName}">&#128465; Delete</div>`
       : b.status === 'active'
-      ? `<div class="bmi"       onclick="pauseBot(${b.id});closeBotMenus()">&#9646;&#9646; Pause</div>
-         <div class="bmi red"   onclick="stopBot(${b.id},'${safeName}');closeBotMenus()">&#9209; Stop</div>`
-      : `<div class="bmi green" onclick="resumeBot(${b.id});closeBotMenus()">▶ Resume</div>
-         <div class="bmi red"   onclick="stopBot(${b.id},'${safeName}');closeBotMenus()">&#9209; Stop</div>`;
+      ? `<div class="bmi"       data-action="pause"  data-id="${b.id}">&#9646;&#9646; Pause</div>
+         <div class="bmi red"   data-action="stop"   data-id="${b.id}" data-name="${safeName}">&#9209; Stop</div>`
+      : `<div class="bmi green" data-action="resume" data-id="${b.id}">▶ Resume</div>
+         <div class="bmi red"   data-action="stop"   data-id="${b.id}" data-name="${safeName}">&#9209; Stop</div>`;
 
     return `<div class="bot-card ${sLabel}">
       <div class="bot-header">
         <div style="flex:1;min-width:0;">
-          <div class="bot-name">${b.name}</div>
-          <div class="bot-pair">${exBadge} ${b.symbol} · ${tLabel} · ${(cfg.side||'').toUpperCase()}</div>
+          <div class="bot-name">${escHtml(b.name)}</div>
+          <div class="bot-pair">${exBadge} ${escHtml(b.symbol)} · ${tLabel} · ${escHtml((cfg.side||'').toUpperCase())}</div>
           ${subLine}
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-          <button class="btn sm" style="padding:3px 9px;font-size:15px;line-height:1;" onclick="toggleBotMenu(${b.id},event)" title="Options">&#9881;</button>
+          <button class="btn sm" style="padding:3px 9px;font-size:15px;line-height:1;" data-action="toggle-menu" data-id="${b.id}" title="Options">&#9881;</button>
           <span class="badge ${sLabel}">${sLabel}</span>
         </div>
       </div>
 
       <div id="bot-menu-${b.id}" class="bot-menu">
-        <div class="bmi" onclick="openEditBot(${b.id});closeBotMenus()">&#9998; Edit</div>
-        <div class="bmi" onclick="openBotLogs(${b.id});closeBotMenus()">&#128203; Logs</div>
-        <div class="bmi accent" onclick="openPublishToAlgo(${b.id});closeBotMenus()">&#8599; Publish to Algo</div>
+        <div class="bmi" data-action="edit"    data-id="${b.id}">&#9998; Edit</div>
+        <div class="bmi" data-action="logs"    data-id="${b.id}">&#128203; Logs</div>
+        <div class="bmi accent" data-action="publish" data-id="${b.id}">&#8599; Publish to Algo</div>
         <div class="bmi-sep"></div>
         ${menuActions}
       </div>
@@ -2966,12 +2969,12 @@ function renderBots() {
         </div>
       </div>
 
-      <div class="bot-strat">${sInfo}</div>
+      <div class="bot-strat">${escHtml(sInfo)}</div>
       <div class="bot-strat" style="margin-top:-8px;display:flex;gap:8px;align-items:center;">
         <span>${tc} trades · ${oo} open orders</span>${unrealLine ? ' · ' + unrealLine : ''}
       </div>
     </div>`;
-  }).join('') + `<div class="add-card" onclick="openAddBot()"><div class="add-icon">+</div><div>Add Bot</div></div>`;
+  }).join('') + `<div class="add-card" data-action="open-bot"><div class="add-icon">+</div><div>Add Bot</div></div>`;
 }
 
 // ── JOURNAL ────────────────────────────────────────────
@@ -3079,16 +3082,16 @@ function renderJournal() {
 
     const beforeHtml = CL_BEFORE.map(i => {
       const on = cl['before_'+i.id];
-      return '<div class="check-item' + (on?' checked':'') + '" onclick="toggleCheck(this)" data-id="before_' + i.id + '" data-trade="' + t.id + '"><div class="check-box">' + (on?'&#10003;':'') + '</div><div class="check-label">' + i.label + '<small>' + i.hint + '</small></div></div>';
+      return '<div class="check-item' + (on?' checked':'') + '" data-action="check" data-id="before_' + i.id + '" data-trade="' + t.id + '"><div class="check-box">' + (on?'&#10003;':'') + '</div><div class="check-label">' + i.label + '<small>' + i.hint + '</small></div></div>';
     }).join('');
 
     const afterHtml = CL_AFTER.map(i => {
       const on = cl['after_'+i.id];
-      return '<div class="check-item' + (on?' checked':'') + '" onclick="toggleCheck(this)" data-id="after_' + i.id + '" data-trade="' + t.id + '"><div class="check-box">' + (on?'&#10003;':'') + '</div><div class="check-label">' + i.label + '<small>' + i.hint + '</small></div></div>';
+      return '<div class="check-item' + (on?' checked':'') + '" data-action="check" data-id="after_' + i.id + '" data-trade="' + t.id + '"><div class="check-box">' + (on?'&#10003;':'') + '</div><div class="check-label">' + i.label + '<small>' + i.hint + '</small></div></div>';
     }).join('');
 
     const tid = t.id;
-    const statusSel = '<select onchange="updateTrade(' + tid + ',\'status\',this.value);renderJournal()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:7px 10px;font-size:12px;width:100%;outline:none;font-family:var(--font-display);">'
+    const statusSel = '<select data-action="update-status" data-trade="' + tid + '" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:7px 10px;font-size:12px;width:100%;outline:none;font-family:var(--font-display);">'
       + '<option value="open"' + (t.status==='open'?' selected':'') + '>Open</option>'
       + '<option value="closed"' + (t.status==='closed'?' selected':'') + '>Closed</option>'
       + '<option value="cancelled"' + (t.status==='cancelled'?' selected':'') + '>Cancelled</option>'
@@ -3103,23 +3106,23 @@ function renderJournal() {
         + beforeHtml
         + '<div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin:14px 0 10px;">After Close</div>'
         + afterHtml
-        + '<button class="btn accent sm" onclick="saveChecklist(' + tid + ');event.stopPropagation()" style="margin-top:12px;">Save Checklist</button>'
+        + '<button class="btn accent sm js-no-expand" data-action="save-checklist" data-id="' + tid + '" style="margin-top:12px;">Save Checklist</button>'
       + '</div>'
-      + '<div onclick="event.stopPropagation()" style="display:flex;flex-direction:column;gap:10px;">'
+      + '<div class="js-no-expand" style="display:flex;flex-direction:column;gap:10px;">'
         + '<div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:4px;">Edit Trade</div>'
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
-          + '<div><div style="font-size:10px;color:var(--muted2);margin-bottom:4px;">P&amp;L ($)</div><input type="number" value="' + (t.pnl||'') + '" onchange="updateTrade(' + tid + ',\'pnl\',parseFloat(this.value)||0)" ' + inpStyle + '></div>'
-          + '<div><div style="font-size:10px;color:var(--muted2);margin-bottom:4px;">R:R</div><input type="number" step="0.1" value="' + (t.rr||'') + '" onchange="updateTrade(' + tid + ',\'rr\',parseFloat(this.value)||null)" ' + inpStyle + '></div>'
-          + '<div><div style="font-size:10px;color:var(--muted2);margin-bottom:4px;">Exit Price</div><input type="number" value="' + (t.exit||'') + '" onchange="updateTrade(' + tid + ',\'exit\',parseFloat(this.value)||0)" ' + inpStyle + '></div>'
+          + '<div><div style="font-size:10px;color:var(--muted2);margin-bottom:4px;">P&amp;L ($)</div><input type="number" value="' + (t.pnl||'') + '" data-field="pnl" data-trade="' + tid + '" ' + inpStyle + '></div>'
+          + '<div><div style="font-size:10px;color:var(--muted2);margin-bottom:4px;">R:R</div><input type="number" step="0.1" value="' + (t.rr||'') + '" data-field="rr" data-trade="' + tid + '" ' + inpStyle + '></div>'
+          + '<div><div style="font-size:10px;color:var(--muted2);margin-bottom:4px;">Exit Price</div><input type="number" value="' + (t.exit||'') + '" data-field="exit" data-trade="' + tid + '" ' + inpStyle + '></div>'
           + '<div><div style="font-size:10px;color:var(--muted2);margin-bottom:4px;">Status</div>' + statusSel + '</div>'
         + '</div>'
-        + '<div><div style="font-size:10px;color:var(--muted2);margin-bottom:4px;">Notes</div><textarea rows="3" onchange="updateTrade(' + tid + ',\'notes\',this.value)" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:8px;font-size:12px;width:100%;outline:none;resize:vertical;font-family:var(--font-display);">' + (t.notes||'') + '</textarea></div>'
-        + '<button class="btn danger sm" onclick="deleteTrade(' + tid + ')">Delete Trade</button>'
+        + '<div><div style="font-size:10px;color:var(--muted2);margin-bottom:4px;">Notes</div><textarea rows="3" data-field="notes" data-trade="' + tid + '" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:8px;font-size:12px;width:100%;outline:none;resize:vertical;font-family:var(--font-display);">' + (t.notes||'') + '</textarea></div>'
+        + '<button class="btn danger sm" data-action="del-trade" data-id="' + tid + '">Delete Trade</button>'
       + '</div>'
       + '</div></div>'
       + '</td></tr>';
 
-    html += '<tr onclick="toggleExpand(' + tid + ')" style="cursor:pointer;">'
+    html += '<tr data-expand="' + tid + '" style="cursor:pointer;">'
       + '<td style="font-family:var(--font-mono);font-size:11px;color:var(--muted2)">' + t.date + '</td>'
       + '<td style="font-weight:700">' + t.sym + '</td>'
       + '<td><span class="side-b ' + (t.side==='Long'?'side-long':'side-short') + '">' + t.side + '</span></td>'
@@ -3647,14 +3650,14 @@ function renderJournalDB(trades) {
     const sideL  = (t.side || '').toLowerCase() === 'buy' ? 'LONG' : 'SHORT';
 
     const checklistHtml = CL_KEYS.map(c =>
-      `<div class="check-item${cl[c.key] ? ' checked' : ''}" onclick="toggleJournalCheck(${t.id},'${c.key}',this)">` +
+      `<div class="check-item${cl[c.key] ? ' checked' : ''}" data-action="jcheck" data-id="${t.id}" data-key="${c.key}">` +
         `<div class="check-box">${cl[c.key] ? '&#10003;' : ''}</div>` +
         `<div class="check-label">${c.label}</div>` +
       `</div>`
     ).join('');
 
     return `
-      <tr onclick="toggleJournalExpand(${t.id})" style="cursor:pointer;">
+      <tr data-jrow="${t.id}" style="cursor:pointer;">
         <td style="font-family:var(--font-mono);font-size:11px;color:var(--muted2)">${fmtD(t.close_time)}</td>
         <td style="font-weight:700;letter-spacing:.03em">${t.symbol}</td>
         <td><span class="side-b ${sideC}">${sideL}</span></td>
@@ -3665,8 +3668,8 @@ function renderJournalDB(trades) {
         <td style="text-align:center">
           <span style="font-size:11px;font-family:var(--font-mono);color:${done===CL_KEYS.length?'var(--green)':'var(--muted2)'}">${done}/${CL_KEYS.length}</span>
         </td>
-        <td style="text-align:center" onclick="event.stopPropagation()">
-          <button id="pub-btn-${t.id}" onclick="togglePublish(${t.id})" title="${t.published?'Ukryj':'Opublikuj'}"
+        <td style="text-align:center">
+          <button id="pub-btn-${t.id}" data-action="pub" data-id="${t.id}" title="${t.published?'Ukryj':'Opublikuj'}"
             style="font-size:16px;background:none;border:none;cursor:pointer;padding:2px 6px;opacity:${t.published?1:.3};transition:opacity .2s"
           >${t.published?'🟢':'⚪'}</button>
         </td>
@@ -3679,7 +3682,7 @@ function renderJournalDB(trades) {
                 <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:10px;">Checklist</div>
                 ${checklistHtml}
               </div>
-              <div onclick="event.stopPropagation()">
+              <div class="js-no-expand">
                 <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:10px;">Notatki (prywatne)</div>
                 <textarea id="jnotes-${t.id}" rows="3" placeholder="Powód wejścia, błędy, wnioski..."
                   style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:10px;font-size:12px;outline:none;resize:vertical;font-family:var(--font-display);line-height:1.6"
@@ -3688,11 +3691,11 @@ function renderJournalDB(trades) {
                 <textarea id="jpnotes-${t.id}" rows="3" placeholder="Widoczne dla subskrybentów po publikacji..."
                   style="width:100%;background:var(--bg3);border:1px solid rgba(0,200,150,.2);border-radius:var(--r);color:var(--text);padding:10px;font-size:12px;outline:none;resize:vertical;font-family:var(--font-display);line-height:1.6"
                 >${t.program_notes || ''}</textarea>
-                <button class="btn accent sm" onclick="saveJournalNotes(${t.id})" style="margin-top:8px;">Zapisz</button>
-                <div style="margin-top:16px;" onclick="event.stopPropagation()">
+                <button class="btn accent sm" data-action="save-notes" data-id="${t.id}" style="margin-top:8px;">Zapisz</button>
+                <div style="margin-top:16px;" class="js-no-expand">
                   <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px;">Screenshots</div>
                   <div id="tatts-${t.id}"></div>
-                  <button class="btn sm" onclick="addTradeAttachment(${t.id})" style="margin-top:8px;font-size:11px;">📎 Dodaj screenshot</button>
+                  <button class="btn sm" data-action="add-att" data-id="${t.id}" style="margin-top:8px;font-size:11px;">📎 Dodaj screenshot</button>
                 </div>
               </div>
             </div>
@@ -3713,7 +3716,6 @@ function toggleJournalExpand(id) {
 }
 
 async function toggleJournalCheck(id, key, el) {
-  event.stopPropagation();
   const isChecked = el.classList.contains('checked');
   el.classList.toggle('checked');
   el.querySelector('.check-box').innerHTML = !isChecked ? '&#10003;' : '';
@@ -4028,17 +4030,17 @@ function renderPositionsData(d) {
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px;">'
           + '<div style="display:flex;gap:6px;align-items:center;">'
             + '<input id="tp-' + p.symbol + '" type="number" step="any" placeholder="' + (p.takeProfit ? parseFloat(p.takeProfit).toFixed(2) : 'TP price') + '" style="flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--font-mono);font-size:11px;padding:5px 8px;width:0;">'
-            + '<button class="btn sm success" onclick="confirmTpSl(\'' + p.symbol + '\',\'TP\',\'tp-' + p.symbol + '\')">Set TP</button>'
+            + '<button class="btn sm success" data-action="tpsl" data-sym="' + p.symbol + '" data-type="TP" data-input="tp-' + p.symbol + '">Set TP</button>'
           + '</div>'
           + '<div style="display:flex;gap:6px;align-items:center;">'
             + '<input id="sl-' + p.symbol + '" type="number" step="any" placeholder="' + (p.stopLoss ? parseFloat(p.stopLoss).toFixed(2) : 'SL price') + '" style="flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--font-mono);font-size:11px;padding:5px 8px;width:0;">'
-            + '<button class="btn sm danger" onclick="confirmTpSl(\'' + p.symbol + '\',\'SL\',\'sl-' + p.symbol + '\')">Set SL</button>'
+            + '<button class="btn sm danger" data-action="tpsl" data-sym="' + p.symbol + '" data-type="SL" data-input="sl-' + p.symbol + '">Set SL</button>'
           + '</div>'
         + '</div>'
         + '<div style="display:flex;gap:8px;margin-top:8px;">'
-          + '<button class="btn sm" style="flex:1;" onclick="confirmClose(\'' + p.symbol + '\',\'' + p.side + '\',' + parseFloat(p.size) + ',25)">Close 25%</button>'
-          + '<button class="btn sm" style="flex:1;" onclick="confirmClose(\'' + p.symbol + '\',\'' + p.side + '\',' + parseFloat(p.size) + ',50)">Close 50%</button>'
-          + '<button class="btn sm danger" style="flex:1;" onclick="confirmClose(\'' + p.symbol + '\',\'' + p.side + '\',' + parseFloat(p.size) + ',100)">Close 100%</button>'
+          + '<button class="btn sm" style="flex:1;" data-action="close" data-sym="' + p.symbol + '" data-side="' + p.side + '" data-size="' + parseFloat(p.size) + '" data-pct="25">Close 25%</button>'
+          + '<button class="btn sm" style="flex:1;" data-action="close" data-sym="' + p.symbol + '" data-side="' + p.side + '" data-size="' + parseFloat(p.size) + '" data-pct="50">Close 50%</button>'
+          + '<button class="btn sm danger" style="flex:1;" data-action="close" data-sym="' + p.symbol + '" data-side="' + p.side + '" data-size="' + parseFloat(p.size) + '" data-pct="100">Close 100%</button>'
         + '</div>'
       + '</div>';
     }).join('');
@@ -4384,7 +4386,7 @@ function renderAlertsList() {
       : '📊 P&L ' + (a.condition === 'above' ? 'powyżej' : 'poniżej') + ' <b>' + (a.value >= 0 ? '+' : '') + '$' + Math.abs(a.value).toFixed(2) + '</b>';
     return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">'
       + '<span style="font-size:13px;">' + desc + '</span>'
-      + '<button class="btn sm danger" onclick="deleteAlert(' + a.id + ')">✕ Delete</button>'
+      + '<button class="btn sm danger" data-action="del-alert" data-id="' + a.id + '">✕ Delete</button>'
       + '</div>';
   }).join('');
 }
@@ -4522,7 +4524,7 @@ function renderInviteCodes(codes) {
       <td style="color:var(--muted2)">${c.label || '—'}</td>
       <td>${c.used ? '<span style="color:var(--red)">Used</span>' : '<span style="color:var(--green)">Active</span>'}</td>
       <td style="color:var(--muted2);font-size:11px;">${new Date(c.created_at).toLocaleDateString()}</td>
-      <td style="text-align:right;">${c.used ? '' : `<button class="btn sm" style="color:var(--red)" onclick="deactivateInvite(${c.id})">Deactivate</button>`}</td>
+      <td style="text-align:right;">${c.used ? '' : `<button class="btn sm" style="color:var(--red)" data-action="deactivate" data-id="${c.id}">Deactivate</button>`}</td>
     </tr>`).join('');
 }
 
@@ -4575,22 +4577,22 @@ function renderAlgoTemplates(templates) {
     const activeLabel = t.active ? 'active' : 'paused';
     return `<div class="at-card ${t.active ? '' : 'inactive'}">
       <div class="at-card-head">
-        <div class="at-card-name">${t.name}</div>
+        <div class="at-card-name">${escHtml(t.name)}</div>
         <div class="at-card-badges">
-          <span class="risk-pill ${riskClass}">${t.risk_level||'Med'}</span>
-          <span class="at-badge at-badge-type">${t.type.toUpperCase()}</span>
+          <span class="risk-pill ${riskClass}">${escHtml(t.risk_level||'Med')}</span>
+          <span class="at-badge at-badge-type">${escHtml(t.type.toUpperCase())}</span>
           <span class="at-badge ${t.active ? 'at-badge-active' : 'at-badge-paused'}">${activeLabel}</span>
         </div>
       </div>
-      <div class="at-desc">${t.description || '<em style="color:var(--muted)">No description</em>'}</div>
+      <div class="at-desc">${t.description ? escHtml(t.description) : '<em style="color:var(--muted)">No description</em>'}</div>
       <div class="at-stats">
-        <div class="at-stat"><div class="at-stat-label">Symbol</div><div class="at-stat-val">${t.symbol}</div></div>
+        <div class="at-stat"><div class="at-stat-label">Symbol</div><div class="at-stat-val">${escHtml(t.symbol)}</div></div>
         <div class="at-stat"><div class="at-stat-label">Monthly</div><div class="at-stat-val" style="color:var(--green);">${monthly}</div></div>
         <div class="at-stat"><div class="at-stat-label">Min $</div><div class="at-stat-val">$${parseFloat(t.min_capital||50).toFixed(0)}</div></div>
       </div>
       <div class="at-actions">
-        <button class="btn sm" onclick="openEditTemplate(${t.id})">✏️ Edit</button>
-        <button class="btn sm ${t.active ? 'danger' : 'success'}" onclick="toggleTemplate(${t.id})">${t.active ? '⏸ Disable' : '▶ Enable'}</button>
+        <button class="btn sm" data-action="edit-tmpl" data-id="${t.id}">✏️ Edit</button>
+        <button class="btn sm ${t.active ? 'danger' : 'success'}" data-action="toggle-tmpl" data-id="${t.id}">${t.active ? '⏸ Disable' : '▶ Enable'}</button>
       </div>
     </div>`;
   }).join('');
@@ -4611,10 +4613,10 @@ function renderAlgoUsers(users) {
     const joined  = u.created_at ? new Date(u.created_at).toLocaleDateString('pl-PL') : '—';
     const uid     = u.uid || '—';
     return `<tr>
-      <td style="font-family:var(--font-mono);font-size:11px;color:var(--muted2);">${uid}</td>
-      <td>${u.template_name || '—'}<span style="font-size:10px;color:var(--muted2);margin-left:6px;">${u.symbol||''}</span></td>
+      <td style="font-family:var(--font-mono);font-size:11px;color:var(--muted2);">${escHtml(uid)}</td>
+      <td>${escHtml(u.template_name || '—')}<span style="font-size:10px;color:var(--muted2);margin-left:6px;">${escHtml(u.symbol||'')}</span></td>
       <td style="font-family:var(--font-mono);">$${parseFloat(u.allocated_capital||0).toFixed(2)}</td>
-      <td><span style="color:${stColor};font-weight:700;font-size:11px;">● ${botSt}</span></td>
+      <td><span style="color:${stColor};font-weight:700;font-size:11px;">● ${escHtml(botSt)}</span></td>
       <td style="text-align:right;font-family:var(--font-mono);">${pnlStr}</td>
       <td style="text-align:right;font-family:var(--font-mono);">${u.trade_count||0}</td>
       <td style="font-size:11px;color:var(--muted2);">${joined}</td>
@@ -4989,10 +4991,13 @@ function openPreTradeChecklist() {
   const container = document.getElementById('pretrade-items');
   container.innerHTML = PRE_TRADE_ITEMS.map((item, i) => `
     <label id="pretrade-row-${i}" style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:9px 12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg3);transition:background 0.15s,border-color 0.15s;">
-      <input type="checkbox" id="pretrade-cb-${i}" onchange="updatePreTradeChecklist()" style="width:16px;height:16px;accent-color:var(--green);cursor:pointer;flex-shrink:0;">
+      <input type="checkbox" id="pretrade-cb-${i}" style="width:16px;height:16px;accent-color:var(--green);cursor:pointer;flex-shrink:0;">
       <span style="font-size:13px;color:var(--text)">${item}</span>
     </label>
   `).join('');
+  document.querySelectorAll('[id^="pretrade-cb-"]').forEach(cb =>
+    cb.addEventListener('change', updatePreTradeChecklist)
+  );
   resetPreTradeChecklist(false);
   document.getElementById('modal-pretrade').classList.add('open');
 }
@@ -5198,8 +5203,8 @@ async function fetchSubscribers() {
         <td style="color:var(--muted2);font-family:var(--font-mono);font-size:11px;">${expDate}</td>
         <td>
           <div style="display:flex;gap:4px;">
-            <button class="btn sm" style="font-size:10px;padding:3px 8px;" onclick="openRegenCode(${s.id})">Nowy kod</button>
-            <button class="btn sm" style="font-size:10px;padding:3px 8px;color:var(--red);" onclick="deleteSubscriber(${s.id},'${s.email}')">Usuń</button>
+            <button class="btn sm" style="font-size:10px;padding:3px 8px;" data-action="regen" data-id="${s.id}">Nowy kod</button>
+            <button class="btn sm" style="font-size:10px;padding:3px 8px;color:var(--red);" data-action="del-sub" data-id="${s.id}" data-email="${s.email}">Usuń</button>
           </div>
         </td>
       </tr>`;
@@ -5338,7 +5343,7 @@ async function fetchJournalPosts() {
           <div style="font-size:13px;font-weight:600;margin-bottom:2px;">${p.title}</div>
           <div style="font-size:11px;color:var(--muted2);">${dt} · <span style="color:${planColors[p.plan_access]}">${planLabels[p.plan_access]}</span> · ${p.published ? '<span style="color:var(--green)">opublikowany</span>' : '<span style="color:var(--muted2)">ukryty</span>'}</div>
         </div>
-        <button class="btn sm" style="font-size:10px;color:var(--red)" onclick="deleteJournalPost(${p.id},'${p.title.replace(/'/g,'').slice(0,30)}')">Usuń</button>
+        <button class="btn sm" style="font-size:10px;color:var(--red)" data-action="del-post" data-id="${p.id}" data-title="${p.title.replace(/"/g,'').slice(0,30)}">Usuń</button>
       </div>`;
     }).join('');
   } catch (err) { console.error('[fetchJournalPosts]', err); }
@@ -5435,7 +5440,7 @@ function renderConvList(convs) {
     const srcBadge = `<span class="conv-source-badge ${c.source}">${c.source === 'subscriber' ? 'sub' : 'landing'}</span>`;
     const closedBadge = c.status === 'closed' ? '<span class="conv-closed-badge">zamknięta</span>' : '';
     const unreadDot = c.unread_admin ? '<span class="conv-unread-dot"></span>' : '';
-    return `<div class="conv-item${active}" onclick="openConv(${c.id})">
+    return `<div class="conv-item${active}" data-conv="${c.id}">
       <div class="conv-item-name">${unreadDot}${name}${srcBadge}${closedBadge}</div>
       <div class="conv-item-preview">${c.subject}</div>
       <div class="conv-item-preview" style="margin-top:2px">${preview || '—'}</div>
@@ -5471,10 +5476,10 @@ async function openConv(id) {
           <div class="msg-main-sub">${conv.from_name ? conv.from_name + ' · ' : ''}${conv.from_email} · ${srcLabel}</div>
         </div>
         <div class="msg-main-actions">
-          <button class="btn sm" onclick="toggleConvStatus(${id},'${conv.status}')" id="conv-status-btn">
+          <button class="btn sm" data-action="toggle-status" data-id="${id}" data-status="${conv.status}" id="conv-status-btn">
             ${conv.status === 'open' ? 'Zamknij' : 'Otwórz ponownie'}
           </button>
-          <button class="btn sm" style="color:var(--red)" onclick="deleteConv(${id})">Usuń</button>
+          <button class="btn sm" style="color:var(--red)" data-action="del-conv" data-id="${id}">Usuń</button>
         </div>
       </div>
       <div class="chat-area" id="chat-area-${id}">
@@ -5482,26 +5487,28 @@ async function openConv(id) {
           <div class="bubble-wrap ${m.sender}">
             <div>
               <div class="bubble">${escMsg(m.content)}</div>
-              ${m.attachments && m.attachments.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">${m.attachments.map(a=>`<img src="${a.data}" alt="${a.filename||'ss'}" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid var(--border2);cursor:pointer;" onclick="viewImg('${a.data}')">`).join('')}</div>` : ''}
+              ${m.attachments && m.attachments.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">${m.attachments.map(a=>`<img src="${a.data}" alt="${a.filename||'ss'}" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid var(--border2);cursor:pointer;" data-viewimg="1">`).join('')}</div>` : ''}
               <div class="bubble-time">${fullTime(m.created_at)}</div>
             </div>
           </div>`).join('') : '<div class="msg-empty"><div>Brak wiadomości</div></div>'}
       </div>
       ${conv.status === 'open' ? `
       <div class="reply-area">
-        <textarea class="reply-textarea" id="reply-ta-${id}" rows="3" placeholder="Napisz odpowiedź..." onkeydown="replyKeydown(event,${id})"></textarea>
+        <textarea class="reply-textarea" id="reply-ta-${id}" rows="3" placeholder="Napisz odpowiedź..."></textarea>
         <div id="reply-atts-${id}" style="display:flex;flex-wrap:wrap;gap:6px;padding:0 0 6px;"></div>
         <div class="reply-footer">
           <span class="reply-hint">
-            <button class="btn sm" onclick="addReplyAttachment(${id})" title="Dodaj screenshot" style="font-size:13px;padding:3px 8px;">📎</button>
+            <button class="btn sm" data-action="add-reply-att" data-id="${id}" title="Dodaj screenshot" style="font-size:13px;padding:3px 8px;">📎</button>
             Ctrl + Enter aby wysłać
           </span>
-          <button class="btn accent sm" onclick="sendReply(${id})">Wyślij odpowiedź</button>
+          <button class="btn accent sm" data-action="send-reply" data-id="${id}">Wyślij odpowiedź</button>
         </div>
       </div>` : ''}
     `;
     const area = document.getElementById('chat-area-' + id);
     if (area) area.scrollTop = area.scrollHeight;
+    const ta = document.getElementById('reply-ta-' + id);
+    if (ta) ta.addEventListener('keydown', e => replyKeydown(e, id));
   } catch (err) { console.error('[openConv]', err); }
 }
 
@@ -5536,7 +5543,7 @@ async function sendReply(id) {
     if (area) {
       const div = document.createElement('div');
       div.className = 'bubble-wrap admin';
-      const attsHtml = pendAtts.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">${pendAtts.map(a=>`<img src="${a.data}" alt="${a.filename||'ss'}" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid var(--border2);cursor:pointer;" onclick="viewImg('${a.data}')">`).join('')}</div>` : '';
+      const attsHtml = pendAtts.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">${pendAtts.map(a=>`<img src="${a.data}" alt="${a.filename||'ss'}" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid var(--border2);cursor:pointer;" data-viewimg="1">`).join('')}</div>` : '';
       div.innerHTML = `<div><div class="bubble">${content ? escMsg(content) : ''}</div>${attsHtml}<div class="bubble-time">${fullTime(new Date().toISOString())}</div></div>`;
       area.appendChild(div);
       area.scrollTop = area.scrollHeight;
@@ -5555,8 +5562,8 @@ function addReplyAttachment(id) {
     if (!preview) return;
     const img = document.createElement('div');
     img.style.cssText = 'position:relative;display:inline-block;';
-    img.innerHTML = `<img src="${att.data}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border2);cursor:pointer;" onclick="viewImg('${att.data}')">
-      <button onclick="removeReplyAtt(${id},${att.id},this.parentElement)" style="position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;border:none;background:var(--red);color:#fff;font-size:10px;cursor:pointer;">×</button>`;
+    img.innerHTML = `<img src="${att.data}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border2);cursor:pointer;" data-viewimg="1">
+      <button data-action="remove-att" data-conv-id="${id}" data-att-id="${att.id}" style="position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;border:none;background:var(--red);color:#fff;font-size:10px;cursor:pointer;">×</button>`;
     preview.appendChild(img);
   });
 }
@@ -5629,15 +5636,15 @@ async function uploadFile(file, refType = 'pending', refId = 0) {
   return d.ok ? { id: d.id, data, mime_type: file.type, filename: file.name } : null;
 }
 
-function attachmentGrid(atts, onRemove) {
+function attachmentGrid(atts, removable) {
   if (!atts.length) return '';
   return `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">`
     + atts.map(a => `
       <div style="position:relative;display:inline-block;">
         <img src="${a.data}" alt="${a.filename||'ss'}"
           style="width:80px;height:80px;object-fit:cover;border-radius:6px;border:1px solid var(--border2);cursor:pointer;"
-          onclick="viewImg('${a.data}')" title="${a.filename||'screenshot'}">
-        ${onRemove ? `<button onclick="${onRemove}(${a.id})"
+          data-viewimg="1" title="${a.filename||'screenshot'}">
+        ${removable ? `<button data-action="remove-trade-att" data-id="${a.id}"
           style="position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;border:none;background:var(--red);color:#fff;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">×</button>` : ''}
       </div>`).join('')
     + '</div>';
@@ -5664,19 +5671,26 @@ async function loadTradeAttachments(tradeId) {
   } catch (e) { console.error('[loadTradeAtts]', e); }
 }
 
+async function removeTradeAtt(tradeId, attId) {
+  if (!confirm('Usuń screenshot?')) return;
+  await apiFetch(`/api/attachments/${attId}`, { method: 'DELETE' });
+  _tradeAtts[tradeId] = _tradeAtts[tradeId].filter(a => a.id !== attId);
+  renderTradeAtts(tradeId);
+}
+
 function renderTradeAtts(tradeId) {
   const wrap = document.getElementById('tatts-' + tradeId);
   if (!wrap) return;
   const atts = _tradeAtts[tradeId] || [];
-  wrap.innerHTML = attachmentGrid(atts, `removeTradeAtt_${tradeId}`) ||
+  wrap.innerHTML = attachmentGrid(atts, true) ||
     '<span style="font-size:11px;color:var(--muted)">Brak załączników</span>';
-  // Dynamically define remove function
-  window[`removeTradeAtt_${tradeId}`] = async (attId) => {
-    if (!confirm('Usuń screenshot?')) return;
-    await apiFetch(`/api/attachments/${attId}`, { method: 'DELETE' });
-    _tradeAtts[tradeId] = _tradeAtts[tradeId].filter(a => a.id !== attId);
-    renderTradeAtts(tradeId);
-  };
+  if (!wrap._hasRemoveListener) {
+    wrap._hasRemoveListener = true;
+    wrap.addEventListener('click', e => {
+      const btn = e.target.closest('[data-action="remove-trade-att"]');
+      if (btn) removeTradeAtt(tradeId, parseInt(btn.dataset.id));
+    });
+  }
 }
 
 async function addTradeAttachment(tradeId) {
@@ -5737,6 +5751,269 @@ function toggleAppSw() {
 document.addEventListener('click', e => {
   const sw = document.querySelector('.app-sw');
   if (sw && !sw.contains(e.target)) document.getElementById('appSwMenu').classList.remove('open');
+});
+
+// ── addEventListener block (replaces all removed inline handlers) ──────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+
+  // Login
+  document.getElementById('login-pw').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  document.getElementById('login-btn').addEventListener('click', doLogin);
+
+  // Nav
+  document.querySelector('.nav').addEventListener('click', e => {
+    const btn = e.target.closest('[data-panel]');
+    if (btn) showPanel(btn.dataset.panel, btn);
+  });
+
+  // Topbar
+  document.getElementById('dash-r-toggle').addEventListener('click', toggleDashRMode);
+  document.getElementById('index-app-sw-btn').addEventListener('click', toggleAppSw);
+  document.getElementById('balance-stat').addEventListener('click', fetchBalance);
+
+  // Bots panel header
+  document.getElementById('pause-all-btn').addEventListener('click', pauseAllBots);
+  document.getElementById('stop-all-btn').addEventListener('click', stopAllBots);
+  document.getElementById('open-add-bot-btn').addEventListener('click', openAddBot);
+
+  // Exchange row
+  document.querySelector('.ex-row').addEventListener('click', e => {
+    const btn = e.target.closest('[data-ex]');
+    if (btn) setEx(btn.dataset.ex);
+  });
+
+  // Calculator inputs
+  document.getElementById('symbol').addEventListener('input', onSymbol);
+  document.getElementById('riskpct').addEventListener('input', onRiskInput);
+  ['balance','entry','sl','tp','lev','slippage'].forEach(id =>
+    document.getElementById(id).addEventListener('input', calc)
+  );
+  document.getElementById('ordertype').addEventListener('change', calc);
+
+  // Risk buttons
+  document.getElementById('risk-buttons-row').addEventListener('click', e => {
+    const btn = e.target.closest('[data-risk]');
+    if (btn) setRisk(parseFloat(btn.dataset.risk));
+  });
+
+  // Journal panel
+  document.getElementById('pretrade-btn').addEventListener('click', openPreTradeChecklist);
+  document.getElementById('journal-r-toggle').addEventListener('click', toggleJournalRMode);
+  document.getElementById('export-csv-btn').addEventListener('click', exportJournalCSV);
+  document.getElementById('refresh-journal-btn').addEventListener('click', fetchJournalDB);
+  document.getElementById('clear-filters-btn').addEventListener('click', clearJournalFilters);
+  document.getElementById('jf-symbol').addEventListener('input', applyJournalFilters);
+  ['jf-result','jf-date-from','jf-date-to'].forEach(id =>
+    document.getElementById(id).addEventListener('change', applyJournalFilters)
+  );
+
+  // Positions
+  document.getElementById('refresh-positions-btn').addEventListener('click', fetchPositions);
+
+  // PnL
+  document.getElementById('pnl-period-bar').addEventListener('click', e => {
+    const btn = e.target.closest('[data-days]');
+    if (btn) setPnlPeriod(btn, parseInt(btn.dataset.days));
+  });
+  document.getElementById('refresh-pnl-btn').addEventListener('click', fetchPnlHistory);
+
+  // Alerts
+  document.getElementById('req-notif-btn').addEventListener('click', requestAlertPermission);
+  document.getElementById('add-price-alert-btn').addEventListener('click', addPriceAlert);
+  document.getElementById('add-pnl-alert-btn').addEventListener('click', addPnlAlert);
+  document.getElementById('btc-spike-toggle').addEventListener('click', toggleBtcSpike);
+
+  // API keys
+  document.getElementById('panel-api').addEventListener('click', e => {
+    const btn = e.target.closest('[data-api-action]');
+    if (!btn) return;
+    if (btn.dataset.apiAction === 'save') saveKeys(btn.dataset.ex);
+    else clearKeys(btn.dataset.ex);
+  });
+
+  // Algo panel
+  document.getElementById('fetch-algo-btn').addEventListener('click', fetchAlgoAdmin);
+  document.getElementById('open-add-template-btn').addEventListener('click', openAddTemplate);
+  document.getElementById('open-invite-btn').addEventListener('click', openGenerateInvite);
+
+  // Waitlist
+  document.getElementById('fetch-waitlist-btn').addEventListener('click', fetchWaitlist);
+  document.getElementById('wl-copy-btn').addEventListener('click', copyWaitlistEmails);
+
+  // Subscribers
+  document.getElementById('fetch-subscribers-btn').addEventListener('click', fetchSubscribers);
+  document.getElementById('open-new-sub-btn').addEventListener('click', openNewSubscriber);
+  document.getElementById('open-new-post-btn').addEventListener('click', openNewPost);
+
+  // Messages
+  document.getElementById('msg-filter').addEventListener('change', applyMsgFilter);
+  document.getElementById('fetch-convs-btn').addEventListener('click', fetchConversations);
+
+  // Modals — data-close-modal delegation
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('[data-close-modal]');
+    if (btn) closeModal(btn.dataset.closeModal);
+  });
+
+  // Modal buttons with IDs
+  document.getElementById('np-create-btn').addEventListener('click', createJournalPost);
+  document.getElementById('nsub-code-val').addEventListener('click', copySubCode);
+  document.getElementById('nsub-create-btn').addEventListener('click', createSubscriber);
+  document.getElementById('regen-code-val').addEventListener('click', copyRegenCode);
+  document.getElementById('regen-btn').addEventListener('click', regenCode);
+  document.getElementById('invite-gen-btn').addEventListener('click', generateInvite);
+  document.getElementById('save-template-btn').addEventListener('click', saveTemplate);
+  document.getElementById('cancel-tpsl-btn').addEventListener('click', () => closeModal('modal-confirm-tpsl'));
+  document.getElementById('execute-tpsl-btn').addEventListener('click', executeTpSl);
+  document.getElementById('cancel-close-btn').addEventListener('click', () => closeModal('modal-confirm-close'));
+  document.getElementById('execute-close-btn').addEventListener('click', executeClose);
+  document.getElementById('bm-close-btn').addEventListener('click', closeBotModal);
+  document.getElementById('btn-secret-vis').addEventListener('click', toggleSecretVis);
+  document.getElementById('bm-test-btn').addEventListener('click', testBotConnection);
+  document.getElementById('bm-launch-btn').addEventListener('click', launchBot);
+  document.getElementById('cancel-pretrade-btn').addEventListener('click', () => { closeModal('modal-pretrade'); resetPreTradeChecklist(); });
+  document.getElementById('pretrade-proceed-btn').addEventListener('click', proceedWithTrade);
+
+  // Bot modal exchange buttons
+  ['bybit','binance','okx','bitget','mexc','blofin'].forEach(ex =>
+    document.getElementById('bm-ex-' + ex).addEventListener('click', () => setBotExchange(ex))
+  );
+
+  // Bot modal tabs + type
+  document.getElementById('bot-tab-strategy-btn').addEventListener('click', () => setBotTab('strategy'));
+  document.getElementById('bot-tab-account-btn').addEventListener('click', () => setBotTab('account'));
+  document.getElementById('btn-type-dca').addEventListener('click', () => setBotType('dca'));
+  document.getElementById('btn-type-grid').addEventListener('click', () => setBotType('grid'));
+
+  // Bots grid delegation
+  document.getElementById('bots-grid').addEventListener('click', e => {
+    const item = e.target.closest('[data-action]');
+    if (!item) return;
+    const id = parseInt(item.dataset.id);
+    const name = item.dataset.name || '';
+    ({
+      'pause':       () => { pauseBot(id); closeBotMenus(); },
+      'stop':        () => { stopBot(id, name); closeBotMenus(); },
+      'resume':      () => { resumeBot(id); closeBotMenus(); },
+      'delete':      () => { deleteBotPermanent(id, name); closeBotMenus(); },
+      'edit':        () => { openEditBot(id); closeBotMenus(); },
+      'logs':        () => { openBotLogs(id); closeBotMenus(); },
+      'publish':     () => { openPublishToAlgo(id); closeBotMenus(); },
+      'toggle-menu': () => toggleBotMenu(id, e),
+      'open-bot':    () => openAddBot(),
+    })[item.dataset.action]?.();
+  });
+
+  // Token grid
+  document.getElementById('token-grid').addEventListener('click', e => {
+    const btn = e.target.closest('[data-tok]');
+    if (btn) selectToken(btn.dataset.tok);
+  });
+
+  // Old journal table delegation
+  document.getElementById('journal-posts-list').addEventListener('click', e => {
+    if (e.target.closest('.js-no-expand')) return;
+    const tr = e.target.closest('[data-expand]');
+    if (tr && !e.target.closest('[data-action]')) toggleExpand(parseInt(tr.dataset.expand));
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const id = parseInt(btn.dataset.id);
+    if (btn.dataset.action === 'check') toggleCheck(btn);
+    else if (btn.dataset.action === 'save-checklist') saveChecklist(id);
+    else if (btn.dataset.action === 'del-trade') deleteTrade(id);
+  });
+  document.getElementById('journal-posts-list').addEventListener('change', e => {
+    const sel = e.target.closest('[data-action="update-status"]');
+    if (sel) { updateTrade(parseInt(sel.dataset.trade), 'status', sel.value); renderJournal(); }
+    const inp = e.target.closest('[data-field]');
+    if (inp && !sel) {
+      const v = inp.dataset.field === 'rr' ? (parseFloat(inp.value) || null) : (parseFloat(inp.value) || 0);
+      updateTrade(parseInt(inp.dataset.trade), inp.dataset.field, v);
+    }
+  });
+
+  // Journal DB delegation (panel-journal tbody)
+  document.getElementById('panel-journal').addEventListener('click', e => {
+    if (e.target.closest('.js-no-expand')) return;
+    const tr = e.target.closest('[data-jrow]');
+    if (tr && !e.target.closest('[data-action]')) { toggleJournalExpand(parseInt(tr.dataset.jrow)); return; }
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const id = parseInt(btn.dataset.id);
+    if (btn.dataset.action === 'jcheck') toggleJournalCheck(id, btn.dataset.key, btn);
+    else if (btn.dataset.action === 'pub') togglePublish(id);
+    else if (btn.dataset.action === 'save-notes') saveJournalNotes(id);
+    else if (btn.dataset.action === 'add-att') addTradeAttachment(id);
+  });
+
+  // Positions grid delegation
+  document.getElementById('positions-grid').addEventListener('click', e => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    if (btn.dataset.action === 'tpsl') confirmTpSl(btn.dataset.sym, btn.dataset.type, btn.dataset.input);
+    else if (btn.dataset.action === 'close') confirmClose(btn.dataset.sym, btn.dataset.side, parseFloat(btn.dataset.size), parseInt(btn.dataset.pct));
+  });
+
+  // Alerts list delegation
+  document.getElementById('alerts-list').addEventListener('click', e => {
+    const btn = e.target.closest('[data-action="del-alert"]');
+    if (btn) deleteAlert(parseInt(btn.dataset.id));
+  });
+
+  // Invite codes delegation
+  document.getElementById('invite-codes-body').addEventListener('click', e => {
+    const btn = e.target.closest('[data-action="deactivate"]');
+    if (btn) deactivateInvite(parseInt(btn.dataset.id));
+  });
+
+  // Algo templates delegation
+  document.getElementById('algo-templates-grid').addEventListener('click', e => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const id = parseInt(btn.dataset.id);
+    if (btn.dataset.action === 'edit-tmpl') openEditTemplate(id);
+    else if (btn.dataset.action === 'toggle-tmpl') toggleTemplate(id);
+  });
+
+  // Subscribers table delegation
+  document.getElementById('sb-tbody').addEventListener('click', e => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const id = parseInt(btn.dataset.id);
+    if (btn.dataset.action === 'regen') openRegenCode(id);
+    else if (btn.dataset.action === 'del-sub') deleteSubscriber(id, btn.dataset.email);
+  });
+
+  // Journal posts list delegation
+  document.getElementById('jp-list').addEventListener('click', e => {
+    const btn = e.target.closest('[data-action="del-post"]');
+    if (btn) deleteJournalPost(parseInt(btn.dataset.id), btn.dataset.title);
+  });
+
+  // Conversation list delegation
+  document.getElementById('conv-list').addEventListener('click', e => {
+    const el = e.target.closest('[data-conv]');
+    if (el && !e.target.closest('[data-action]')) openConv(parseInt(el.dataset.conv));
+  });
+
+  // Conversation thread delegation
+  document.getElementById('msg-main').addEventListener('click', e => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const id = parseInt(btn.dataset.id);
+    if (btn.dataset.action === 'send-reply') sendReply(id);
+    else if (btn.dataset.action === 'toggle-status') toggleConvStatus(id, btn.dataset.status);
+    else if (btn.dataset.action === 'del-conv') deleteConv(id);
+    else if (btn.dataset.action === 'add-reply-att') addReplyAttachment(id);
+    else if (btn.dataset.action === 'remove-att') removeReplyAtt(parseInt(btn.dataset.convId), parseInt(btn.dataset.attId), btn.parentElement);
+  });
+
+  // Image viewer delegation
+  document.addEventListener('click', e => {
+    if (e.target.tagName === 'IMG' && e.target.dataset.viewimg) viewImg(e.target.src);
+  });
+
 });
 </script>
 </body>

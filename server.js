@@ -2,6 +2,7 @@ const express      = require('express');
 const cors         = require('cors');
 const cookieParser = require('cookie-parser');
 const path         = require('path');
+const crypto       = require('crypto');
 const jwt          = require('jsonwebtoken');
 const http         = require('http');
 const helmet       = require('helmet');
@@ -56,7 +57,20 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(pinoHttp({ logger, autoLogging: { ignore: req => req.url === '/api/status' } }));
+app.use(pinoHttp({
+  logger,
+  autoLogging: { ignore: req => req.url === '/api/status' },
+  serializers: {
+    req(req) {
+      const body = req.raw?.body ? { ...req.raw.body } : undefined;
+      if (body) {
+        const mask = ['password', 'apiSecret', 'secret', 'key', 'apiKey', 'passphrase', 'apiPassphrase', 'code'];
+        mask.forEach(f => { if (f in body) body[f] = '[REDACTED]'; });
+      }
+      return { method: req.method, url: req.url, body };
+    },
+  },
+}));
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '512kb' }));
 app.use(cookieParser());
@@ -75,13 +89,15 @@ app.get('/:page.html',       (req, res) => res.redirect(301, '/' + req.params.pa
 // Static assets (JS, CSS, images, etc.) — index:false so / uses route above
 app.use(express.static(ROOT, { index: false }));
 
-const limiter          = rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false });
-const authLimiter      = rateLimit({ windowMs: 60_000, max: 10,  standardHeaders: true, legacyHeaders: false });
-const algoFlowLimiter  = rateLimit({ windowMs: 60_000, max: 30,  standardHeaders: true, legacyHeaders: false });
+const limiter             = rateLimit({ windowMs: 60_000,      max: 120, standardHeaders: true, legacyHeaders: false });
+const authLimiter         = rateLimit({ windowMs: 60_000,      max: 10,  standardHeaders: true, legacyHeaders: false });
+const algoFlowLimiter     = rateLimit({ windowMs: 60_000,      max: 30,  standardHeaders: true, legacyHeaders: false });
+const verifyInviteLimiter = rateLimit({ windowMs: 60 * 60_000, max: 10,  standardHeaders: true, legacyHeaders: false });
 app.use('/api/', limiter);
 app.use('/api/auth/', authLimiter);
 app.use('/api/subscriber/', authLimiter);
 app.use('/api/algo/', algoFlowLimiter);
+app.use('/api/algo/verify-invite', verifyInviteLimiter);
 
 // Auth
 const loginSchema = z.object({ password: z.string().min(1) });
@@ -101,7 +117,9 @@ const COOKIE_OPTS = {
 
 app.post('/api/auth/login', validate(loginSchema), (req, res) => {
   const { password } = req.body;
-  if (!config.ADMIN_PASS || password !== config.ADMIN_PASS)
+  const h1 = crypto.createHmac('sha256', 'wd').update(password || '').digest();
+  const h2 = crypto.createHmac('sha256', 'wd').update(config.ADMIN_PASS || '').digest();
+  if (!config.ADMIN_PASS || !crypto.timingSafeEqual(h1, h2))
     return res.status(401).json({ ok: false, error: 'Invalid password' });
   const token = jwt.sign({ role: 'admin' }, config.JWT_SECRET, { expiresIn: '24h' });
   res.cookie('wd_admin', token, { ...COOKIE_OPTS, maxAge: 24 * 60 * 60 * 1000 });

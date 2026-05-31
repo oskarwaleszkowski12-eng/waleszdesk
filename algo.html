@@ -126,10 +126,8 @@ input.has-btn{border-radius:var(--r) 0 0 var(--r)}
   <div style="color:var(--muted2);font-size:12px;letter-spacing:1px;text-transform:uppercase">Algo Access · Invite Required</div>
   <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:300px">
     <input id="invite-code-input" type="text" placeholder="Invite code (e.g. AB12CD34)"
-      style="text-transform:uppercase;letter-spacing:3px;text-align:center;font-family:'DM Mono',monospace;font-size:16px"
-      oninput="this.value=this.value.toUpperCase()"
-      onkeydown="if(event.key==='Enter')submitInviteCode()">
-    <button onclick="submitInviteCode()"
+      style="text-transform:uppercase;letter-spacing:3px;text-align:center;font-family:'DM Mono',monospace;font-size:16px">
+    <button id="invite-submit-btn"
       style="background:var(--accent);color:#000;border:none;border-radius:var(--r);padding:11px;font-family:'Syne',sans-serif;font-size:14px;font-weight:600;cursor:pointer;letter-spacing:1px">
       VERIFY CODE
     </button>
@@ -164,12 +162,12 @@ input.has-btn{border-radius:var(--r) 0 0 var(--r)}
       <div style="margin-bottom:20px;">
         <div class="field-label" style="margin-bottom:8px;">Exchange</div>
         <div id="s1-ex-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
-          <button class="s1-ex-btn active" id="s1-ex-bybit"   onclick="selectExchange('bybit')"   style="background:rgba(247,166,0,.15);border:1.5px solid #f7a600;border-radius:8px;color:#f7a600;cursor:pointer;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:8px 4px;transition:all .2s;text-align:center;">Bybit</button>
-          <button class="s1-ex-btn"        id="s1-ex-binance" onclick="selectExchange('binance')"  style="background:var(--bg3);border:1.5px solid var(--border2);border-radius:8px;color:var(--muted2);cursor:pointer;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:8px 4px;transition:all .2s;text-align:center;">Binance</button>
-          <button class="s1-ex-btn"        id="s1-ex-okx"     onclick="selectExchange('okx')"      style="background:var(--bg3);border:1.5px solid var(--border2);border-radius:8px;color:var(--muted2);cursor:pointer;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:8px 4px;transition:all .2s;text-align:center;">OKX</button>
-          <button class="s1-ex-btn"        id="s1-ex-bitget"  onclick="selectExchange('bitget')"   style="background:var(--bg3);border:1.5px solid var(--border2);border-radius:8px;color:var(--muted2);cursor:pointer;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:8px 4px;transition:all .2s;text-align:center;">Bitget</button>
-          <button class="s1-ex-btn"        id="s1-ex-mexc"    onclick="selectExchange('mexc')"     style="background:var(--bg3);border:1.5px solid var(--border2);border-radius:8px;color:var(--muted2);cursor:pointer;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:8px 4px;transition:all .2s;text-align:center;">MEXC</button>
-          <button class="s1-ex-btn"        id="s1-ex-blofin"  onclick="selectExchange('blofin')"   style="background:var(--bg3);border:1.5px solid var(--border2);border-radius:8px;color:var(--muted2);cursor:pointer;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:8px 4px;transition:all .2s;text-align:center;">BloFin</button>
+          <button class="s1-ex-btn active" id="s1-ex-bybit"   style="background:rgba(247,166,0,.15);border:1.5px solid #f7a600;border-radius:8px;color:#f7a600;cursor:pointer;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:8px 4px;transition:all .2s;text-align:center;">Bybit</button>
+          <button class="s1-ex-btn"        id="s1-ex-binance"   style="background:var(--bg3);border:1.5px solid var(--border2);border-radius:8px;color:var(--muted2);cursor:pointer;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:8px 4px;transition:all .2s;text-align:center;">Binance</button>
+          <button class="s1-ex-btn"        id="s1-ex-okx"           style="background:var(--bg3);border:1.5px solid var(--border2);border-radius:8px;color:var(--muted2);cursor:pointer;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:8px 4px;transition:all .2s;text-align:center;">OKX</button>
+          <button class="s1-ex-btn"        id="s1-ex-bitget"     style="background:var(--bg3);border:1.5px solid var(--border2);border-radius:8px;color:var(--muted2);cursor:pointer;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:8px 4px;transition:all .2s;text-align:center;">Bitget</button>
+          <button class="s1-ex-btn"        id="s1-ex-mexc"         style="background:var(--bg3);border:1.5px solid var(--border2);border-radius:8px;color:var(--muted2);cursor:pointer;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:8px 4px;transition:all .2s;text-align:center;">MEXC</button>
+          <button class="s1-ex-btn"        id="s1-ex-blofin"     style="background:var(--bg3);border:1.5px solid var(--border2);border-radius:8px;color:var(--muted2);cursor:pointer;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:8px 4px;transition:all .2s;text-align:center;">BloFin</button>
         </div>
         <div id="s1-ex-hint" style="font-size:11px;color:var(--muted2);margin-top:8px;font-family:'DM Mono',monospace;">API Keys → API Keys → Create New Key</div>
       </div>
@@ -183,25 +181,25 @@ input.has-btn{border-radius:var(--r) 0 0 var(--r)}
           <div class="field-label">API Secret</div>
           <div class="field-row">
             <input type="password" id="s1-secret" class="has-btn" placeholder="Enter your API secret" autocomplete="off" spellcheck="false"/>
-            <button class="vis-btn" id="s1-vis" type="button" onclick="toggleVis('s1-secret','s1-vis')">👁</button>
+            <button class="vis-btn" id="s1-vis" type="button">👁</button>
           </div>
         </div>
         <div class="field-wrap" id="s1-pass-wrap" style="display:none;">
           <div class="field-label">Passphrase</div>
           <div class="field-row">
             <input type="password" id="s1-pass" class="has-btn" placeholder="Enter your passphrase" autocomplete="off" spellcheck="false"/>
-            <button class="vis-btn" id="s1-pass-vis" type="button" onclick="toggleVis('s1-pass','s1-pass-vis')">👁</button>
+            <button class="vis-btn" id="s1-pass-vis" type="button">👁</button>
           </div>
         </div>
       </div>
-      <button class="btn btn-outline-green" id="s1-connect-btn" onclick="verifyKeys()">
+      <button class="btn btn-outline-green" id="s1-connect-btn">
         <span id="s1-spin" class="spinner"></span>
         Connect &amp; Verify
       </button>
       <div class="msg-box msg-success" id="s1-success" style="margin-top:14px"></div>
       <div class="msg-box msg-error" id="s1-error" style="margin-top:14px"></div>
       <div class="continue-wrap" id="s1-continue" style="display:none">
-        <button class="btn btn-grad btn-full" onclick="goStep(2)">Continue →</button>
+        <button class="btn btn-grad btn-full" id="s1-continue-btn">Continue →</button>
       </div>
     </div>
   </div>
@@ -213,7 +211,7 @@ input.has-btn{border-radius:var(--r) 0 0 var(--r)}
       <div class="bot-list" id="bot-templates-list"></div>
       <div class="msg-box msg-error" id="s2-error"></div>
       <div class="continue-wrap" id="s2-continue" style="display:none">
-        <button class="btn btn-grad btn-full" onclick="goStep(3)">Continue →</button>
+        <button class="btn btn-grad btn-full" id="s2-continue-btn">Continue →</button>
       </div>
     </div>
   </div>
@@ -224,7 +222,7 @@ input.has-btn{border-radius:var(--r) 0 0 var(--r)}
       <div class="card-sub">Set how much of your balance to allocate to this bot. You can adjust or stop at any time.</div>
       <div class="field-wrap">
         <div class="field-label">Allocated Capital (USD)</div>
-        <input type="number" id="s3-capital" placeholder="0.00" min="0" step="0.01" oninput="updatePreview()"/>
+        <input type="number" id="s3-capital" placeholder="0.00" min="0" step="0.01"/>
       </div>
       <div class="capital-hint">Min <span id="s3-min">$50</span> · Max 50% of balance (<span id="s3-max">—</span>)</div>
       <div class="preview-box" id="s3-preview">
@@ -240,7 +238,7 @@ input.has-btn{border-radius:var(--r) 0 0 var(--r)}
       </div>
       <div class="msg-box msg-error" id="s3-error" style="margin-top:16px"></div>
       <div style="margin-top:20px">
-        <button class="btn btn-grad btn-full" id="s3-launch" onclick="launchBot()">
+        <button class="btn btn-grad btn-full" id="s3-launch">
           <span id="s3-spin" class="spinner"></span>
           Launch Bot
         </button>
@@ -604,7 +602,7 @@ async function loadDoneStatus(sess) {
 }
 
 function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 }
 
 window.addEventListener('load', () => {
@@ -633,6 +631,22 @@ window.addEventListener('load', () => {
     document.querySelectorAll('.algo-step').forEach(el => el.style.display = 'none');
   }
 });
+
+// ── Event listeners (converted from inline handlers) ──────────────────────
+document.getElementById('invite-code-input').addEventListener('input', function() { this.value = this.value.toUpperCase(); });
+document.getElementById('invite-code-input').addEventListener('keydown', e => { if (e.key === 'Enter') submitInviteCode(); });
+document.getElementById('invite-submit-btn').addEventListener('click', submitInviteCode);
+document.getElementById('s1-ex-grid').addEventListener('click', e => {
+  const btn = e.target.closest('.s1-ex-btn');
+  if (btn) selectExchange(btn.id.replace('s1-ex-', ''));
+});
+document.getElementById('s1-vis').addEventListener('click', () => toggleVis('s1-secret', 's1-vis'));
+document.getElementById('s1-pass-vis').addEventListener('click', () => toggleVis('s1-pass', 's1-pass-vis'));
+document.getElementById('s1-connect-btn').addEventListener('click', verifyKeys);
+document.getElementById('s1-continue-btn').addEventListener('click', () => goStep(2));
+document.getElementById('s2-continue-btn').addEventListener('click', () => goStep(3));
+document.getElementById('s3-capital').addEventListener('input', updatePreview);
+document.getElementById('s3-launch').addEventListener('click', launchBot);
 </script>
 </body>
 </html>

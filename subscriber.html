@@ -201,9 +201,9 @@ body{background:var(--bg0);color:var(--text);font-family:var(--font);min-height:
   <a class="logo" href="/funded-by-walesz">WALESZ<em>DESK</em><span class="logo-tag">FUNDED</span></a>
   <div class="tb-right">
     <div id="plan-chip" style="display:none"></div>
-    <button class="btn-sm danger" id="logout-btn" onclick="logout()" style="display:none">Wyloguj</button>
+    <button class="btn-sm danger" id="logout-btn" style="display:none">Wyloguj</button>
     <div class="app-sw">
-      <button class="app-sw-btn" onclick="toggleSw()" title="Przejdź do...">&#8859;</button>
+      <button class="app-sw-btn" id="sub-app-sw-btn" title="Przejdź do...">&#8859;</button>
       <div class="app-sw-menu" id="app-sw-menu">
         <a href="/funded-by-walesz" class="app-sw-item"><span class="app-sw-icon">&#9733;</span><span><span class="app-sw-name">Funded by Walesz</span><span class="app-sw-sub">Landing · waitlista</span></span></a>
         <a href="/subscriber" class="app-sw-item current"><span class="app-sw-icon">&#128200;</span><span><span class="app-sw-name">Panel Subskrybenta</span><span class="app-sw-sub">subscriber.html</span></span></a>
@@ -221,7 +221,7 @@ body{background:var(--bg0);color:var(--text);font-family:var(--font);min-height:
     <div class="login-sub">Zaloguj się emailem i kodem dostępu.</div>
     <div class="field"><label>Email</label><input type="email" id="l-email" placeholder="twoj@email.com" autocomplete="email"></div>
     <div class="field"><label>Kod dostępu</label><input type="text" id="l-code" placeholder="XXXX-XXXX-XXXX" autocomplete="off" style="text-transform:uppercase;letter-spacing:.12em"></div>
-    <button class="btn-login" id="l-btn" onclick="doLogin()">Zaloguj</button>
+    <button class="btn-login" id="l-btn">Zaloguj</button>
     <div class="err" id="l-err"></div>
   </div>
 </div>
@@ -235,11 +235,11 @@ body{background:var(--bg0);color:var(--text);font-family:var(--font);min-height:
     </div>
 
     <div class="tabs">
-      <button class="tab active" onclick="showTab('wyniki',this)">Wyniki</button>
-      <button class="tab" onclick="showTab('transakcje',this)">Transakcje</button>
-      <button class="tab" onclick="showTab('dziennik',this)">Dziennik</button>
-      <button class="tab" onclick="showTab('kalkulator',this)">Kalkulator</button>
-      <button class="tab" id="tab-kontakt-btn" onclick="showTab('kontakt',this)">Kontakt</button>
+      <button class="tab active" data-tab="wyniki">Wyniki</button>
+      <button class="tab" data-tab="transakcje">Transakcje</button>
+      <button class="tab" data-tab="dziennik">Dziennik</button>
+      <button class="tab" data-tab="kalkulator">Kalkulator</button>
+      <button class="tab" id="tab-kontakt-btn" data-tab="kontakt">Kontakt</button>
     </div>
 
     <!-- ── WYNIKI ── -->
@@ -258,10 +258,10 @@ body{background:var(--bg0);color:var(--text);font-family:var(--font);min-height:
           <div class="card-head">
             <span class="card-title">Equity Curve (skumulowana)</span>
             <div class="period-bar">
-              <button class="period-btn active" onclick="setPeriod(30,this)">30D</button>
-              <button class="period-btn" onclick="setPeriod(90,this)">3M</button>
-              <button class="period-btn" onclick="setPeriod(180,this)">6M</button>
-              <button class="period-btn" onclick="setPeriod(365,this)">1Y</button>
+              <button class="period-btn active" data-period="30">30D</button>
+              <button class="period-btn" data-period="90">3M</button>
+              <button class="period-btn" data-period="180">6M</button>
+              <button class="period-btn" data-period="365">1Y</button>
             </div>
           </div>
           <div class="chart-wrap"><canvas id="eq-chart"></canvas></div>
@@ -309,7 +309,7 @@ body{background:var(--bg0);color:var(--text);font-family:var(--font);min-height:
 
         <!-- Sidebar: conversation list + new -->
         <div style="display:flex;flex-direction:column;gap:10px;overflow:hidden;">
-          <button onclick="openNewConvForm()" style="width:100%;padding:10px;border-radius:var(--r2);border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent);font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);letter-spacing:.04em;transition:all .2s;">+ Nowa wiadomość</button>
+          <button id="new-conv-btn" style="width:100%;padding:10px;border-radius:var(--r2);border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent);font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);letter-spacing:.04em;transition:all .2s;">+ Nowa wiadomość</button>
           <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;" id="sub-conv-list">
             <div style="text-align:center;padding:24px;color:var(--muted2);font-size:12px;">Ładowanie...</div>
           </div>
@@ -326,8 +326,8 @@ body{background:var(--bg0);color:var(--text);font-family:var(--font);min-height:
             </div>
             <div id="sub-conv-err" style="display:none;color:var(--red);font-size:12px;"></div>
             <div style="display:flex;gap:8px;">
-              <button onclick="cancelNewConv()" style="padding:9px 18px;border-radius:var(--r);border:1px solid var(--border2);background:transparent;color:var(--muted2);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);">Anuluj</button>
-              <button id="sub-conv-send-btn" onclick="sendNewConv()" style="padding:9px 18px;border-radius:var(--r);border:none;background:var(--accent);color:#080a0d;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">Wyślij</button>
+              <button id="cancel-new-conv-btn" style="padding:9px 18px;border-radius:var(--r);border:1px solid var(--border2);background:transparent;color:var(--muted2);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);">Anuluj</button>
+              <button id="sub-conv-send-btn" style="padding:9px 18px;border-radius:var(--r);border:none;background:var(--accent);color:#080a0d;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">Wyślij</button>
             </div>
           </div>
           <!-- Thread -->
@@ -348,26 +348,26 @@ body{background:var(--bg0);color:var(--text);font-family:var(--font);min-height:
           <div class="calc-title">Parametry pozycji</div>
           <div class="calc-field">
             <label>Rozmiar konta (USDT)<span id="r-dollar">— USDT ryzyka</span></label>
-            <input type="number" id="c-account" value="1000" oninput="calcPos()">
+            <input type="number" id="c-account" value="1000">
           </div>
           <div class="calc-field"><label>Ryzyko %</label></div>
           <div class="risk-row">
-            <button class="risk-btn active" onclick="setRisk(.5,this)">0.5%</button>
-            <button class="risk-btn" onclick="setRisk(1,this)">1%</button>
-            <button class="risk-btn" onclick="setRisk(1.5,this)">1.5%</button>
-            <button class="risk-btn" onclick="setRisk(2,this)">2%</button>
+            <button class="risk-btn active" data-risk="0.5">0.5%</button>
+            <button class="risk-btn" data-risk="1">1%</button>
+            <button class="risk-btn" data-risk="1.5">1.5%</button>
+            <button class="risk-btn" data-risk="2">2%</button>
           </div>
           <div class="calc-field">
             <label>Cena wejścia</label>
-            <input type="number" id="c-entry" placeholder="np. 65000" oninput="calcPos()">
+            <input type="number" id="c-entry" placeholder="np. 65000">
           </div>
           <div class="calc-field">
             <label>Stop Loss</label>
-            <input type="number" id="c-sl" placeholder="np. 64000" oninput="calcPos()">
+            <input type="number" id="c-sl" placeholder="np. 64000">
           </div>
           <div class="calc-field">
             <label>Take Profit <span style="color:var(--muted);font-size:10px">(opcjonalnie)</span></label>
-            <input type="number" id="c-tp" placeholder="np. 67000" oninput="calcPos()">
+            <input type="number" id="c-tp" placeholder="np. 67000">
           </div>
           <div class="calc-note">Kalkulator używa ryzyka stałego — strata ograniczona do wybranego % konta przy trafieniu SL.</div>
         </div>
@@ -559,7 +559,7 @@ async function loadTrades(){
       const isLong=side==='buy'||side==='long';
       const dt=t.close_time?new Date(t.close_time).toLocaleDateString('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
       const hasNotes=t.notes&&t.notes.trim();
-      return `<tr style="cursor:${hasNotes?'pointer':'default'}" onclick="${hasNotes?`toggleNotes(${t.id})`:''}">
+      return `<tr style="cursor:${hasNotes?'pointer':'default'}" data-trade-id="${t.id}">
         <td style="color:var(--muted2)">${dt}</td>
         <td style="font-weight:700">${t.symbol||'—'}</td>
         <td class="${isLong?'long':'short'}">${isLong?'LONG':'SHORT'}</td>
@@ -586,7 +586,7 @@ function toggleNotes(id){
   row.style.display=row.style.display==='none'?'':'none';
 }
 
-function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;')}
 
 /* ── JOURNAL ────────────────────────────────────────────────────────── */
 async function loadJournal(){
@@ -599,7 +599,7 @@ async function loadJournal(){
     container.innerHTML=d.posts.map(p=>{
       const dt=new Date(p.created_at).toLocaleDateString('pl-PL',{day:'2-digit',month:'long',year:'numeric'});
       return `<div class="post-card">
-        <div class="post-head post-toggle" onclick="togglePost(${p.id})">
+        <div class="post-head post-toggle" data-post="${p.id}">
           <div>
             <div class="post-title">${escHtml(p.title)}</div>
             <div style="margin-top:4px;display:flex;align-items:center;gap:8px">
@@ -722,7 +722,7 @@ function renderSubConvList(){
   list.innerHTML=_subConvs.map(c=>{
     const unread=c.unread_sub&&c.last_sender==='admin';
     const active=c.id===_activeSubConv?'background:var(--bg3);border-color:var(--border2);':'';
-    return `<div onclick="openSubConv(${c.id})" style="padding:12px 14px;background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;transition:all .15s;${active}">
+    return `<div data-conv="${c.id}" style="padding:12px 14px;background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;transition:all .15s;${active}">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
         <div style="font-size:12px;font-weight:${unread?'700':'600'};color:${unread?'var(--text)':'var(--muted2)'};max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(c.subject)}</div>
         ${unread?'<span style="width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block;flex-shrink:0;"></span>':''}
@@ -780,17 +780,23 @@ async function openSubConv(id){
           </div>`).join('')}
       </div>
       ${isOpen?`<div style="padding:14px 18px;border-top:1px solid var(--border);flex-shrink:0;">
-        <textarea id="sub-reply-${id}" rows="2" placeholder="Napisz odpowiedź... (Ctrl+Enter)" onkeydown="subReplyKey(event,${id})"
-          style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);padding:9px 12px;outline:none;resize:none;font-family:var(--font);font-size:13px;line-height:1.6;transition:border-color .2s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border2)'"></textarea>
+        <textarea id="sub-reply-${id}" rows="2" placeholder="Napisz odpowiedź... (Ctrl+Enter)"
+          style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);padding:9px 12px;outline:none;resize:none;font-family:var(--font);font-size:13px;line-height:1.6;transition:border-color .2s;"></textarea>
         <div id="sub-reply-atts-${id}" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;"></div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
-          <button onclick="addSubReplyAtt(${id})" title="Dodaj screenshot" style="padding:5px 10px;border-radius:var(--r);border:1px solid var(--border2);background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--font);">📎</button>
-          <button onclick="sendSubReply(${id})" id="sub-reply-btn-${id}" style="padding:8px 18px;border-radius:var(--r);border:none;background:var(--accent);color:#080a0d;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">Wyślij</button>
+          <button data-action="add-att" data-id="${id}" title="Dodaj screenshot" style="padding:5px 10px;border-radius:var(--r);border:1px solid var(--border2);background:transparent;color:var(--muted2);font-size:13px;cursor:pointer;font-family:var(--font);">📎</button>
+          <button data-action="send-reply" data-id="${id}" id="sub-reply-btn-${id}" style="padding:8px 18px;border-radius:var(--r);border:none;background:var(--accent);color:#080a0d;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">Wyślij</button>
         </div>
       </div>`:''}
     `;
     const area=document.getElementById('sub-chat-'+id);
     if(area) area.scrollTop=area.scrollHeight;
+    const ta=document.getElementById('sub-reply-'+id);
+    if(ta){
+      ta.addEventListener('keydown',e=>subReplyKey(e,id));
+      ta.addEventListener('focus',()=>{ta.style.borderColor='var(--accent)';});
+      ta.addEventListener('blur',()=>{ta.style.borderColor='var(--border2)';});
+    }
   }catch(e){thread.innerHTML='<div style="padding:20px;color:var(--red);">Błąd ładowania.</div>';console.error(e);}
 }
 
@@ -816,7 +822,7 @@ async function sendSubReply(id){
     if(area){
       const div=document.createElement('div');
       div.style.cssText='display:flex;max-width:82%;align-self:flex-end;flex-direction:row-reverse;';
-      const attsHtml=pendAtts.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">${pendAtts.map(a=>`<img src="${a.data}" alt="${a.filename||'ss'}" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid rgba(255,255,255,.15);cursor:pointer;" onclick="viewSubImg('${a.data}')">`).join('')}</div>`:'';
+      const attsHtml=pendAtts.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">${pendAtts.map(a=>`<img src="${a.data}" data-img="1" alt="${a.filename||'ss'}" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid rgba(255,255,255,.15);cursor:pointer;">`).join('')}</div>`:'';
       div.innerHTML=`<div><div style="padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.65;white-space:pre-wrap;word-break:break-word;background:rgba(0,200,150,.13);border:1px solid rgba(0,200,150,.22);border-bottom-right-radius:4px;">${content?escHtml(content):''}</div>${attsHtml}<div style="font-size:10px;color:var(--muted);margin-top:4px;font-family:var(--mono);text-align:right;">${fullTs(new Date().toISOString())}</div></div>`;
       area.appendChild(div);
       area.scrollTop=area.scrollHeight;
@@ -890,6 +896,64 @@ async function sendNewConv(){
 // Delegated image viewer — avoids putting base64 in onclick attributes
 document.addEventListener('click', e => {
   if (e.target.tagName === 'IMG' && e.target.dataset.img) viewSubImg(e.target.src);
+});
+
+// ── Static listeners ──────────────────────────────────────────────────────
+document.getElementById('logout-btn').addEventListener('click', logout);
+document.getElementById('sub-app-sw-btn').addEventListener('click', toggleSw);
+document.getElementById('l-btn').addEventListener('click', doLogin);
+document.getElementById('new-conv-btn').addEventListener('click', openNewConvForm);
+document.getElementById('cancel-new-conv-btn').addEventListener('click', cancelNewConv);
+document.getElementById('sub-conv-send-btn').addEventListener('click', sendNewConv);
+
+// ── Calculator inputs ──────────────────────────────────────────────────────
+['c-account','c-entry','c-sl','c-tp'].forEach(id => {
+  document.getElementById(id).addEventListener('input', calcPos);
+});
+
+// ── Tab delegation ────────────────────────────────────────────────────────
+document.querySelector('.tabs').addEventListener('click', e => {
+  const btn = e.target.closest('[data-tab]');
+  if (btn) showTab(btn.dataset.tab, btn);
+});
+
+// ── Period delegation ─────────────────────────────────────────────────────
+document.querySelector('.period-bar').addEventListener('click', e => {
+  const btn = e.target.closest('[data-period]');
+  if (btn) setPeriod(parseInt(btn.dataset.period), btn);
+});
+
+// ── Risk delegation ───────────────────────────────────────────────────────
+document.querySelector('.risk-row').addEventListener('click', e => {
+  const btn = e.target.closest('[data-risk]');
+  if (btn) setRisk(parseFloat(btn.dataset.risk), btn);
+});
+
+// ── Trades table delegation ───────────────────────────────────────────────
+document.getElementById('t-tbody').addEventListener('click', e => {
+  const tr = e.target.closest('[data-trade-id]');
+  if (tr) toggleNotes(parseInt(tr.dataset.tradeId));
+});
+
+// ── Journal delegation ────────────────────────────────────────────────────
+document.getElementById('j-posts').addEventListener('click', e => {
+  const el = e.target.closest('[data-post]');
+  if (el) togglePost(parseInt(el.dataset.post));
+});
+
+// ── Conversation list delegation ──────────────────────────────────────────
+document.getElementById('sub-conv-list').addEventListener('click', e => {
+  const el = e.target.closest('[data-conv]');
+  if (el) openSubConv(parseInt(el.dataset.conv));
+});
+
+// ── Thread actions delegation ─────────────────────────────────────────────
+document.getElementById('sub-thread').addEventListener('click', e => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const id = parseInt(btn.dataset.id);
+  if (btn.dataset.action === 'add-att') addSubReplyAtt(id);
+  else if (btn.dataset.action === 'send-reply') sendSubReply(id);
 });
 
 /* ── INIT ───────────────────────────────────────────────────────────── */

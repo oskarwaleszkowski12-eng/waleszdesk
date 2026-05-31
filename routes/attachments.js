@@ -20,9 +20,10 @@ function flexAuth(req, res, next) {
 // POST /api/attachments — upload (admin or subscriber)
 router.post('/', flexAuth, async (req, res) => {
   const { ref_type = 'pending', ref_id = 0, filename = 'image', mime_type, data } = req.body;
-  if (!mime_type?.startsWith('image/'))
-    return res.status(400).json({ ok: false, error: 'Tylko obrazy (image/*).' });
-  if (!/^data:image\/[a-z]+;base64,[A-Za-z0-9+/]+=*$/.test(data || ''))
+  const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+  if (!ALLOWED_MIME.includes(mime_type))
+    return res.status(400).json({ ok: false, error: 'Tylko obrazy JPEG, PNG, GIF lub WebP.' });
+  if (!/^data:image\/(jpeg|png|gif|webp);base64,[A-Za-z0-9+/]+=*$/.test(data || ''))
     return res.status(400).json({ ok: false, error: 'Nieprawidłowy format danych obrazu.' });
   const sizeKb = Math.round((data.length) * 0.75 / 1024);
   if (sizeKb > MAX_KB)
@@ -49,10 +50,26 @@ router.get('/ref', flexAuth, async (req, res) => {
   if (req.jwt.role === 'subscriber' && type === 'trade')
     return res.status(403).json({ ok: false, error: 'Forbidden' });
   try {
-    const { rows } = await pool.query(
-      `SELECT id, filename, mime_type, data, size_kb FROM attachments WHERE ref_type=$1 AND ref_id=$2 ORDER BY created_at`,
-      [type, parseInt(id)]
-    );
+    let rows;
+    if (req.jwt.role === 'subscriber' && type === 'message') {
+      // Verify the message belongs to a conversation owned by this subscriber
+      const check = await pool.query(
+        `SELECT a.id, a.filename, a.mime_type, a.data, a.size_kb
+         FROM attachments a
+         JOIN messages m ON m.id = a.ref_id AND a.ref_type = 'message'
+         JOIN conversations c ON c.id = m.conversation_id
+         WHERE a.ref_type=$1 AND a.ref_id=$2 AND c.subscriber_id=$3
+         ORDER BY a.created_at`,
+        [type, parseInt(id), req.jwt.sub_id]
+      );
+      rows = check.rows;
+    } else {
+      const result = await pool.query(
+        `SELECT id, filename, mime_type, data, size_kb FROM attachments WHERE ref_type=$1 AND ref_id=$2 ORDER BY created_at`,
+        [type, parseInt(id)]
+      );
+      rows = result.rows;
+    }
     res.json({ ok: true, attachments: rows });
   } catch (err) {
     logger.error({ err }, '[attachments GET ref]');

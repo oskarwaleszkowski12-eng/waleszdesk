@@ -96,9 +96,12 @@ function setupWS(server, jwtSecret) {
       const { rows } = await pool.query(`
         SELECT b.id, b.name, b.type, b.symbol, b.status, b.config, b.stats,
           b.exchange, b.subaccount_name, b.allocated_balance,
-          (SELECT COUNT(*) FROM bot_trades WHERE bot_id=b.id)::int                   AS trade_count,
-          (SELECT COUNT(*) FROM bot_trades WHERE bot_id=b.id AND status='open')::int AS open_orders
-        FROM bots b ORDER BY b.created_at DESC
+          COUNT(bt.id)::int                                          AS trade_count,
+          COUNT(bt.id) FILTER (WHERE bt.status='open')::int         AS open_orders
+        FROM bots b
+        LEFT JOIN bot_trades bt ON bt.bot_id = b.id
+        GROUP BY b.id
+        ORDER BY b.created_at DESC
       `);
       broadcast({ type: 'bot_stats', bots: rows });
     } catch (e) {

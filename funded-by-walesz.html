@@ -630,6 +630,7 @@
   }
 
   .wl-input:focus { border-color: var(--gold-border); }
+  .cf-input:focus { border-color: rgba(0,200,150,.5); }
   .wl-input::placeholder { color: var(--text-dim); }
 
   .wl-submit {
@@ -977,12 +978,12 @@
 <!-- WAITLIST MODAL -->
 <div class="wl-overlay" id="wlOverlay">
   <div class="wl-modal">
-    <button class="wl-close" onclick="closeWaitlist()">×</button>
+    <button class="wl-close" id="wl-close-btn">×</button>
     <div id="wlForm">
       <div class="wl-tag" id="wlTag">Waitlista — Plan Pro</div>
       <div class="wl-title">Zapisz się na listę</div>
       <div class="wl-sub">Program otwieramy wkrótce. Dostaniesz email jako pierwszy, gdy pojawi się miejsce.</div>
-      <form class="wl-form" onsubmit="submitWaitlist(event)">
+      <form class="wl-form" id="wl-form">
         <input type="hidden" id="wlPlan" value="pro">
         <input class="wl-input" type="email" id="wlEmail" placeholder="Twój adres email" required autocomplete="email">
         <input class="wl-input" type="text" id="wlName" placeholder="Imię (opcjonalnie)" autocomplete="given-name">
@@ -1009,7 +1010,7 @@
   </ul>
   <a href="#plany" class="nav-cta">Dołącz</a>
   <div class="app-sw">
-    <button class="app-sw-btn" onclick="toggleAppSw()" title="Admin">⊞</button>
+    <button class="app-sw-btn" id="app-sw-btn" title="Admin">⊞</button>
     <div class="app-sw-menu" id="appSwMenu">
       <span class="app-sw-label">Admin</span>
       <a href="/" class="app-sw-item">
@@ -1053,7 +1054,7 @@
   <div class="hero-title-line2">Traduj jak profesjonalista</div>
   <p class="hero-sub">Obserwuj moje realne pozycje na funded accounts, ucz się procesu i zdaj swój własny challenge prop firmy.</p>
   <div class="hero-actions">
-    <button class="btn-primary" onclick="openWaitlist('pro')">Dołącz do programu →</button>
+    <button class="btn-primary" data-plan="pro">Dołącz do programu →</button>
     <a href="#jak-dziala" class="btn-secondary">Jak to działa</a>
   </div>
   <div class="hero-stats">
@@ -1129,7 +1130,7 @@
           <li class="no">Discord</li>
           <li class="no">Mentoring</li>
         </ul>
-        <button class="plan-btn outline" onclick="openWaitlist('pro')">Obserwuj za darmo</button>
+        <button class="plan-btn outline" data-plan="pro">Obserwuj za darmo</button>
       </div>
 
       <!-- PRO -->
@@ -1148,7 +1149,7 @@
           <li>Locked-in pricing</li>
           <li class="no">Mentoring 1:1</li>
         </ul>
-        <button class="plan-btn gold" onclick="openWaitlist('pro')">Dołącz do Pro</button>
+        <button class="plan-btn gold" data-plan="pro">Dołącz do Pro</button>
       </div>
 
       <!-- VIP -->
@@ -1166,7 +1167,7 @@
           <li>Nagrania sesji live</li>
           <li>Priorytetowy kontakt</li>
         </ul>
-        <button class="plan-btn purple-btn" onclick="openWaitlist('vip')">Dołącz do VIP</button>
+        <button class="plan-btn purple-btn" data-plan="vip">Dołącz do VIP</button>
       </div>
 
       <!-- PRIVATE -->
@@ -1184,7 +1185,7 @@
           <li>Pakiet 2 sesji: 1 500 zł</li>
           <li>Pakiet 4 sesji: 2 800 zł</li>
         </ul>
-        <button class="plan-btn outline" onclick="openWaitlist('mentoring')">Zarezerwuj sesję</button>
+        <button class="plan-btn outline" data-plan="mentoring">Zarezerwuj sesję</button>
       </div>
 
     </div>
@@ -1202,7 +1203,7 @@
         <div class="mentoring-tag">Indywidualnie · Bez grupy</div>
         <div class="mentoring-title">Sesja 1:1 <em>skupiona</em> wyłącznie na Tobie</div>
         <div class="mentoring-body">Analizujemy Twój journal, Twoje błędy, Twoją strategię. Bez ogólnych rad — konkretna praca z Twoimi trasakcjami i Twoim planem tradingowym.</div>
-        <button class="btn-primary" onclick="openWaitlist('mentoring')">Zarezerwuj sesję →</button>
+        <button class="btn-primary" data-plan="mentoring">Zarezerwuj sesję →</button>
       </div>
       <div class="mentoring-packages">
         <div class="pkg-row">
@@ -1239,23 +1240,23 @@
 
     <div class="faq-list reveal">
       <div class="faq-item">
-        <div class="faq-q" onclick="toggleFaq(this)">Czy to jest doradztwo inwestycyjne?</div>
+        <div class="faq-q">Czy to jest doradztwo inwestycyjne?</div>
         <div class="faq-a">Nie. Wszystkie treści mają charakter wyłącznie edukacyjny i dokumentacyjny. Pokazuję swoje własne decyzje tradingowe — nie są to rekomendacje inwestycyjne w rozumieniu Ustawy o obrocie instrumentami finansowymi. Każda decyzja należy wyłącznie do Ciebie.</div>
       </div>
       <div class="faq-item">
-        <div class="faq-q" onclick="toggleFaq(this)">Dlaczego tylko 50 osób?</div>
+        <div class="faq-q">Dlaczego tylko 50 osób?</div>
         <div class="faq-a">Zależy mi na jakości, nie na ilości. Przy 50 osobach mogę utrzymać wysoki poziom zaangażowania, szybko odpowiadać i realnie pomagać każdemu. To nie jest masowy kurs — to zamknięta społeczność.</div>
       </div>
       <div class="faq-item">
-        <div class="faq-q" onclick="toggleFaq(this)">Jak wygląda płatność i anulowanie?</div>
+        <div class="faq-q">Jak wygląda płatność i anulowanie?</div>
         <div class="faq-a">Płatność cykliczna przez Stripe — miesięczna lub roczna (zniżka 15%). Możesz anulować w dowolnym momencie bez okresu wypowiedzenia. Dostęp aktywny do końca opłaconego okresu.</div>
       </div>
       <div class="faq-item">
-        <div class="faq-q" onclick="toggleFaq(this)">Dla kogo jest program Pro, a dla kogo VIP?</div>
+        <div class="faq-q">Dla kogo jest program Pro, a dla kogo VIP?</div>
         <div class="faq-a">Pro jest dla tych którzy chcą obserwować i uczyć się samodzielnie — live tracking, alerty i materiały wystarczą. VIP jest dla tych którzy chcą bezpośredniego kontaktu, review swojego journala i monthly call 1:1 ze mną.</div>
       </div>
       <div class="faq-item">
-        <div class="faq-q" onclick="toggleFaq(this)">Co jeśli wszystkie miejsca są zajęte?</div>
+        <div class="faq-q">Co jeśli wszystkie miejsca są zajęte?</div>
         <div class="faq-a">Wpisujesz się na waitlistę — dostajesz email jako pierwszy kiedy pojawi się miejsce lub kiedy otwieram kolejną turę. Przy kolejnym otwarciu ceny mogą być wyższe.</div>
       </div>
     </div>
@@ -1284,26 +1285,26 @@
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
         <div>
           <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:7px;">Imię *</label>
-          <input id="cf-name" type="text" placeholder="Twoje imię" style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:14px;padding:11px 14px;outline:none;font-family:inherit;transition:border-color .2s;" onfocus="this.style.borderColor='rgba(0,200,150,.5)'" onblur="this.style.borderColor='rgba(255,255,255,.1)'">
+          <input id="cf-name" type="text" placeholder="Twoje imię" class="cf-input" style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:14px;padding:11px 14px;outline:none;font-family:inherit;transition:border-color .2s;">
         </div>
         <div>
           <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:7px;">Email *</label>
-          <input id="cf-email" type="email" placeholder="twoj@email.com" style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:14px;padding:11px 14px;outline:none;font-family:inherit;transition:border-color .2s;" onfocus="this.style.borderColor='rgba(0,200,150,.5)'" onblur="this.style.borderColor='rgba(255,255,255,.1)'">
+          <input id="cf-email" type="email" placeholder="twoj@email.com" class="cf-input" style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:14px;padding:11px 14px;outline:none;font-family:inherit;transition:border-color .2s;">
         </div>
       </div>
       <div style="margin-bottom:14px;">
         <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:7px;">Temat</label>
-        <input id="cf-subject" type="text" placeholder="np. Pytanie o plan VIP" style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:14px;padding:11px 14px;outline:none;font-family:inherit;transition:border-color .2s;" onfocus="this.style.borderColor='rgba(0,200,150,.5)'" onblur="this.style.borderColor='rgba(255,255,255,.1)'">
+        <input id="cf-subject" type="text" placeholder="np. Pytanie o plan VIP" class="cf-input" style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:14px;padding:11px 14px;outline:none;font-family:inherit;transition:border-color .2s;">
       </div>
       <div style="margin-bottom:20px;">
         <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:7px;">Wiadomość *</label>
-        <textarea id="cf-content" rows="5" placeholder="Napisz co chcesz wiedzieć..." style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:14px;padding:11px 14px;outline:none;resize:vertical;font-family:inherit;line-height:1.65;transition:border-color .2s;" onfocus="this.style.borderColor='rgba(0,200,150,.5)'" onblur="this.style.borderColor='rgba(255,255,255,.1)'"></textarea>
+        <textarea id="cf-content" rows="5" placeholder="Napisz co chcesz wiedzieć..." class="cf-input" style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:14px;padding:11px 14px;outline:none;resize:vertical;font-family:inherit;line-height:1.65;transition:border-color .2s;"></textarea>
       </div>
       <div id="cf-err" style="display:none;color:#f56565;font-size:12px;margin-bottom:12px;"></div>
       <div id="cf-success" style="display:none;padding:14px 16px;background:rgba(0,200,150,.1);border:1px solid rgba(0,200,150,.25);border-radius:8px;color:#00c896;font-size:13px;font-weight:600;margin-bottom:12px;">
         ✓ Wiadomość wysłana! Odpiszę w ciągu 24h.
       </div>
-      <button id="cf-btn" onclick="sendContact()" style="width:100%;padding:13px;border-radius:8px;border:none;background:#00c896;color:#080a0d;font-size:13px;font-weight:700;letter-spacing:.06em;cursor:pointer;font-family:inherit;transition:opacity .2s;">Wyślij wiadomość</button>
+      <button id="cf-btn" style="width:100%;padding:13px;border-radius:8px;border:none;background:#00c896;color:#080a0d;font-size:13px;font-weight:700;letter-spacing:.06em;cursor:pointer;font-family:inherit;transition:opacity .2s;">Wyślij wiadomość</button>
     </div>
   </div>
 </section>
@@ -1349,6 +1350,7 @@
   function toggleAppSw() {
     document.getElementById('appSwMenu').classList.toggle('open');
   }
+  document.getElementById('app-sw-btn').addEventListener('click', toggleAppSw);
   document.addEventListener('click', e => {
     const sw = document.querySelector('.app-sw');
     if (sw && !sw.contains(e.target)) document.getElementById('appSwMenu').classList.remove('open');
@@ -1418,6 +1420,27 @@
       btn.textContent = 'Zapisz mnie na listę';
     }
   }
+
+  // Waitlist open — delegation on document for [data-plan] buttons
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('[data-plan]');
+    if (btn) openWaitlist(btn.dataset.plan);
+  });
+
+  // Waitlist close button
+  document.getElementById('wl-close-btn').addEventListener('click', closeWaitlist);
+
+  // Waitlist form submit
+  document.getElementById('wl-form').addEventListener('submit', submitWaitlist);
+
+  // FAQ delegation
+  document.querySelector('.faq-list').addEventListener('click', e => {
+    const q = e.target.closest('.faq-q');
+    if (q) toggleFaq(q);
+  });
+
+  // Contact form send
+  document.getElementById('cf-btn').addEventListener('click', sendContact);
 
   async function sendContact() {
     const name    = document.getElementById('cf-name').value.trim();

@@ -4,6 +4,7 @@ const { encrypt, decrypt }   = require('../lib/crypto');
 const { getCachedBalance }   = require('../lib/cache');
 const { createExchangeClient } = require('../exchanges');
 const { API_KEY, API_SECRET }  = require('../lib/config');
+const { requireAuth }        = require('../lib/auth');
 const logger                 = require('../lib/logger');
 const { validate, z }        = require('../lib/validate');
 
@@ -45,7 +46,7 @@ function botClientDetails(row) {
   return { exchange: 'bybit', apiKey: API_KEY, apiSecret: API_SECRET, passphrase: undefined };
 }
 
-router.post('/test-connection', async (req, res) => {
+router.post('/test-connection', requireAuth, async (req, res) => {
   const { key, secret, exchange, passphrase } = req.body;
   if (!key || !secret) return res.status(400).json({ ok: false, error: 'key and secret required' });
   try {
@@ -84,15 +85,16 @@ router.get('/', async (req, res) => {
         (SELECT COUNT(*) FROM bot_trades WHERE bot_id=b.id AND status='open')::int AS open_orders
       FROM bots b ORDER BY b.created_at DESC
     `);
+    const withTimeout = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r(null), ms))]);
     const bots = await Promise.all(rows.map(async row => {
       const pub = botPublic(row);
-      if (row.status !== 'stopped') {
-        pub.live_balance = await getCachedBalance(row.id, async () => {
+      if (row.status === 'active') {
+        pub.live_balance = await withTimeout(getCachedBalance(row.id, async () => {
           const { exchange, apiKey, apiSecret, passphrase } = botClientDetails(row);
           const client = createExchangeClient(exchange, apiKey, apiSecret, passphrase);
           const { total } = await client.getBalance();
           return parseFloat(total.toFixed(2));
-        });
+        }), 4000);
       } else {
         pub.live_balance = null;
       }

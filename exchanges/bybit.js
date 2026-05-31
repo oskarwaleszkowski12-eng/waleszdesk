@@ -134,6 +134,14 @@ class BybitClient {
       status:  o.orderStatus,
     }));
   }
+
+  async getRecentOrders(symbol, limit = 50) {
+    const d = await this._get('/v5/order/history', { category: 'linear', symbol, limit: String(limit) });
+    if (d.retCode !== 0) return new Map();
+    const map = new Map();
+    for (const o of (d.result?.list || [])) map.set(o.orderId, o.orderStatus);
+    return map;
+  }
 }
 
 module.exports = BybitClient;

@@ -15,7 +15,7 @@ function hashCode(code) {
 }
 function genCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const seg = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  const seg = () => Array.from({ length: 4 }, () => chars[crypto.randomInt(chars.length)]).join('');
   return `${seg()}-${seg()}-${seg()}`;
 }
 
@@ -39,13 +39,13 @@ router.post('/login', validate(loginSchema), async (req, res) => {
 
     const token = jwt.sign(
       { role: 'subscriber', sub_id: sub.id, plan: sub.plan, name: sub.name || null },
-      JWT_SECRET, { expiresIn: '30d' }
+      JWT_SECRET, { expiresIn: '7d' }
     );
     res.cookie('wd_sub', token, {
       httpOnly: true,
       secure:   process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge:   30 * 24 * 60 * 60 * 1000,
+      maxAge:   7 * 24 * 60 * 60 * 1000,
     });
     res.json({ ok: true, plan: sub.plan, name: sub.name });
   } catch (err) {
@@ -62,6 +62,32 @@ router.post('/logout', (req, res) => {
     sameSite: 'strict',
   });
   res.json({ ok: true });
+});
+
+// ── Subscriber: refresh token ─────────────────────────────────────────────────
+router.post('/refresh', requireSubscriberAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, plan, name FROM subscribers WHERE id=$1 AND status='active' AND (expires_at IS NULL OR expires_at > NOW())`,
+      [req.subscriber.sub_id]
+    );
+    if (!rows[0]) return res.status(403).json({ ok: false, error: 'Konto nieaktywne lub dostęp wygasł.' });
+    const sub   = rows[0];
+    const token = jwt.sign(
+      { role: 'subscriber', sub_id: sub.id, plan: sub.plan, name: sub.name || null },
+      JWT_SECRET, { expiresIn: '7d' }
+    );
+    res.cookie('wd_sub', token, {
+      httpOnly: true,
+      secure:   process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge:   7 * 24 * 60 * 60 * 1000,
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, '[subscriber/refresh]');
+    res.status(500).json({ ok: false, error: 'Błąd serwera.' });
+  }
 });
 
 // ── Subscriber: me ────────────────────────────────────────────────────────────
@@ -383,6 +409,9 @@ const msgSchema = z.object({
 
 router.get('/conversations', requireSubscriberAuth, async (req, res) => {
   try {
+    const page   = Math.max(1, parseInt(req.query.page) || 1);
+    const limit  = 50;
+    const offset = (page - 1) * limit;
     const { rows } = await pool.query(`
       WITH last_msg AS (
         SELECT DISTINCT ON (conversation_id)
@@ -404,8 +433,9 @@ router.get('/conversations', requireSubscriberAuth, async (req, res) => {
       LEFT JOIN msg_counts mc ON mc.conversation_id = c.id
       WHERE c.subscriber_id=$1
       ORDER BY c.updated_at DESC
-    `, [req.subscriber.sub_id]);
-    res.json({ ok: true, conversations: rows });
+      LIMIT $2 OFFSET $3
+    `, [req.subscriber.sub_id, limit, offset]);
+    res.json({ ok: true, conversations: rows, page, limit });
   } catch (err) {
     logger.error({ err }, '[subscriber/conversations GET]');
     res.status(500).json({ ok: false, error: 'Błąd serwera.' });
