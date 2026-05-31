@@ -1635,6 +1635,8 @@ body.light-mode #login-overlay { background: var(--bg0); }
       </div>
     </div>
 
+    <div id="sb-stats-bar" style="display:none;font-size:11px;color:var(--muted2);padding:6px 2px 2px;letter-spacing:.02em;"></div>
+
     <div class="card" style="padding:0;overflow:hidden;">
       <div class="au-table-wrap">
         <table class="au-table" id="sb-table">
@@ -5119,8 +5121,12 @@ let _sbData = [];
 
 async function fetchSubscribers() {
   try {
-    const r = await apiFetch('/api/subscriber/admin');
-    const d = await r.json();
+    const [r, rs] = await Promise.all([
+      apiFetch('/api/subscriber/admin'),
+      apiFetch('/api/subscriber/admin/stats'),
+    ]);
+    const d  = await r.json();
+    const ds = await rs.json();
     if (!d.ok) return;
     _sbData = d.subscribers;
     const total     = _sbData.length;
@@ -5131,6 +5137,17 @@ async function fetchSubscribers() {
     document.getElementById('sb-count-pro').textContent      = countPro;
     document.getElementById('sb-count-vip').textContent      = countVip;
     document.getElementById('sb-count-mentoring').textContent = countMent;
+    if (ds.ok) {
+      const bar = document.getElementById('sb-stats-bar');
+      const parts = [
+        `<span style="color:var(--green)">Aktywni: ${ds.active}</span>`,
+        `<span>Nieaktywni: ${ds.inactive}</span>`,
+      ];
+      if (ds.expiringSoon > 0)
+        parts.push(`<span style="color:var(--amber)">Wygasają (14d): ${ds.expiringSoon}</span>`);
+      bar.innerHTML = parts.join(' <span style="color:var(--border2)">·</span> ');
+      bar.style.display = 'block';
+    }
 
     const planColors = { pro: 'var(--accent)', vip: '#c9a84c', mentoring: '#a07de0' };
     const statusColors = { active: 'var(--green)', suspended: 'var(--red)', expired: 'var(--muted2)' };

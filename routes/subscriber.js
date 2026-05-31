@@ -223,6 +223,34 @@ const createSchema = z.object({
   expires_at:  z.string().optional(),
 });
 
+router.get('/admin/stats', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE status = 'active')::int AS active,
+        COUNT(*) FILTER (WHERE status != 'active')::int AS inactive,
+        COUNT(*) FILTER (WHERE plan = 'pro')::int AS plan_pro,
+        COUNT(*) FILTER (WHERE plan = 'vip')::int AS plan_vip,
+        COUNT(*) FILTER (WHERE plan = 'mentoring')::int AS plan_mentoring,
+        COUNT(*) FILTER (WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at < NOW() + INTERVAL '14 days')::int AS expiring_soon
+      FROM subscribers
+    `);
+    const r = rows[0];
+    res.json({
+      ok: true,
+      total: r.total,
+      active: r.active,
+      inactive: r.inactive,
+      byPlan: { pro: r.plan_pro, vip: r.plan_vip, mentoring: r.plan_mentoring },
+      expiringSoon: r.expiring_soon,
+    });
+  } catch (err) {
+    logger.error({ err }, '[subscriber/admin/stats]');
+    res.status(500).json({ ok: false, error: 'Błąd serwera.' });
+  }
+});
+
 router.get('/admin', requireAuth, async (req, res) => {
   try {
     const { rows } = await pool.query(
