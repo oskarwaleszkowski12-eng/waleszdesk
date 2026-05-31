@@ -688,6 +688,56 @@ body.light-mode input, body.light-mode select, body.light-mode textarea {
         </div>
       </div>
     </div>
+
+    <!-- ── PLACE ORDER (Futures only) ── -->
+    <div id="order-card" style="display:none;margin-top:16px;">
+      <div class="card">
+        <div class="section-head" style="margin-bottom:14px;">
+          <div class="section-title">Place Order</div>
+          <div id="order-tv-badge" style="font-size:11px;font-family:var(--font-mono);padding:4px 10px;border-radius:var(--r);background:var(--bg2);border:1px solid var(--border2);color:var(--muted2);">—</div>
+        </div>
+
+        <!-- Summary row -->
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+          <div style="flex:1;min-width:100px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;">
+            <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);margin-bottom:4px;">Symbol</div>
+            <div id="order-symbol" style="font-size:16px;font-weight:700;font-family:var(--font-mono);">—</div>
+          </div>
+          <div style="flex:1;min-width:100px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;">
+            <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);margin-bottom:4px;">Contracts</div>
+            <div id="order-qty" style="font-size:16px;font-weight:700;font-family:var(--font-mono);">0</div>
+          </div>
+        </div>
+
+        <!-- Side + type -->
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+          <div style="flex:1;">
+            <div style="font-size:10px;color:var(--muted2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em;">Side</div>
+            <div style="display:flex;gap:6px;">
+              <button id="order-buy-btn" class="btn" onclick="setOrderSide('Buy')" style="flex:1;justify-content:center;border-color:rgba(72,187,120,.4);color:var(--green);">▲ Buy</button>
+              <button id="order-sell-btn" class="btn" onclick="setOrderSide('Sell')" style="flex:1;justify-content:center;border-color:rgba(245,101,101,.4);color:var(--red);">▼ Sell</button>
+            </div>
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:10px;color:var(--muted2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em;">Order Type</div>
+            <select id="order-type" onchange="onOrderTypeChange()" style="width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);padding:8px 12px;font-size:13px;font-family:var(--font-mono);outline:none;appearance:none;cursor:pointer;">
+              <option value="Market">Market</option>
+              <option value="Limit">Limit</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Limit price (hidden for Market) -->
+        <div id="order-price-row" style="display:none;margin-bottom:14px;">
+          <div class="field"><label>Limit Price</label><input type="number" id="order-price" step="0.25" placeholder="0.00"></div>
+        </div>
+
+        <!-- Place button + status -->
+        <button id="order-submit-btn" class="btn accent" onclick="placeCalcOrder()" style="width:100%;justify-content:center;padding:11px;font-size:13px;" disabled>Select side to place order</button>
+        <div id="order-status" style="margin-top:10px;font-size:12px;font-family:var(--font-mono);text-align:center;min-height:18px;"></div>
+      </div>
+    </div>
+
   </div>
 
   <!-- ── RULES PANEL ── -->
@@ -1406,7 +1456,8 @@ function setCalcMode(mode) {
   document.getElementById('row-tick-val').style.display  = mode === 'futures' ? '' : 'none';
   document.getElementById('row-point-val').style.display = mode === 'futures' ? '' : 'none';
   document.getElementById('res-spread-cost').closest('.result-row').style.display = mode === 'forex' ? '' : 'none';
-  if (mode === 'futures') onContractChange();
+  document.getElementById('order-card').style.display = mode === 'futures' ? '' : 'none';
+  if (mode === 'futures') { onContractChange(); refreshOrderCard(); }
   else calcLots();
 }
 
@@ -1477,6 +1528,7 @@ function calcContracts() {
   document.getElementById('res-tp-val').textContent     = tpTicks > 0 ? '+' + fmtUSD(tpVal) : '—';
   document.getElementById('res-rr').textContent         = rr ? '1 : ' + rr : '—';
   document.getElementById('pip-info').textContent       = c.info;
+  if (document.getElementById('order-card').style.display !== 'none') syncOrderSummary();
 
   // compliance
   const accId = document.getElementById('calc-account-link').value;
@@ -1530,6 +1582,100 @@ function calcContracts() {
 function calcAll() {
   if (_calcMode === 'futures') calcContracts();
   else calcLots();
+}
+
+// ── Place Order ──────────────────────────────────────────────────────────────
+let _orderSide = null;
+
+async function refreshOrderCard() {
+  const badge = document.getElementById('order-tv-badge');
+  try {
+    const r = await api('GET', '/api/funded/status');
+    if (r.connected) {
+      badge.textContent = '● Connected';
+      badge.style.color = 'var(--green)';
+      badge.style.borderColor = 'rgba(72,187,120,.3)';
+    } else {
+      badge.textContent = '○ Not connected';
+      badge.style.color = 'var(--muted2)';
+      badge.style.borderColor = '';
+    }
+  } catch { badge.textContent = '—'; }
+  syncOrderSummary();
+}
+
+function syncOrderSummary() {
+  const sym = document.getElementById('calc-contract').value;
+  const qty = parseInt(document.getElementById('res-lots').textContent) || 0;
+  document.getElementById('order-symbol').textContent = sym || '—';
+  document.getElementById('order-qty').textContent    = qty;
+  updateOrderBtn();
+}
+
+function setOrderSide(side) {
+  _orderSide = side;
+  const buyBtn  = document.getElementById('order-buy-btn');
+  const sellBtn = document.getElementById('order-sell-btn');
+  buyBtn.style.background  = side === 'Buy'  ? 'rgba(72,187,120,.15)'  : '';
+  buyBtn.style.fontWeight  = side === 'Buy'  ? '700' : '';
+  sellBtn.style.background = side === 'Sell' ? 'rgba(245,101,101,.15)' : '';
+  sellBtn.style.fontWeight = side === 'Sell' ? '700' : '';
+  updateOrderBtn();
+}
+
+function onOrderTypeChange() {
+  const t = document.getElementById('order-type').value;
+  document.getElementById('order-price-row').style.display = t === 'Limit' ? '' : 'none';
+  updateOrderBtn();
+}
+
+function updateOrderBtn() {
+  const btn = document.getElementById('order-submit-btn');
+  const qty = parseInt(document.getElementById('res-lots').textContent) || 0;
+  const sym = document.getElementById('calc-contract').value;
+  if (!_orderSide)  { btn.disabled = true; btn.textContent = 'Select side to place order'; return; }
+  if (!sym)         { btn.disabled = true; btn.textContent = 'Select a contract first';    return; }
+  if (qty < 1)      { btn.disabled = true; btn.textContent = 'Set risk to get qty > 0';   return; }
+  const type = document.getElementById('order-type').value;
+  btn.disabled    = false;
+  btn.textContent = `${_orderSide === 'Buy' ? '▲ Buy' : '▼ Sell'} ${qty} ${sym} @ ${type}`;
+  btn.style.background   = _orderSide === 'Buy' ? 'var(--green)' : 'var(--red)';
+  btn.style.borderColor  = _orderSide === 'Buy' ? 'var(--green)' : 'var(--red)';
+  btn.style.color        = '#fff';
+}
+
+async function placeCalcOrder() {
+  const statusEl = document.getElementById('order-status');
+  const btn      = document.getElementById('order-submit-btn');
+  const sym  = document.getElementById('calc-contract').value;
+  const qty  = parseInt(document.getElementById('res-lots').textContent) || 0;
+  const type = document.getElementById('order-type').value;
+  const price = type === 'Limit' ? parseFloat(document.getElementById('order-price').value) : undefined;
+
+  if (!_orderSide || !sym || qty < 1) return;
+  if (type === 'Limit' && (!price || price <= 0)) {
+    statusEl.style.color = 'var(--red)';
+    statusEl.textContent = 'Enter a valid limit price.';
+    return;
+  }
+
+  btn.disabled    = true;
+  btn.textContent = 'Placing…';
+  statusEl.textContent = '';
+
+  try {
+    const body = { symbol: sym, action: _orderSide, qty, orderType: type };
+    if (price) body.price = price;
+    const r = await api('POST', '/api/funded/order', body);
+    if (!r.ok) throw new Error(r.error || 'Unknown error');
+    statusEl.style.color = 'var(--green)';
+    statusEl.textContent = `✓ Order placed (id: ${r.data?.orderId ?? r.data?.id ?? 'ok'})`;
+  } catch (err) {
+    statusEl.style.color = 'var(--red)';
+    statusEl.textContent = '✗ ' + (err.message || 'Failed');
+  } finally {
+    updateOrderBtn();
+  }
 }
 
 function setPair(sym, btn) {

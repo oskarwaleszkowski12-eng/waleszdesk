@@ -163,3 +163,10 @@ initDb()
 server.listen(config.PORT, '0.0.0.0', () =>
   logger.info(`WaleszDesk running on 0.0.0.0:${config.PORT}`)
 );
+
+process.on('SIGTERM', () => {
+  logger.info('[shutdown] SIGTERM received — closing server');
+  server.close(() => {
+    require('./lib/db').pool.end(() => logger.info('[shutdown] DB pool drained — exit'));
+  });
+});
