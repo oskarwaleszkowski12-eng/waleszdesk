@@ -150,6 +150,20 @@ module.exports = function startBotEngine({ pool, decrypt }) {
       ? (avgEntry - price) / avgEntry * 100
       : (price - avgEntry) / avgEntry * 100;
 
+    if (cfg.stop_loss && pnlPct <= -cfg.stop_loss) {
+      const result  = await client.closePosition(sym, enter, posSize);
+      const orderId = result?.orderId || null;
+      await mergeStats(bot.id, { total_pnl: unreal, trades: 1, unrealised_pnl: 0 });
+      state.base_order_placed    = false;
+      state.safety_orders_placed = 0;
+      state.initial_entry        = null;
+      await saveState(bot.id, { ...cfg, state });
+      await recordTrade(bot.id, { orderId, side: exit, qty: posSize, price, status: 'filled', meta: { type: 'sl', pnl: unreal } });
+      logger.info({ botId: bot.id, pnlPct: pnlPct.toFixed(2), pnl: unreal.toFixed(2) }, '[dca] SL hit');
+      sendTelegram(`🛑 <b>${escapeHtml(bot.name || 'Bot '+bot.id)}</b> — STOP LOSS\n${escapeHtml(sym)} ${pnlPct.toFixed(2)}% / $${unreal.toFixed(2)}`);
+      return;
+    }
+
     if (pnlPct >= cfg.take_profit) {
       const result = await client.closePosition(sym, enter, posSize);
       const orderId = result?.orderId || null;
