@@ -13,8 +13,7 @@ function setupWS(server, jwtSecret) {
   }
 
   wss.on('connection', (ws, req) => {
-    const token = parseCookie(req.headers.cookie, 'wd_admin') ||
-      new URL(req.url, 'ws://x').searchParams.get('token'); // fallback for legacy clients
+    const token = parseCookie(req.headers.cookie, 'wd_admin');
     try {
       const payload = jwt.verify(token, jwtSecret);
       if (payload.role !== 'admin') { ws.close(1008, 'Forbidden'); return; }

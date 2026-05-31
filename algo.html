@@ -313,19 +313,6 @@ function hexToRgb(hex) {
   return `${r},${g},${b}`;
 }
 
-async function deriveKey(pw) {
-  const enc = new TextEncoder();
-  const km = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveKey']);
-  return crypto.subtle.deriveKey({ name:'PBKDF2', salt:enc.encode('wdalgosalt'), iterations:100000, hash:'SHA-256' }, km, {name:'AES-GCM',length:256}, false, ['encrypt','decrypt']);
-}
-
-async function encryptStr(text, pw) {
-  const key = await deriveKey(pw);
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = await crypto.subtle.encrypt({name:'AES-GCM',iv}, key, new TextEncoder().encode(text));
-  const buf = new Uint8Array(12+ct.byteLength); buf.set(iv); buf.set(new Uint8Array(ct),12);
-  return btoa(String.fromCharCode(...buf));
-}
 
 function toggleVis(inputId, btnId) {
   const inp = document.getElementById(inputId);
@@ -424,10 +411,6 @@ async function verifyKeys() {
     document.getElementById('s1-continue').style.display = 'block';
     btn.style.display = 'none';
     document.getElementById('topbar-status').textContent = `UID ${d.uid} · $${Number(d.balance).toLocaleString('en-US',{maximumFractionDigits:0})}`;
-    const pw = key.slice(0, 8);
-    const encKey = await encryptStr(key, pw);
-    const encSecret = await encryptStr(secret, pw);
-    localStorage.setItem('wd_algo_session', JSON.stringify({encKey, encSecret, uid: d.uid, balance: d.balance}));
   } catch(e) {
     showErr('s1-error', e.message || 'Could not verify credentials. Check your API key and secret.');
   } finally {
@@ -570,10 +553,7 @@ async function launchBot() {
     const d = await res.json();
     if (!res.ok || d.error) throw new Error(d.error || 'Launch failed');
     try {
-      const pw = (algoState.apiKey || '').slice(0, 8);
-      const encKey = await encryptStr(algoState.apiKey, pw);
-      const encSecret = await encryptStr(algoState.apiSecret, pw);
-      localStorage.setItem('wd_algo_session', JSON.stringify({encKey, encSecret, uid: algoState.uid, balance: algoState.balance, launched: true, botId: d.botId, templateId: algoState.selectedTemplateId, capital}));
+      localStorage.setItem('wd_algo_session', JSON.stringify({uid: algoState.uid, balance: algoState.balance, launched: true, botId: d.botId, templateId: algoState.selectedTemplateId, capital}));
     } catch(_) {}
     showDone(d, t, capital);
   } catch(e) {
