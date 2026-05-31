@@ -126,6 +126,7 @@ module.exports = function startBotEngine({ pool, decrypt }) {
       }
       if (!(await checkCapital(client, cfg.base_order_size))) {
         await setBotStatus(bot.id, 'paused', 'Insufficient capital (>50% balance)');
+        sendTelegram(`⏸️ <b>${escapeHtml(bot.name || 'Bot '+bot.id)}</b> — AUTO-PAUZA\nInsufficient capital (>50% balance)`);
         return;
       }
       const qty = fmtQty(sym, calcQty(sym, cfg.base_order_size, price));
@@ -140,6 +141,7 @@ module.exports = function startBotEngine({ pool, decrypt }) {
       await saveState(bot.id, { ...cfg, state });
       await recordTrade(bot.id, { orderId, side: enter, qty, price, status: 'filled', meta: { type: 'base' } });
       logger.info({ botId: bot.id, price, qty }, '[dca] base order placed');
+      sendTelegram(`📈 <b>${escapeHtml(bot.name || 'Bot '+bot.id)}</b> — WEJŚCIE\n${escapeHtml(sym)} ${enter} @ $${price.toFixed(2)} · ${qty} kontraktów`);
       return;
     }
 
@@ -158,7 +160,7 @@ module.exports = function startBotEngine({ pool, decrypt }) {
       await saveState(bot.id, { ...cfg, state });
       await recordTrade(bot.id, { orderId, side: exit, qty: posSize, price, status: 'filled', meta: { type: 'tp', pnl: unreal } });
       logger.info({ botId: bot.id, pnlPct: pnlPct.toFixed(2), pnl: unreal.toFixed(2) }, '[dca] TP hit');
-      sendTelegram(`✅ <b>Bot ${bot.id} TP hit</b>\n${escapeHtml(sym)} +${pnlPct.toFixed(2)}% / $${unreal.toFixed(2)}`);
+      sendTelegram(`✅ <b>${escapeHtml(bot.name || 'Bot '+bot.id)}</b> — TP HIT\n${escapeHtml(sym)} +${pnlPct.toFixed(2)}% / $${unreal.toFixed(2)}`);
       return;
     }
 
@@ -174,6 +176,7 @@ module.exports = function startBotEngine({ pool, decrypt }) {
 
     if (!(await checkCapital(client, cfg.safety_order_size))) {
       await setBotStatus(bot.id, 'paused', 'Insufficient capital for safety order');
+      sendTelegram(`⏸️ <b>${escapeHtml(bot.name || 'Bot '+bot.id)}</b> — AUTO-PAUZA\nInsufficient capital for safety order`);
       return;
     }
     const qty = fmtQty(sym, calcQty(sym, cfg.safety_order_size, price));
@@ -209,6 +212,7 @@ module.exports = function startBotEngine({ pool, decrypt }) {
     if (!state.initialized) {
       if (!(await checkCapital(client, cfg.order_size))) {
         await setBotStatus(bot.id, 'paused', 'Insufficient capital for grid init');
+        sendTelegram(`⏸️ <b>${escapeHtml(bot.name || 'Bot '+bot.id)}</b> — AUTO-PAUZA\nInsufficient capital for grid init`);
         return;
       }
       for (const lvl of state.grid_prices) {
@@ -305,7 +309,7 @@ module.exports = function startBotEngine({ pool, decrypt }) {
         .catch(e => {
           logger.error({ botId: bot.id, err: e }, '[botEngine] uncaught tick error');
           setBotStatus(bot.id, 'error', e.message).catch(() => {});
-          sendTelegram(`🚨 <b>Bot ${bot.id} error</b>\n${escapeHtml(e.message)}`);
+          sendTelegram(`🚨 <b>${escapeHtml(bot.name || 'Bot '+bot.id)}</b> — BŁĄD\n${escapeHtml(e.message)}`);
         })
         .finally(() => { botLocks.delete(bot.id); running--; });
     }
