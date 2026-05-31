@@ -3,6 +3,7 @@ const { pool }   = require('../lib/db');
 const { requireAuth } = require('../lib/auth');
 const { validate, z } = require('../lib/validate');
 const { sendTelegram } = require('../lib/telegram');
+const { sendSubscriberReplyEmail } = require('../lib/email');
 const logger = require('../lib/logger');
 
 const router = Router();
@@ -137,7 +138,7 @@ router.post('/conversations/:id/reply', requireAuth, validate(replySchema), asyn
   try {
     await client.query('BEGIN');
     const { rows: convRows } = await client.query(
-      `SELECT id, from_email, from_name, subscriber_id FROM conversations WHERE id=$1`,
+      `SELECT id, from_email, from_name, subscriber_id, subject FROM conversations WHERE id=$1`,
       [req.params.id]
     );
     if (!convRows[0]) { await client.query('ROLLBACK'); return res.status(404).json({ ok: false, error: 'Not found' }); }
@@ -163,6 +164,9 @@ router.post('/conversations/:id/reply', requireAuth, validate(replySchema), asyn
     sendTelegram(
       `📤 <b>Odpowiedź wysłana</b>\n👤 ${conv.from_name || conv.from_email}\n\n${content.slice(0, 200)}${content.length > 200 ? '…' : ''}`
     );
+    if (conv.subscriber_id) {
+      sendSubscriberReplyEmail(conv.from_email, conv.from_name, conv.subject, content).catch(() => {});
+    }
     res.json({ ok: true });
   } catch (err) {
     await client.query('ROLLBACK');
