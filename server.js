@@ -43,6 +43,9 @@ const engineRoutes      = require('./routes/engine');
 
 const app = express();
 
+// Railway sits behind a reverse proxy — trust one hop so rate limiter sees real client IP
+app.set('trust proxy', 1);
+
 // Force HTTPS in production (Railway terminates TLS and sets x-forwarded-proto)
 app.use((req, res, next) => {
   if (process.env.NODE_ENV === 'production' && req.headers['x-forwarded-proto'] !== 'https')
@@ -52,9 +55,9 @@ app.use((req, res, next) => {
 
 app.use(pinoHttp({ logger, autoLogging: { ignore: req => req.url === '/api/status' } }));
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(express.json());
+app.use(express.json({ limit: '512kb' }));
 app.use(cookieParser());
-app.use(cors({ origin: config.ALLOWED_ORIGIN, credentials: true }));
+app.use(cors({ origin: config.ALLOWED_ORIGIN, credentials: true, maxAge: 86400 }));
 
 // ── HTML pages with CSP nonce (must be before express.static) ────────────────
 const ROOT = path.join(__dirname);
@@ -74,6 +77,7 @@ const authLimiter = rateLimit({ windowMs: 60_000, max: 10,  standardHeaders: tru
 app.use('/api/', limiter);
 app.use('/api/auth/', authLimiter);
 app.use('/api/subscriber/', authLimiter);
+app.use('/api/algo/', authLimiter);
 
 // Auth
 const loginSchema = z.object({ password: z.string().min(1) });
@@ -145,7 +149,23 @@ app.use('/api/messages', messagesRoutes);
 app.use('/api/attachments', attachmentsRoutes);
 app.use('/api/engine', engineRoutes);
 
-// HTTP + WebSocket server
+// ── 404 handler ──────────────────────────────────────────────────────────────
+app.use((req, res) => {
+  if (req.path.startsWith('/api/'))
+    return res.status(404).json({ ok: false, error: 'Not found' });
+  res.status(404).end('Not found');
+});
+
+// ── Global error handler ──────────────────────────────────────────────────────
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  logger.error({ err, method: req.method, url: req.url }, '[server] unhandled error');
+  const status = err.status || err.statusCode || 500;
+  const msg    = process.env.NODE_ENV === 'production' ? 'Internal server error' : (err.message || 'Internal server error');
+  res.status(status).json({ ok: false, error: msg });
+});
+
+// ── HTTP + WebSocket server ───────────────────────────────────────────────────
 const server = http.createServer(app);
 setupWS(server, config.JWT_SECRET);
 
@@ -169,4 +189,13 @@ process.on('SIGTERM', () => {
   server.close(() => {
     require('./lib/db').pool.end(() => logger.info('[shutdown] DB pool drained — exit'));
   });
+});
+
+process.on('unhandledRejection', (reason) => {
+  logger.error({ reason }, '[server] unhandledRejection — check async code');
+});
+
+process.on('uncaughtException', (err) => {
+  logger.error({ err }, '[server] uncaughtException — shutting down');
+  process.exit(1);
 });
