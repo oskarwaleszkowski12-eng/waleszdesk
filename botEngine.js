@@ -231,6 +231,7 @@ module.exports = function startBotEngine({ pool, decrypt }) {
       state.initialized = true;
       await saveState(bot.id, { ...cfg, state });
       logger.info({ botId: bot.id }, '[grid] initialized');
+      sendTelegram(`⚡ <b>${escapeHtml(bot.name || 'Bot '+bot.id)}</b> — GRID URUCHOMIONY\n${escapeHtml(sym)} · ${cfg.grid_levels} poziomów · $${cfg.lower_price}–$${cfg.upper_price}`);
       return;
     }
 
@@ -240,6 +241,7 @@ module.exports = function startBotEngine({ pool, decrypt }) {
       `SELECT * FROM bot_trades WHERE bot_id=$1 AND status='open'`, [bot.id]
     );
 
+    let stateModified = false;
     for (const trade of openTrades) {
       if (liveIds.has(String(trade.order_id))) continue;
 
@@ -274,12 +276,20 @@ module.exports = function startBotEngine({ pool, decrypt }) {
             await recordTrade(bot.id, { orderId, side: newS, qty, price: newP, status: 'open', meta: { type: 'grid', level: newP, step: tStep } });
             const profit = isBuy ? (newP - fp) * fq : (fp - newP) * fq;
             await mergeStats(bot.id, { total_pnl: profit, trades: 1 });
+            state.fills_count = (state.fills_count || 0) + 1;
+            stateModified = true;
+            if (state.fills_count % 5 === 1) {
+              sendTelegram(`🔄 <b>${escapeHtml(bot.name || 'Bot '+bot.id)}</b> — GRID FILL\n${escapeHtml(sym)} ${trade.side}@${fp} → ${newS}@${newP} · profit: +$${profit.toFixed(2)}`);
+            }
             logger.info({ botId: bot.id, from: `${trade.side}@${fp}`, to: `${newS}@${newP}`, profit: profit.toFixed(4) }, '[grid] order filled');
           }
         } catch (e) {
           logger.error({ botId: bot.id, newP, err: e }, '[grid] replenish failed');
         }
       }
+    }
+    if (stateModified) {
+      await saveState(bot.id, { ...cfg, state });
     }
   }
 
