@@ -223,3 +223,58 @@ Polish (Phase 3):
 - routes/bots.js stop-all: silent catch{} on cancel-all → logger.warn with botId + symbol
 
 node --check: all 19 modified JS files pass
+
+## 2026-06-07 (late) Claude — Big features pass (12 items)
+
+Foundations + scaling + polish — solidne podstawy dla 50+ userów.
+
+Security:
+- lib/totp.js NEW: speakeasy-based TOTP, secret stored in app_settings
+- routes/auth.js NEW: extracted /login /logout /me from server.js, added /totp/{status,setup,enable,disable}
+- routes/auth.js: login now accepts optional totp_code, returns errorCode TOTP_REQUIRED if 2FA enabled
+- server.js: cleaned up auth — removed 3 inline routes, mounted authRoutes
+- lib/audit.js NEW: logAdminAction(req, action, targetType, targetId, meta) writes to admin_actions table
+- lib/db.js: NEW admin_actions table + 2 indexes; new bot columns last_tick_at, last_trade_at, last_error_msg, last_error_at, peak_pnl
+- routes/{bots,algo,subscriber}.js: audit log calls on create/delete/stop-all/pause-all/template-toggle/invite-deactivate/subscriber-update/regenerate
+- routes/auth.js: GET /audit-log with pagination
+
+Observability:
+- @sentry/node added; server.js: init if SENTRY_DSN env, captureException in unhandledRejection/uncaughtException/error middleware, reqId tag
+- error middleware now returns errorCode INTERNAL
+
+Trading safety:
+- botEngine.js: markTick/markTrade DB updates after each tick + recordTrade
+- botEngine.js: checkDrawdown() — auto-pauses bot when (peak - current)/peak >= max_drawdown_pct
+- botEngine.js: setBotStatus now persists last_error_msg + last_error_at when status=error
+- routes/bots.js: botPublic now returns health badge (green/yellow/red/gray/unknown) + tick_age_sec + error_age_sec
+
+WS scaling:
+- ws/index.js: per-client topic subscriptions (Set ws.subs). Default {live_data, bot_stats}
+- ws/index.js: filter_bots message lets client subscribe to specific bot IDs
+- ws/index.js: broadcast now takes (topic, payload, perClientTransform) — skips clients not subscribed
+- ws/index.js: bot_stats query refactored to use JOIN+GROUP BY (matches routes/bots.js fix)
+
+Cache:
+- lib/cache.js: per-key TTL map (balance 30s, ticker 15s, positions 10s)
+- lib/cache.js: NEW getCachedTicker, getCachedPositions, generic cached(key, ttl, fn), invalidate(prefix)
+- lib/cache.js: in-memory store now uses expiresAt + probabilistic prune
+
+Error codes:
+- lib/errors.js NEW: standard codes (INVALID_PASSWORD, INSUFFICIENT_BALANCE, MIN_CAPITAL, MAX_CAPITAL, UID_REGISTERED, INVALID_INVITE, etc)
+- lib/validate.js: zod errors now include errorCode VALIDATION_FAILED
+- routes/algo.js launch + verify-invite: returns errorCode field in all error responses
+
+Frontend foundation:
+- js/ui.js NEW: wdToast(type,msg,duration), wdConfirm(msg,opts), wdErrorMessage(payload,fallback), wdHandleResponse(res,opts)
+- js/mobile.css NEW: <480px and <375px breakpoints (stack actions, smaller fonts, hide-xs columns)
+- 6 HTML pages: <link mobile.css> + <script ui.js> injected before </head>
+
+Frontend UX (index.html):
+- Login overlay: added optional TOTP input, doLogin handles TOTP_REQUIRED/INVALID_TOTP responses
+- New "Security & API" section header + 2FA setup card with status badge and Enable/Disable buttons
+- New totpSetupFlow() opens QR modal, validates code, calls /api/auth/totp/enable
+- 8 native confirm() replaced with wdConfirm: stop-bot, delete-bot, stop-all-bots, delete-subscriber, delete-post, delete-conversation, deactivate-invite, delete-screenshot
+- 1 native alert() → wdToast
+- Bot card now shows colored health dot (green=ticking, yellow=stale/paused, red=error/no-tick-5min+, gray=stopped) with tooltip
+
+node --check: all 14 backend JS files pass

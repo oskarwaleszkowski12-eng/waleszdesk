@@ -6,6 +6,7 @@ const { JWT_SECRET, requireAuth, requireSubscriberAuth } = require('../lib/auth'
 const { validate, z } = require('../lib/validate');
 const { sendTelegram } = require('../lib/telegram');
 const { sendSubscriberWelcome } = require('../lib/email');
+const { logAdminAction } = require('../lib/audit');
 const logger     = require('../lib/logger');
 
 const router = Router();
@@ -298,6 +299,7 @@ router.post('/admin', requireAuth, validate(createSchema), async (req, res) => {
       VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (email) DO NOTHING RETURNING id
     `, [email.toLowerCase().trim(), name || null, plan, hashCode(code), waitlist_id || null, notes || null, expires_at || null]);
     if (!rows[0]) return res.status(409).json({ ok: false, error: 'Email już istnieje.' });
+    logAdminAction(req, 'subscriber.create', 'subscriber', rows[0].id, { email: email.toLowerCase().trim(), plan });
     res.json({ ok: true, id: rows[0].id, code });
     sendSubscriberWelcome(email.toLowerCase().trim(), name || null, plan, code).catch(() => {});
   } catch (err) {
@@ -318,6 +320,7 @@ router.put('/admin/:id', requireAuth, validate(updateSubSchema), async (req, res
     const { rowCount } = await pool.query('UPDATE subscribers SET status=$1,notes=$2,expires_at=$3 WHERE id=$4',
       [status, notes || null, expires_at || null, req.params.id]);
     if (!rowCount) return res.status(404).json({ ok: false, error: 'Not found' });
+    logAdminAction(req, 'subscriber.update', 'subscriber', req.params.id, { status, expires_at });
     res.json({ ok: true });
   } catch (err) {
     logger.error({ err }, '[subscriber/admin/update]');
@@ -335,6 +338,7 @@ router.post('/admin/:id/regenerate', requireAuth, async (req, res) => {
     await pool.query(
       'UPDATE subscribers SET code_hash=$1 WHERE id=$2', [hashCode(code), req.params.id]
     );
+    logAdminAction(req, 'subscriber.regenerate_code', 'subscriber', req.params.id);
     res.json({ ok: true, code });
     sendSubscriberWelcome(subRows[0].email, subRows[0].name, subRows[0].plan, code).catch(() => {});
   } catch (err) {
@@ -346,6 +350,7 @@ router.post('/admin/:id/regenerate', requireAuth, async (req, res) => {
 router.delete('/admin/:id', requireAuth, async (req, res) => {
   try {
     await pool.query('DELETE FROM subscribers WHERE id=$1', [req.params.id]);
+    logAdminAction(req, 'subscriber.delete', 'subscriber', req.params.id);
     res.json({ ok: true });
   } catch (err) {
     logger.error({ err }, '[subscriber/admin/delete]');

@@ -19,9 +19,31 @@ function setupWS(server, jwtSecret) {
       const payload = jwt.verify(token, jwtSecret);
       if (payload.role !== 'admin') { ws.close(1008, 'Forbidden'); return; }
     } catch { ws.close(1008, 'Unauthorized'); return; }
+
     ws.isAlive = true;
+    // Per-client topic subscriptions. Defaults to everything for backwards compat.
+    ws.subs    = new Set(['live_data', 'bot_stats']);
+    // Optional per-bot filter (Set<botId>); empty = receive all bots in bot_stats
+    ws.botIds  = new Set();
+
     ws.on('pong', () => { ws.isAlive = true; });
     ws.on('error', () => {});
+    ws.on('message', raw => {
+      try {
+        const msg = JSON.parse(String(raw).slice(0, 2000));
+        if (msg.type === 'subscribe' && Array.isArray(msg.topics)) {
+          msg.topics.forEach(t => ws.subs.add(String(t)));
+        } else if (msg.type === 'unsubscribe' && Array.isArray(msg.topics)) {
+          msg.topics.forEach(t => ws.subs.delete(String(t)));
+        } else if (msg.type === 'filter_bots' && Array.isArray(msg.botIds)) {
+          ws.botIds = new Set(msg.botIds.map(Number).filter(Boolean));
+        } else if (msg.type === 'filter_bots_clear') {
+          ws.botIds = new Set();
+        } else if (msg.type === 'ping') {
+          try { ws.send(JSON.stringify({ type: 'pong', ts: Date.now() })); } catch {}
+        }
+      } catch {}
+    });
     logger.info('[ws] client connected');
   });
 
@@ -33,16 +55,27 @@ function setupWS(server, jwtSecret) {
     });
   }, 30_000);
 
-  function broadcast(payload) {
-    const msg = JSON.stringify(payload);
+  // Topic-aware broadcast. Clients only receive payloads they subscribed to.
+  function broadcast(topic, payload, perClientTransform) {
     wss.clients.forEach(ws => {
       if (ws.readyState !== 1) return;
-      try { ws.send(msg); } catch (e) { logger.warn({ err: e }, '[ws] send failed'); }
+      if (ws.subs && !ws.subs.has(topic)) return;
+      try {
+        const out = perClientTransform ? perClientTransform(ws, payload) : payload;
+        if (out === null || out === undefined) return;
+        ws.send(JSON.stringify(out));
+      } catch (e) {
+        logger.warn({ err: e, topic }, '[ws] send failed');
+      }
     });
   }
 
   async function broadcastLiveData() {
     if (wss.clients.size === 0) return;
+    let liveSubscribers = 0;
+    for (const ws of wss.clients) if (ws.subs?.has('live_data')) liveSubscribers++;
+    if (liveSubscribers === 0) return;
+
     try {
       const [balRes, posRes, todayRes] = await Promise.allSettled([
         bybitGet('/v5/account/wallet-balance', { accountType: 'UNIFIED' }),
@@ -78,7 +111,7 @@ function setupWS(server, jwtSecret) {
       if (todayRes.status === 'fulfilled' && todayRes.value?.retCode === 0)
         (todayRes.value.result?.list || []).forEach(p => { realisedToday += parseFloat(p.closedPnl || 0); });
 
-      broadcast({
+      broadcast('live_data', {
         type: 'live_data',
         balance,
         positions: { ok: true, positions },
@@ -95,18 +128,36 @@ function setupWS(server, jwtSecret) {
 
   async function broadcastBotStats() {
     if (wss.clients.size === 0) return;
+    let statsSubscribers = 0;
+    for (const ws of wss.clients) if (ws.subs?.has('bot_stats')) statsSubscribers++;
+    if (statsSubscribers === 0) return;
+
     try {
       const { rows } = await pool.query(`
         SELECT b.id, b.name, b.type, b.symbol, b.status, b.config, b.stats,
           b.exchange, b.subaccount_name, b.allocated_balance,
-          COUNT(bt.id)::int                                          AS trade_count,
-          COUNT(bt.id) FILTER (WHERE bt.status='open')::int         AS open_orders
+          b.last_tick_at, b.last_trade_at, b.last_error_msg, b.last_error_at,
+          COALESCE(bt.trade_count,0) AS trade_count,
+          COALESCE(bt.open_orders,0) AS open_orders
         FROM bots b
-        LEFT JOIN bot_trades bt ON bt.bot_id = b.id
-        GROUP BY b.id
+        LEFT JOIN (
+          SELECT bot_id,
+            COUNT(*)::int                              AS trade_count,
+            COUNT(*) FILTER (WHERE status='open')::int AS open_orders
+          FROM bot_trades
+          GROUP BY bot_id
+        ) bt ON bt.bot_id = b.id
         ORDER BY b.created_at DESC
       `);
-      broadcast({ type: 'bot_stats', bots: rows });
+
+      const fullPayload = { type: 'bot_stats', bots: rows };
+      broadcast('bot_stats', fullPayload, (ws, payload) => {
+        // If client filtered by botIds, slice the array — fewer bytes over the wire
+        if (ws.botIds && ws.botIds.size > 0) {
+          return { ...payload, bots: payload.bots.filter(b => ws.botIds.has(b.id)) };
+        }
+        return payload;
+      });
     } catch (e) {
       logger.error({ err: e }, '[ws] bot_stats error');
     }

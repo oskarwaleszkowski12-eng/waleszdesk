@@ -7,6 +7,7 @@ const { API_KEY, API_SECRET }  = require('../lib/config');
 const { requireAuth }        = require('../lib/auth');
 const logger                 = require('../lib/logger');
 const { validate, z }        = require('../lib/validate');
+const { logAdminAction }     = require('../lib/audit');
 
 const createBotSchema = z.object({
   name:             z.string().min(1).max(100),
@@ -27,6 +28,30 @@ function botPublic(row) {
   const { api_key_enc, api_secret_enc, api_passphrase_enc, ...pub } = row;
   pub.exchange       = row.exchange || 'bybit';
   pub.api_key_masked = api_key_enc ? (() => { try { return decrypt(api_key_enc).slice(0, 4) + '***'; } catch { return '****'; } })() : null;
+
+  // Health badge: green = ticked in last 60s + no recent error
+  //               yellow = ticked but stale (60s-5min) OR last error within 1h
+  //               red = no tick in 5min+ OR active+no_tick OR recent error
+  const now           = Date.now();
+  const lastTickMs    = row.last_tick_at  ? new Date(row.last_tick_at).getTime()  : 0;
+  const lastErrMs     = row.last_error_at ? new Date(row.last_error_at).getTime() : 0;
+  const tickAgeSec    = lastTickMs ? Math.floor((now - lastTickMs) / 1000) : null;
+  const errAgeSec     = lastErrMs  ? Math.floor((now - lastErrMs)  / 1000) : null;
+
+  let health = 'unknown';
+  if (row.status === 'active') {
+    if (lastTickMs === 0)                                              health = 'unknown';
+    else if (errAgeSec !== null && errAgeSec < 3600)                   health = 'red';
+    else if (tickAgeSec <= 60)                                         health = 'green';
+    else if (tickAgeSec <= 300)                                        health = 'yellow';
+    else                                                               health = 'red';
+  } else if (row.status === 'error')   health = 'red';
+  else if (row.status === 'paused')    health = 'yellow';
+  else if (row.status === 'stopped')   health = 'gray';
+
+  pub.health        = health;
+  pub.tick_age_sec  = tickAgeSec;
+  pub.error_age_sec = errAgeSec;
   return pub;
 }
 
@@ -71,6 +96,7 @@ router.post('/', validate(createBotSchema), async (req, res) => {
        ex, subaccountName || null, allocatedBalance || null]
     );
     logger.info({ botId: rows[0].id, name: name.trim(), symbol }, '[bots] created');
+    logAdminAction(req, 'bots.create', 'bot', rows[0].id, { name: name.trim(), type, symbol, exchange: ex });
     res.json({ ok: true, bot: botPublic(rows[0]) });
   } catch (err) {
     logger.error({ err }, '[bots POST]');
@@ -124,6 +150,7 @@ router.get('/', async (req, res) => {
 router.patch('/pause-all', async (req, res) => {
   try {
     const { rowCount } = await pool.query(`UPDATE bots SET status='paused',updated_at=NOW() WHERE status='active'`);
+    logAdminAction(req, 'bots.pause_all', 'bots', null, { count: rowCount });
     res.json({ ok: true, paused: rowCount });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
@@ -131,6 +158,7 @@ router.patch('/pause-all', async (req, res) => {
 router.patch('/stop-all', async (req, res) => {
   try {
     const { rows } = await pool.query(`UPDATE bots SET status='stopped',updated_at=NOW() WHERE status IN ('active','paused') RETURNING *`);
+    logAdminAction(req, 'bots.stop_all', 'bots', null, { count: rows.length });
     await Promise.allSettled(rows.map(async bot => {
       try {
         const { exchange, apiKey, apiSecret, passphrase } = botClientDetails(bot);
@@ -202,6 +230,7 @@ router.delete('/:id', async (req, res) => {
     const bot = rows[0];
     if (bot.status === 'stopped') {
       await pool.query(`DELETE FROM bots WHERE id=$1`, [req.params.id]);
+      logAdminAction(req, 'bots.delete', 'bot', bot.id, { name: bot.name, symbol: bot.symbol });
     } else {
       try {
         const { exchange, apiKey, apiSecret, passphrase } = botClientDetails(bot);
@@ -210,6 +239,7 @@ router.delete('/:id', async (req, res) => {
         logger.warn({ err: e, symbol: bot.symbol }, '[bots] cancel-all failed');
       }
       await pool.query(`UPDATE bots SET status='stopped',updated_at=NOW() WHERE id=$1`, [req.params.id]);
+      logAdminAction(req, 'bots.stop', 'bot', bot.id, { name: bot.name, symbol: bot.symbol });
     }
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }

@@ -54,10 +54,47 @@ module.exports = function startBotEngine({ pool, decrypt }) {
 
   // ── DB helpers ────────────────────────────────────────────────────────────
   async function setBotStatus(id, status, msg) {
+    const isErr = status === 'error';
     await pool.query(
-      `UPDATE bots SET status=$1, stats=stats||$2::jsonb, updated_at=NOW() WHERE id=$3`,
-      [status, JSON.stringify({ status_msg: msg || status }), id]
+      `UPDATE bots SET
+         status=$1,
+         stats=stats||$2::jsonb,
+         last_error_msg = CASE WHEN $3::boolean THEN $4 ELSE last_error_msg END,
+         last_error_at  = CASE WHEN $3::boolean THEN NOW()  ELSE last_error_at  END,
+         updated_at = NOW()
+       WHERE id=$5`,
+      [status, JSON.stringify({ status_msg: msg || status }), isErr, msg || null, id]
     );
+  }
+
+  async function markTick(id) {
+    await pool.query(`UPDATE bots SET last_tick_at=NOW() WHERE id=$1`, [id]).catch(() => {});
+  }
+
+  async function markTrade(id) {
+    await pool.query(`UPDATE bots SET last_trade_at=NOW() WHERE id=$1`, [id]).catch(() => {});
+  }
+
+  // ── Drawdown guard ─────────────────────────────────────────────────────────
+  // Auto-pause bot if drawdown from peak exceeds configured max_drawdown_pct.
+  // Reads bots.peak_pnl (DB column), compares vs current total_pnl.
+  async function checkDrawdown(bot, totalPnl) {
+    const maxDd = parseFloat(bot.config?.max_drawdown_pct || 0);
+    if (!maxDd || maxDd <= 0) return false;
+    const peak = parseFloat(bot.peak_pnl || 0);
+    // Update peak if new high
+    if (totalPnl > peak) {
+      await pool.query(`UPDATE bots SET peak_pnl=$1 WHERE id=$2`, [totalPnl, bot.id]).catch(() => {});
+      return false;
+    }
+    if (peak <= 0) return false; // no profit yet, drawdown undefined
+    const ddPct = ((peak - totalPnl) / peak) * 100;
+    if (ddPct >= maxDd) {
+      await setBotStatus(bot.id, 'paused', `Drawdown ${ddPct.toFixed(2)}% >= max ${maxDd}%`);
+      sendTelegram(`⚠️ <b>${escapeHtml(bot.name || 'Bot '+bot.id)}</b> — AUTO-PAUZA (drawdown)\nDrawdown ${ddPct.toFixed(2)}% przekroczył limit ${maxDd}%`);
+      return true;
+    }
+    return false;
   }
 
   async function saveState(id, cfg, db = pool) {
@@ -93,6 +130,9 @@ module.exports = function startBotEngine({ pool, decrypt }) {
       `INSERT INTO bot_trades (bot_id,order_id,side,qty,price,status,meta) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
       [botId, orderId || null, side, qty, price, status, JSON.stringify(meta)]
     );
+    if (status === 'filled') {
+      await db.query(`UPDATE bots SET last_trade_at=NOW() WHERE id=$1`, [botId]).catch(() => {});
+    }
   }
 
   async function withTx(fn) {
@@ -350,9 +390,14 @@ module.exports = function startBotEngine({ pool, decrypt }) {
       botLocks.add(bot.id);
       running++;
       (bot.type === 'dca' ? tickDca(bot, client) : tickGrid(bot, client))
+        .then(() => markTick(bot.id))
+        .then(() => {
+          const totalPnl = parseFloat((bot.stats || {}).total_pnl || 0);
+          return checkDrawdown(bot, totalPnl);
+        })
         .catch(e => {
           logger.error({ botId: bot.id, err: e }, '[botEngine] uncaught tick error');
-          setBotStatus(bot.id, 'error', e.message).catch(() => {});
+          setBotStatus(bot.id, 'error', (e.message || 'unknown').slice(0, 500)).catch(() => {});
           sendTelegram(`🚨 <b>${escapeHtml(bot.name || 'Bot '+bot.id)}</b> — BŁĄD\n${escapeHtml(e.message)}`);
         })
         .finally(() => { botLocks.delete(bot.id); running--; });

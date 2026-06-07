@@ -968,6 +968,8 @@ body.light-mode #login-overlay { background: var(--bg0); }
 .reply-footer{display:flex;align-items:center;justify-content:space-between;margin-top:8px;}
 .reply-hint{font-size:11px;color:var(--muted);}
 </style>
+<link rel="stylesheet" href="/js/mobile.css">
+<script src="/js/ui.js"></script>
 </head>
 <body>
 
@@ -978,6 +980,9 @@ body.light-mode #login-overlay { background: var(--bg0); }
   <div style="display:flex;flex-direction:column;gap:12px;width:280px">
     <input id="login-pw" type="password" placeholder="Password" autocomplete="current-password"
       style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);padding:11px 14px;color:var(--text);font-family:var(--font-mono);font-size:14px;outline:none;width:100%"
+      >
+    <input id="login-totp" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="Kod 2FA (6 cyfr)" autocomplete="one-time-code"
+      style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);padding:11px 14px;color:var(--text);font-family:var(--font-mono);font-size:14px;outline:none;width:100%;letter-spacing:4px;text-align:center;display:none"
       >
     <button id="login-btn"
       style="background:var(--accent);color:#000;border:none;border-radius:var(--r);padding:11px;font-family:var(--font-display);font-size:14px;font-weight:600;cursor:pointer;letter-spacing:1px">
@@ -1406,7 +1411,24 @@ body.light-mode #login-overlay { background: var(--bg0); }
 
   <!-- API -->
   <div class="panel" id="panel-api">
-    <div class="section-head"><div class="section-title">API Configuration</div></div>
+    <div class="section-head"><div class="section-title">Security &amp; API</div></div>
+
+    <!-- 2FA / TOTP card -->
+    <div class="card" style="margin-bottom:20px;padding:18px 20px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        <span style="font-size:18px;">🔐</span>
+        <div style="font-family:var(--font-display);font-size:14px;font-weight:600;letter-spacing:1px;">Two-Factor Authentication</div>
+        <span id="totp-status" style="margin-left:auto;font-size:11px;padding:3px 8px;border-radius:3px;background:#2a0e12;color:#e35567;border:1px solid #e35567;letter-spacing:1px;">DISABLED</span>
+      </div>
+      <p style="margin:0 0 14px;font-size:12px;color:var(--muted2);line-height:1.6;">
+        Włącz TOTP (Google Authenticator / Authy) żeby chronić panel administratora — wymagane po każdym wpisaniu hasła.
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button id="totp-setup-btn" class="btn accent sm">Włącz 2FA</button>
+        <button id="totp-disable-btn" class="btn danger sm" style="display:none;">Wyłącz 2FA</button>
+      </div>
+    </div>
+
     <div class="warn-box">⚠ Keys are stored in localStorage only — never shared with the server. Use Trade-only keys without withdrawal permissions.</div>
     <div class="api-layout">
 
@@ -2796,7 +2818,8 @@ async function resumeBot(id) {
 }
 
 async function stopBot(id, name) {
-  if (!confirm(`Stop "${name}" and cancel all open orders?`)) return;
+  const ok = window.wdConfirm ? await wdConfirm(`Zatrzymać bota "${name}" i anulować wszystkie zlecenia?`, { title: 'Zatrzymaj bota', confirmText: 'Zatrzymaj', danger: true }) : confirm(`Stop "${name}" and cancel all open orders?`);
+  if (!ok) return;
   try {
     const d = await (await apiFetch(`/api/bots/${id}`, { method: 'DELETE' })).json();
     if (!d.ok) { showToast(d.error, 'err'); return; }
@@ -2805,7 +2828,8 @@ async function stopBot(id, name) {
 }
 
 async function deleteBotPermanent(id, name) {
-  if (!confirm(`Czy na pewno chcesz usunąć bota "${name}"? Tej akcji nie można cofnąć.`)) return;
+  const ok = window.wdConfirm ? await wdConfirm(`Czy na pewno chcesz usunąć bota "${name}"? Tej akcji nie można cofnąć.`, { title: 'Usuń bota', confirmText: 'Usuń', danger: true }) : confirm(`Usunąć bota "${name}"?`);
+  if (!ok) return;
   try {
     const d = await (await apiFetch(`/api/bots/${id}`, { method: 'DELETE' })).json();
     if (!d.ok) { showToast(d.error, 'err'); return; }
@@ -2822,7 +2846,8 @@ async function pauseAllBots() {
 }
 
 async function stopAllBots() {
-  if (!confirm('Zatrzymać wszystkie boty? Ta akcja anuluje wszystkie zlecenia.')) return;
+  const ok = window.wdConfirm ? await wdConfirm('Zatrzymać WSZYSTKIE boty? Ta akcja anuluje wszystkie otwarte zlecenia na wszystkich giełdach.', { title: 'STOP ALL', confirmText: 'Zatrzymaj wszystkie', danger: true }) : confirm('Zatrzymać wszystkie boty?');
+  if (!ok) return;
   try {
     const d = await (await apiFetch('/api/bots/stop-all', { method: 'PATCH' })).json();
     if (!d.ok) { showToast(d.error, 'err'); return; }
@@ -2889,7 +2914,7 @@ function renderBots() {
     _botsRenderHash = '';
     return;
   }
-  const hash = JSON.stringify(botsData.map(b => [b.id, b.status, b.stats, b.live_balance]));
+  const hash = JSON.stringify(botsData.map(b => [b.id, b.status, b.stats, b.live_balance, b.health, b.last_tick_at]));
   if (hash === _botsRenderHash) return;
   _botsRenderHash = hash;
   g.innerHTML = botsData.map(b => {
@@ -2942,6 +2967,13 @@ function renderBots() {
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
           <button class="btn sm" style="padding:3px 9px;font-size:15px;line-height:1;" data-action="toggle-menu" data-id="${b.id}" title="Options">&#9881;</button>
+          ${(() => {
+            const h = b.health || 'unknown';
+            const dot = h==='green'?'#1ea66a':h==='yellow'?'#c9a84c':h==='red'?'#e35567':h==='gray'?'#6a6a78':'#8a8799';
+            const tip = b.last_error_msg ? b.last_error_msg.slice(0,200)
+                      : (b.tick_age_sec!=null ? `last tick ${b.tick_age_sec}s ago` : 'no tick yet');
+            return `<span title="${escHtml(tip)}" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${dot};box-shadow:0 0 6px ${dot}55;"></span>`;
+          })()}
           <span class="badge ${sLabel}">${sLabel}</span>
         </div>
       </div>
@@ -4557,7 +4589,8 @@ async function generateInvite() {
 }
 
 async function deactivateInvite(id) {
-  if (!confirm('Deactivate this invite code?')) return;
+  const ok = window.wdConfirm ? await wdConfirm('Dezaktywować ten kod zaproszenia?', { title: 'Dezaktywuj kod', confirmText: 'Dezaktywuj', danger: true }) : confirm('Deactivate this invite code?');
+  if (!ok) return;
   try {
     await apiFetch(`/api/algo/admin/invite-codes/${id}/deactivate`, { method: 'PATCH' });
     fetchAlgoAdmin();
@@ -5312,7 +5345,8 @@ function copyRegenCode() {
 }
 
 async function deleteSubscriber(id, email) {
-  if (!confirm(`Usuń subskrybenta ${email}? Tej akcji nie można cofnąć.`)) return;
+  const ok = window.wdConfirm ? await wdConfirm(`Usuń subskrybenta ${email}? Tej akcji nie można cofnąć.`, { title: 'Usuń subskrybenta', confirmText: 'Usuń', danger: true }) : confirm(`Usuń subskrybenta ${email}?`);
+  if (!ok) return;
   try {
     const r = await apiFetch(`/api/subscriber/admin/${id}`, { method: 'DELETE' });
     const d = await r.json();
@@ -5381,7 +5415,8 @@ async function createJournalPost() {
 }
 
 async function deleteJournalPost(id, title) {
-  if (!confirm(`Usuń wpis "${title}"?`)) return;
+  const ok = window.wdConfirm ? await wdConfirm(`Usuń wpis "${title}"?`, { title: 'Usuń wpis', confirmText: 'Usuń', danger: true }) : confirm(`Usuń wpis "${title}"?`);
+  if (!ok) return;
   try {
     const r = await apiFetch(`/api/subscriber/admin/journal-posts/${id}`, { method: 'DELETE' });
     const d = await r.json();
@@ -5588,7 +5623,8 @@ async function toggleConvStatus(id, current) {
 }
 
 async function deleteConv(id) {
-  if (!confirm('Usuń rozmowę? Tej akcji nie można cofnąć.')) return;
+  const ok = window.wdConfirm ? await wdConfirm('Usuń rozmowę? Tej akcji nie można cofnąć.', { title: 'Usuń rozmowę', confirmText: 'Usuń', danger: true }) : confirm('Usuń rozmowę?');
+  if (!ok) return;
   try {
     await apiFetch('/api/messages/conversations/' + id, { method: 'DELETE' });
     _convData = _convData.filter(c => c.id !== id);
@@ -5626,7 +5662,7 @@ function fileToBase64(file) {
 }
 
 async function uploadFile(file, refType = 'pending', refId = 0) {
-  if (file.size > 5 * 1024 * 1024) { alert('Maksymalny rozmiar: 5 MB'); return null; }
+  if (file.size > 5 * 1024 * 1024) { window.wdToast ? wdToast('error', 'Maksymalny rozmiar: 5 MB') : alert('Maksymalny rozmiar: 5 MB'); return null; }
   const data = await fileToBase64(file);
   const r = await apiFetch('/api/attachments', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -5672,7 +5708,8 @@ async function loadTradeAttachments(tradeId) {
 }
 
 async function removeTradeAtt(tradeId, attId) {
-  if (!confirm('Usuń screenshot?')) return;
+  const ok = window.wdConfirm ? await wdConfirm('Usuń screenshot?', { title: 'Usuń screenshot', confirmText: 'Usuń', danger: true }) : confirm('Usuń screenshot?');
+  if (!ok) return;
   await apiFetch(`/api/attachments/${attId}`, { method: 'DELETE' });
   _tradeAtts[tradeId] = _tradeAtts[tradeId].filter(a => a.id !== attId);
   renderTradeAtts(tradeId);
@@ -5708,18 +5745,41 @@ function apiFetch(url, opts = {}) {
 }
 
 async function doLogin() {
-  const pw  = document.getElementById('login-pw').value;
-  const err = document.getElementById('login-err');
+  const pw       = document.getElementById('login-pw').value;
+  const totpEl   = document.getElementById('login-totp');
+  const totpCode = totpEl.value.trim();
+  const err      = document.getElementById('login-err');
   err.style.display = 'none';
   try {
+    const body = { password: pw };
+    if (totpCode) body.totp_code = totpCode;
     const r = await fetch('/api/auth/login', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: pw }),
+      body: JSON.stringify(body),
     });
     const d = await r.json();
-    if (!d.ok) { err.textContent = d.error || 'Wrong password'; err.style.display = ''; return; }
+    if (!d.ok) {
+      if (d.errorCode === 'TOTP_REQUIRED') {
+        totpEl.style.display = '';
+        totpEl.focus();
+        err.textContent = 'Wpisz kod 2FA z aplikacji uwierzytelniającej.';
+        err.style.display = '';
+        return;
+      }
+      if (d.errorCode === 'INVALID_TOTP') {
+        totpEl.style.display = '';
+        totpEl.value = '';
+        totpEl.focus();
+        err.textContent = 'Nieprawidłowy kod 2FA.';
+        err.style.display = '';
+        return;
+      }
+      err.textContent = (window.wdErrorMessage ? wdErrorMessage(d, 'Wrong password') : (d.error || 'Wrong password'));
+      err.style.display = '';
+      return;
+    }
     sessionStorage.setItem('wd_session', '1');
     const redirect = new URLSearchParams(location.search).get('redirect');
     if (redirect === 'funded') { location.replace('/funded'); return; }
@@ -5753,13 +5813,105 @@ document.addEventListener('click', e => {
   if (sw && !sw.contains(e.target)) document.getElementById('appSwMenu').classList.remove('open');
 });
 
+// ── 2FA / TOTP setup flow ─────────────────────────────────────────────────────
+async function refreshTotpStatus() {
+  try {
+    const r = await fetch('/api/auth/totp/status', { credentials: 'include' });
+    const d = await r.json();
+    const badge   = document.getElementById('totp-status');
+    const setupB  = document.getElementById('totp-setup-btn');
+    const disable = document.getElementById('totp-disable-btn');
+    if (!badge) return;
+    if (d.enabled) {
+      badge.textContent = 'ENABLED'; badge.style.background = '#0e2820'; badge.style.color = '#1ea66a'; badge.style.borderColor = '#1ea66a';
+      setupB.style.display = 'none'; disable.style.display = '';
+    } else {
+      badge.textContent = 'DISABLED'; badge.style.background = '#2a0e12'; badge.style.color = '#e35567'; badge.style.borderColor = '#e35567';
+      setupB.style.display = ''; disable.style.display = 'none';
+    }
+  } catch {}
+}
+
+async function totpSetupFlow() {
+  try {
+    const r = await fetch('/api/auth/totp/setup', { method: 'POST', credentials: 'include' });
+    const d = await r.json();
+    if (!d.ok) { window.wdToast && wdToast('error', wdErrorMessage(d, 'Setup failed')); return; }
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(8,8,16,.78);backdrop-filter:blur(4px);z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;';
+    overlay.innerHTML = `
+      <div style="background:#0d0d1a;border:1px solid rgba(201,168,76,.3);border-radius:8px;max-width:380px;width:100%;padding:24px 28px;color:#f0ede8;font-family:'DM Sans',Arial,sans-serif;">
+        <h3 style="margin:0 0 12px;font-family:Georgia,serif;font-weight:500;font-size:18px;">Konfiguracja 2FA</h3>
+        <p style="margin:0 0 14px;font-size:13px;color:#a09da8;line-height:1.5;">Zeskanuj kod QR w Google Authenticator / Authy, potem wpisz 6-cyfrowy kod żeby potwierdzić.</p>
+        <div style="text-align:center;background:#fff;padding:10px;border-radius:4px;margin-bottom:14px;"><img src="${d.qrDataUrl}" alt="QR" style="width:200px;height:200px;display:block;margin:0 auto;"></div>
+        <details style="margin-bottom:14px;"><summary style="cursor:pointer;font-size:11px;color:#8a8799;letter-spacing:1px;text-transform:uppercase;">Lub wpisz ręcznie</summary><div style="margin-top:8px;background:#080810;padding:10px;border-radius:4px;font-family:monospace;font-size:12px;color:#c9a84c;word-break:break-all;letter-spacing:2px;">${d.secret}</div></details>
+        <input id="totp-confirm-code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="Kod 6 cyfr" style="width:100%;background:#080810;border:1px solid rgba(255,255,255,.15);color:#fff;padding:10px 14px;border-radius:4px;font-family:monospace;font-size:18px;text-align:center;letter-spacing:8px;outline:none;margin-bottom:12px;">
+        <div id="totp-confirm-err" style="color:#e35567;font-size:12px;text-align:center;margin-bottom:10px;display:none;"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button id="totp-cancel" style="background:transparent;color:#a09da8;border:1px solid rgba(255,255,255,.15);padding:8px 16px;border-radius:4px;cursor:pointer;font-size:12px;text-transform:uppercase;letter-spacing:1px;">Anuluj</button>
+          <button id="totp-confirm" style="background:#c9a84c;color:#080810;border:0;padding:8px 16px;border-radius:4px;cursor:pointer;font-size:12px;text-transform:uppercase;letter-spacing:1px;font-weight:600;">Włącz 2FA</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const codeInput = overlay.querySelector('#totp-confirm-code');
+    const errEl     = overlay.querySelector('#totp-confirm-err');
+    codeInput.focus();
+    overlay.querySelector('#totp-cancel').addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#totp-confirm').addEventListener('click', async () => {
+      const code = codeInput.value.trim();
+      if (!code) return;
+      errEl.style.display = 'none';
+      const r2 = await fetch('/api/auth/totp/enable', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: d.secret, code }),
+      });
+      const d2 = await r2.json();
+      if (!d2.ok) { errEl.textContent = wdErrorMessage(d2, 'Nieprawidłowy kod'); errEl.style.display = ''; return; }
+      overlay.remove();
+      window.wdToast && wdToast('success', '2FA włączone — od teraz wymagane przy logowaniu.');
+      refreshTotpStatus();
+    });
+    codeInput.addEventListener('keydown', e => { if (e.key === 'Enter') overlay.querySelector('#totp-confirm').click(); });
+  } catch (e) {
+    window.wdToast && wdToast('error', 'Błąd konfiguracji 2FA');
+  }
+}
+
+async function totpDisableFlow() {
+  const confirmed = window.wdConfirm
+    ? await wdConfirm('Wyłączyć 2FA? Konto będzie chronione tylko hasłem.', { title: 'Wyłącz 2FA', confirmText: 'Wyłącz', danger: true })
+    : confirm('Wyłączyć 2FA?');
+  if (!confirmed) return;
+  const code = prompt('Wpisz aktualny kod 2FA żeby potwierdzić:');
+  if (!code) return;
+  const r = await fetch('/api/auth/totp/disable', {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code: code.trim() }),
+  });
+  const d = await r.json();
+  if (!d.ok) { window.wdToast && wdToast('error', wdErrorMessage(d, 'Nieprawidłowy kod')); return; }
+  window.wdToast && wdToast('success', '2FA wyłączone.');
+  refreshTotpStatus();
+}
+
 // ── addEventListener block (replaces all removed inline handlers) ──────────────
 
 document.addEventListener('DOMContentLoaded', () => {
 
   // Login
   document.getElementById('login-pw').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  document.getElementById('login-totp').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
   document.getElementById('login-btn').addEventListener('click', doLogin);
+
+  // 2FA setup buttons
+  const totpSetupBtn   = document.getElementById('totp-setup-btn');
+  const totpDisableBtn = document.getElementById('totp-disable-btn');
+  if (totpSetupBtn)   totpSetupBtn.addEventListener('click', totpSetupFlow);
+  if (totpDisableBtn) totpDisableBtn.addEventListener('click', totpDisableFlow);
+  refreshTotpStatus();
 
   // Nav
   document.querySelector('.nav').addEventListener('click', e => {

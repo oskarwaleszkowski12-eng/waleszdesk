@@ -5,6 +5,7 @@ const { encrypt }             = require('../lib/crypto');
 const { createExchangeClient } = require('../exchanges');
 const logger                  = require('../lib/logger');
 const { validate, z }         = require('../lib/validate');
+const { logAdminAction }      = require('../lib/audit');
 
 const verifyKeysSchema = z.object({
   key:        z.string().min(1),
@@ -80,29 +81,29 @@ router.post('/launch', validate(launchSchema), async (req, res) => {
     );
     if (!codeRows.length) {
       await client2.query('ROLLBACK');
-      return res.status(400).json({ ok: false, error: 'Invalid or already used invite code' });
+      return res.status(400).json({ ok: false, errorCode: 'INVALID_INVITE', error: 'Invalid or already used invite code' });
     }
 
     const { rows: tmplRows } = await client2.query(`SELECT * FROM algo_templates WHERE id=$1 AND active=true`, [templateId]);
     if (!tmplRows.length) {
       await client2.query('ROLLBACK');
-      return res.status(404).json({ ok: false, error: 'Template not found or inactive' });
+      return res.status(404).json({ ok: false, errorCode: 'NOT_FOUND', error: 'Template not found or inactive' });
     }
     const tmpl = tmplRows[0];
 
     if (allocatedCapital < parseFloat(tmpl.min_capital || 50)) {
       await client2.query('ROLLBACK');
-      return res.status(400).json({ ok: false, error: `Minimum capital is $${tmpl.min_capital}` });
+      return res.status(400).json({ ok: false, errorCode: 'MIN_CAPITAL', error: `Minimum capital is $${tmpl.min_capital}`, min: parseFloat(tmpl.min_capital) });
     }
     if (allocatedCapital > balance * 0.5) {
       await client2.query('ROLLBACK');
-      return res.status(400).json({ ok: false, error: `Max 50% of balance ($${(balance * 0.5).toFixed(2)})` });
+      return res.status(400).json({ ok: false, errorCode: 'MAX_CAPITAL', error: `Max 50% of balance ($${(balance * 0.5).toFixed(2)})`, max: balance * 0.5 });
     }
 
     const { rows: existing } = await client2.query(`SELECT id FROM algo_users WHERE uid=$1 AND exchange=$2`, [uid, ex]);
     if (existing.length) {
       await client2.query('ROLLBACK');
-      return res.json({ ok: false, error: 'UID already registered. Contact support.' });
+      return res.json({ ok: false, errorCode: 'UID_REGISTERED', error: 'UID already registered. Contact support.' });
     }
 
     const { rows: botRows } = await client2.query(
@@ -157,7 +158,7 @@ router.post('/verify-invite', validate(verifyInviteSchema), async (req, res) => 
   try {
     const { code } = req.body;
     const { rows } = await pool.query(`SELECT * FROM invite_codes WHERE code=$1 AND used=FALSE`, [code.trim().toUpperCase()]);
-    if (!rows.length) return res.status(400).json({ ok: false, error: 'Invalid or already used code' });
+    if (!rows.length) return res.status(400).json({ ok: false, errorCode: 'INVALID_INVITE', error: 'Invalid or already used code' });
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
@@ -206,6 +207,7 @@ router.patch('/admin/templates/:id/toggle', async (req, res) => {
   try {
     const { rows } = await pool.query(`UPDATE algo_templates SET active=NOT active WHERE id=$1 RETURNING *`, [req.params.id]);
     if (!rows.length) return res.status(404).json({ ok: false, error: 'Not found' });
+    logAdminAction(req, 'algo.template.toggle', 'algo_template', req.params.id, { active: rows[0].active });
     res.json({ ok: true, template: rows[0] });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
@@ -255,6 +257,7 @@ router.post('/admin/invite-codes', async (req, res) => {
 router.patch('/admin/invite-codes/:id/deactivate', async (req, res) => {
   try {
     await pool.query(`UPDATE invite_codes SET used=TRUE WHERE id=$1`, [req.params.id]);
+    logAdminAction(req, 'algo.invite.deactivate', 'invite_code', req.params.id);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });

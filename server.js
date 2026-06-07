@@ -8,6 +8,7 @@ const http         = require('http');
 const helmet       = require('helmet');
 const rateLimit    = require('express-rate-limit');
 const pinoHttp     = require('pino-http');
+const Sentry       = require('@sentry/node');
 
 const logger    = require('./lib/logger');
 const config    = require('./lib/config');
@@ -21,6 +22,7 @@ const setupWS   = require('./ws');
 const startBotEngine = require('./botEngine');
 const { startEngineScheduler } = require('./lib/engineScheduler');
 
+const authRoutes        = require('./routes/auth');
 const tradingRoutes = require('./routes/trading');
 const pnlRoutes     = require('./routes/pnl');
 const statsRoutes   = require('./routes/stats');
@@ -44,6 +46,17 @@ const engineRoutes      = require('./routes/engine');
 if ((process.env.ENCRYPTION_KEY || '').length < 32) {
   console.error('FATAL: ENCRYPTION_KEY must be at least 32 characters');
   process.exit(1);
+}
+
+// Sentry — capture unhandled errors in production. DSN-less init = no-op.
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn:                 process.env.SENTRY_DSN,
+    environment:         process.env.NODE_ENV || 'development',
+    tracesSampleRate:    0.1,
+    profilesSampleRate:  0,
+  });
+  logger.info('[sentry] initialized');
 }
 
 const app = express();
@@ -121,8 +134,7 @@ app.use('/api/subscriber/', authLimiter);
 app.use('/api/algo/', algoFlowLimiter);
 app.use('/api/algo/verify-invite', verifyInviteLimiter);
 
-// Auth
-const loginSchema = z.object({ password: z.string().min(1) });
+// Public route allowlist (rest are protected by requireAuth)
 const publicAlgoRoutes = new Set([
   '/algo/available-bots',
   '/algo/verify-keys',
@@ -130,41 +142,6 @@ const publicAlgoRoutes = new Set([
   '/algo/status',
   '/algo/verify-invite',
 ]);
-
-const COOKIE_OPTS = {
-  httpOnly: true,
-  secure:   process.env.NODE_ENV === 'production',
-  sameSite: 'strict',
-};
-
-app.post('/api/auth/login', validate(loginSchema), (req, res) => {
-  const { password } = req.body;
-  const h1 = crypto.createHmac('sha256', 'wd').update(password || '').digest();
-  const h2 = crypto.createHmac('sha256', 'wd').update(config.ADMIN_PASS || '').digest();
-  if (!config.ADMIN_PASS || !crypto.timingSafeEqual(h1, h2))
-    return res.status(401).json({ ok: false, error: 'Invalid password' });
-  const token = jwt.sign({ role: 'admin' }, config.JWT_SECRET, { expiresIn: '24h' });
-  res.cookie('wd_admin', token, { ...COOKIE_OPTS, maxAge: 24 * 60 * 60 * 1000 });
-  logger.info('[auth] login success');
-  res.json({ ok: true });
-});
-
-app.post('/api/auth/logout', (req, res) => {
-  res.clearCookie('wd_admin', COOKIE_OPTS);
-  res.json({ ok: true });
-});
-
-app.get('/api/auth/me', (req, res) => {
-  const token = req.cookies?.wd_admin;
-  if (!token) return res.status(401).json({ ok: false });
-  try {
-    const payload = jwt.verify(token, config.JWT_SECRET);
-    if (payload.role !== 'admin') return res.status(403).json({ ok: false });
-    res.json({ ok: true, role: 'admin' });
-  } catch {
-    res.status(401).json({ ok: false });
-  }
-});
 
 // Auth guard — public: /status, /auth/*, /subscriber/* (own auth), selected algo routes, POST /waitlist, POST /messages
 app.use('/api', (req, res, next) => {
@@ -180,6 +157,7 @@ app.use('/api', (req, res, next) => {
 });
 
 // Routes
+app.use('/api/auth', authRoutes);
 app.use('/api', tradingRoutes);
 app.use('/api/pnl', pnlRoutes);
 app.use('/api', statsRoutes);
@@ -203,10 +181,18 @@ app.use((req, res) => {
 // ── Global error handler ──────────────────────────────────────────────────────
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-  logger.error({ err, method: req.method, url: req.url }, '[server] unhandled error');
+  logger.error({ err, method: req.method, url: req.url, reqId: req.id }, '[server] unhandled error');
+  if (process.env.SENTRY_DSN) {
+    Sentry.withScope(scope => {
+      scope.setTag('reqId', req.id);
+      scope.setExtra('url', req.url);
+      scope.setExtra('method', req.method);
+      Sentry.captureException(err);
+    });
+  }
   const status = err.status || err.statusCode || 500;
   const msg    = process.env.NODE_ENV === 'production' ? 'Internal server error' : (err.message || 'Internal server error');
-  res.status(status).json({ ok: false, error: msg });
+  res.status(status).json({ ok: false, errorCode: 'INTERNAL', error: msg });
 });
 
 // ── HTTP + WebSocket server ───────────────────────────────────────────────────
@@ -262,9 +248,15 @@ process.on('SIGINT',  () => shutdown('SIGINT'));
 
 process.on('unhandledRejection', (reason) => {
   logger.error({ reason }, '[server] unhandledRejection — check async code');
+  if (process.env.SENTRY_DSN) Sentry.captureException(reason);
 });
 
 process.on('uncaughtException', (err) => {
   logger.error({ err }, '[server] uncaughtException — shutting down');
-  process.exit(1);
+  if (process.env.SENTRY_DSN) {
+    Sentry.captureException(err);
+    Sentry.flush(2000).finally(() => process.exit(1));
+  } else {
+    process.exit(1);
+  }
 });
