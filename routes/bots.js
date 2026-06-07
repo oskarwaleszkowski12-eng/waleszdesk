@@ -82,12 +82,20 @@ router.get('/', async (req, res) => {
   try {
     const { rows } = await pool.query(`
       SELECT b.*,
-        (SELECT COUNT(*) FROM bot_trades WHERE bot_id=b.id)::int                   AS trade_count,
-        (SELECT COUNT(*) FROM bot_trades WHERE bot_id=b.id AND status='open')::int AS open_orders
-      FROM bots b ORDER BY b.created_at DESC
+        COALESCE(bt.trade_count, 0) AS trade_count,
+        COALESCE(bt.open_orders, 0) AS open_orders
+      FROM bots b
+      LEFT JOIN (
+        SELECT bot_id,
+          COUNT(*)::int                                   AS trade_count,
+          COUNT(*) FILTER (WHERE status='open')::int      AS open_orders
+        FROM bot_trades
+        GROUP BY bot_id
+      ) bt ON bt.bot_id = b.id
+      ORDER BY b.created_at DESC
     `);
     const withTimeout = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r(null), ms))]);
-    const bots = await Promise.all(rows.map(async row => {
+    const results = await Promise.allSettled(rows.map(async row => {
       const pub = botPublic(row);
       if (row.status === 'active') {
         pub.live_balance = await withTimeout(getCachedBalance(row.id, async () => {
@@ -101,6 +109,11 @@ router.get('/', async (req, res) => {
       }
       return pub;
     }));
+    const bots = results.map((r, i) => {
+      if (r.status === 'fulfilled') return r.value;
+      logger.warn({ err: r.reason, botId: rows[i].id }, '[bots] enrich failed');
+      return { ...botPublic(rows[i]), live_balance: null };
+    });
     res.json({ ok: true, bots });
   } catch (err) {
     logger.error({ err }, '[bots GET]');
@@ -122,7 +135,9 @@ router.patch('/stop-all', async (req, res) => {
       try {
         const { exchange, apiKey, apiSecret, passphrase } = botClientDetails(bot);
         await createExchangeClient(exchange, apiKey, apiSecret, passphrase).cancelAllOrders(bot.symbol);
-      } catch {}
+      } catch (e) {
+        logger.warn({ botId: bot.id, symbol: bot.symbol, err: e?.message }, '[bots/stop-all] cancel failed');
+      }
     }));
     res.json({ ok: true, stopped: rows.length });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }

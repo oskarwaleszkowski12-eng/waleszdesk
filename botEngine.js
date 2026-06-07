@@ -359,6 +359,7 @@ module.exports = function startBotEngine({ pool, decrypt }) {
     }
   }
 
-  setInterval(tick, 10_000);
+  const tickHandle = setInterval(tick, 10_000);
   logger.info('[botEngine] started');
+  return () => { clearInterval(tickHandle); _engineStarted = false; };
 };

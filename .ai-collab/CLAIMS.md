@@ -16,23 +16,23 @@ Notes: short note
 
 ## Active Claims
 
-```text
-Agent: Claude
-Task: Security + perf fixes — WS auth, API key logging, N+1, poller, attachment cleanup
-Paths:
-- ws/index.js
-- routes/bots.js
-- routes/messages.js
-- routes/subscriber.js
-- lib/poller.js
-- lib/engineScheduler.js
-- index.html
-Started: 2026-05-30 00:00 Europe/Warsaw
-Status: active
-Notes: 6 issues found in deep audit pass.
-```
+_None._
 
 ## Released Claims
+
+```text
+Agent: Claude
+Task: Stability + scalability hardening pass (50+ users)
+Paths:
+- lib/email.js, lib/poller.js, lib/engineScheduler.js, lib/auth.js, lib/bybit.js, lib/http.js (NEW)
+- ws/index.js
+- routes/bots.js, routes/algo.js
+- exchanges/bybit.js, exchanges/binance.js, exchanges/bitget.js, exchanges/blofin.js, exchanges/mexc.js, exchanges/okx.js
+- botEngine.js, server.js
+Started: 2026-06-07 Europe/Warsaw
+Status: released
+Notes: 10 fixes — fetch timeouts, WS hardening, allSettled, DB plan re-fetch, graceful shutdown, N+1 JOINs, axios keep-alive, admin pagination, request-id, logged cancel errors. See LOG.
+```
 
 ```text
 Agent: Claude

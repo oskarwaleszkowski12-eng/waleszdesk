@@ -139,10 +139,12 @@ router.get('/status', async (req, res) => {
     const { rows } = await pool.query(`
       SELECT au.*, at.name AS template_name, at.symbol, at.risk_level,
         b.status AS bot_status, b.stats,
-        (SELECT COUNT(*) FROM bot_trades WHERE bot_id=au.bot_id)::int AS trade_count
+        COALESCE(bt.trade_count, 0) AS trade_count
       FROM algo_users au
       LEFT JOIN algo_templates at ON at.id=au.bot_template_id
       LEFT JOIN bots b ON b.id=au.bot_id
+      LEFT JOIN (SELECT bot_id, COUNT(*)::int AS trade_count FROM bot_trades GROUP BY bot_id) bt
+        ON bt.bot_id=au.bot_id
       WHERE au.uid=$1
     `, [uid]);
     if (!rows.length) return res.json({ ok: false, error: 'User not found' });
@@ -210,17 +212,27 @@ router.patch('/admin/templates/:id/toggle', async (req, res) => {
 
 router.get('/admin/users', async (req, res) => {
   try {
+    const page   = Math.max(1, parseInt(req.query.page) || 1);
+    const limit  = Math.min(200, Math.max(10, parseInt(req.query.limit) || 100));
+    const offset = (page - 1) * limit;
     const { rows } = await pool.query(`
       SELECT au.id,au.uid,au.balance_at_signup,au.allocated_capital,au.status,au.created_at,
         at.name AS template_name, at.symbol, at.type AS template_type,
         b.status AS bot_status, b.stats,
-        (SELECT COUNT(*) FROM bot_trades WHERE bot_id=au.bot_id)::int AS trade_count
+        COALESCE(bt.trade_count, 0) AS trade_count
       FROM algo_users au
       LEFT JOIN algo_templates at ON at.id=au.bot_template_id
       LEFT JOIN bots b ON b.id=au.bot_id
+      LEFT JOIN (SELECT bot_id, COUNT(*)::int AS trade_count FROM bot_trades GROUP BY bot_id) bt
+        ON bt.bot_id=au.bot_id
       ORDER BY au.created_at DESC
-    `);
-    res.json({ ok: true, users: rows.map(r => ({ ...r, pnl: parseFloat(((r.stats||{}).total_pnl||0)).toFixed(2) })) });
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
+    res.json({
+      ok: true,
+      page, limit,
+      users: rows.map(r => ({ ...r, pnl: parseFloat(((r.stats||{}).total_pnl||0)).toFixed(2) })),
+    });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 

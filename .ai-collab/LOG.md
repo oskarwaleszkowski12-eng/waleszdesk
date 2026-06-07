@@ -2,6 +2,56 @@
 
 Append newest entries at the top.
 
+## 2026-05-31 — Claude — HANDOFF DLA CODEX
+
+### Co zrobiono w tej sesji
+
+**Etap 1 — Email reply do subskrybenta**
+- `routes/messages.js` — `POST /api/messages/conversations/:id/reply` wywołuje `sendSubscriberReplyEmail` gdy `conv.subscriber_id` istnieje
+- `lib/email.js` — dodana funkcja `sendSubscriberReplyEmail(to, name, subject, content)`
+
+**Etap 2 — DCA Stop-Loss**
+- Logika w botcie DCA: bot sprawdza skumulowaną stratę po każdym trade i zatrzymuje się gdy przekroczy próg `dcaStopLoss` (konfigurowalny w ustawieniach bota)
+
+**Etap 3 — Konwersja inline event handlerów (CSP prep)**
+
+`index.html` — **0 HTML attribute event handlers**. Weryfikacja: `grep "onclick=\|oninput=\|onchange=" index.html` zwraca tylko 2 linie — obie to JS property assignments (`.onclick =`, `.onchange =`), nie HTML atrybuty.
+
+Wzorce użyte:
+- Statyczne elementy → dodane IDs + `addEventListener` w bloku `DOMContentLoaded` na końcu `<script>`
+- Dynamiczne szablony (renderBots, renderJournal, renderJournalDB, renderPositions, alerty, subskrybenci, konwersacje, itp.) → `data-action` / `data-*` atrybuty + event delegation na kontenerach
+- `attachmentGrid` — usunięty wzorzec `window['removeTradeAtt_N']`, zastąpiony przez `data-action="remove-trade-att"` + listener w `renderTradeAtts`
+- Obrazki z viewImg → `data-viewimg="1"` + delegation czytający `e.target.src`
+- `onclick="event.stopPropagation()"` → `class="js-no-expand"`
+- Pretrade checkboxes → listeners dodawane programowo po `container.innerHTML =` w `openPreTradeChecklist()`
+- Reply textarea keydown → listener dodawany po `main.innerHTML =` w `openConv()`
+
+`lib/csp.js` — nonce-based CSP:
+- Dodany `require('crypto')`
+- `buildCsp()` → `buildCsp(nonce)`, `script-src 'unsafe-inline'` → `script-src 'nonce-${nonce}'`
+- `serveWithCsp` wstrzykuje `nonce="${nonce}"` na każdy `<script>` tag przez regex replace
+- `style-src 'unsafe-inline'` pozostawiony (potrzebny dla inline stylów)
+
+### Co NIE zostało jeszcze zrobione
+
+Wcześniejszy audit Claude (2026-05-30) zidentyfikował 6 issues bezpieczeństwa/perf, które były w aktywnym claimie ale nie zostały zaadresowane w tej sesji (sesja skupiła się na CSP):
+- WS auth (`ws/index.js`)
+- API key logging (`routes/bots.js`)
+- N+1 query
+- Poller cleanup (`lib/poller.js`)
+- Attachment cleanup
+- `routes/subscriber.js`
+
+Szczegóły tych issues powinny być w poprzednich wpisach LOG.md lub trzeba re-auditowaś.
+
+### Dla Codexa — na co uważać
+
+1. `index.html` ma teraz `DOMContentLoaded` blok z ~200 liniami na końcu `<script>`. Jeśli dodajesz nowe przyciski/inputy — albo dodaj ID + listener tam, albo dodaj do istniejącej delegacji na kontenerze.
+2. `lib/csp.js` wstrzykuje nonce przez regex `/<script(?=[>\s])/g`. Jeśli dodasz zewnętrzny `<script src="...">` — tag dostanie nonce automatycznie. Jeśli ładujesz skrypty inaczej (np. dynamicznie) — trzeba osobno obsłużyć.
+3. Funkcja `renderTradeAtts` używa `wrap._hasRemoveListener` żeby nie duplikować listenerów przy re-renderze. To jest niestandartowe — uważaj jeśli refakturujesz tę funkcję.
+
+Claims released.
+
 ## 2026-05-27 14:45 Europe/Warsaw - Codex
 
 Completed: confirmed bug fixes
@@ -148,3 +198,28 @@ Migrated JWT storage from localStorage/sessionStorage to httpOnly cookies:
 - engine.html: TOKEN var removed, api() uses credentials:'include'
 - subscriber.html: _tok removed, api() uses credentials:'include', logout calls /api/subscriber/logout, init calls /api/subscriber/me on cold load
 node --check: all JS files pass
+
+## 2026-06-07 Claude — Stability + scalability hardening (50+ users)
+
+10 fixes across stability, scalability, polish:
+
+Stability (Phase 1):
+- lib/email.js: 3 fetch() calls to Resend wrapped in 5s AbortController timeout (no thread starvation if Resend hangs)
+- ws/index.js: ws.send() in broadcast wrapped in try/catch (one slow client no longer crashes broadcast for others)
+- routes/bots.js GET /: Promise.allSettled instead of Promise.all (one slow bot can't time out the dashboard for everyone)
+- lib/auth.js requireSubscriberAuth: reads plan + name fresh from DB, no longer trusts 7-day-old JWT payload
+- server.js: graceful shutdown — collects stop() handles from setupWS, startPoller, startBotEngine, startEngineScheduler; SIGTERM/SIGINT stops all, drains pool, hard-kill at 15s
+- botEngine.js, lib/poller.js, lib/engineScheduler.js, ws/index.js: each start* fn returns a stop closure
+
+Scalability (Phase 2):
+- routes/bots.js GET /: correlated (SELECT COUNT) subqueries → single LEFT JOIN+GROUP BY
+- routes/algo.js GET /status + /admin/users: same N+1 → JOIN refactor
+- routes/algo.js GET /admin/users: added LIMIT 100 + ?page/?limit pagination
+- lib/http.js NEW: shared axios instance with keepAlive http/https agents (maxSockets 100)
+- exchanges/{bybit,binance,bitget,blofin,mexc,okx}.js + lib/bybit.js: switched from require('axios') to require('../lib/http') — TCP reuse across calls
+
+Polish (Phase 3):
+- server.js: per-request UUID (X-Request-Id), Server-Timing header via writeHead hook, reqId in pino logs (customProps)
+- routes/bots.js stop-all: silent catch{} on cancel-all → logger.warn with botId + symbol
+
+node --check: all 19 modified JS files pass

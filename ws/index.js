@@ -25,7 +25,7 @@ function setupWS(server, jwtSecret) {
     logger.info('[ws] client connected');
   });
 
-  setInterval(() => {
+  const pingHandle = setInterval(() => {
     wss.clients.forEach(ws => {
       if (!ws.isAlive) { ws.terminate(); return; }
       ws.isAlive = false;
@@ -35,7 +35,10 @@ function setupWS(server, jwtSecret) {
 
   function broadcast(payload) {
     const msg = JSON.stringify(payload);
-    wss.clients.forEach(ws => { if (ws.readyState === 1) ws.send(msg); });
+    wss.clients.forEach(ws => {
+      if (ws.readyState !== 1) return;
+      try { ws.send(msg); } catch (e) { logger.warn({ err: e }, '[ws] send failed'); }
+    });
   }
 
   async function broadcastLiveData() {
@@ -109,9 +112,17 @@ function setupWS(server, jwtSecret) {
     }
   }
 
-  setInterval(broadcastLiveData,  5_000);
-  setInterval(broadcastBotStats, 10_000);
+  const liveHandle  = setInterval(broadcastLiveData,  5_000);
+  const statsHandle = setInterval(broadcastBotStats, 10_000);
   logger.info('[ws] server ready');
+
+  return () => {
+    clearInterval(liveHandle);
+    clearInterval(statsHandle);
+    clearInterval(pingHandle);
+    wss.clients.forEach(ws => { try { ws.close(1001, 'Server shutting down'); } catch {} });
+    wss.close();
+  };
 }
 
 module.exports = setupWS;

@@ -1,5 +1,5 @@
 'use strict';
-const axios  = require('axios');
+const axios  = require('../lib/http');
 const crypto = require('crypto');
 const { withRetry } = require('./_utils');
 

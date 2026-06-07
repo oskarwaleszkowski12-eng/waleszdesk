@@ -61,9 +61,25 @@ app.use((req, res, next) => {
   next();
 });
 
+// Request ID + Server-Timing — enables tracing under 50+ user load
+app.use((req, res, next) => {
+  const id = req.headers['x-request-id'] || crypto.randomBytes(8).toString('hex');
+  req.id = id;
+  res.setHeader('X-Request-Id', id);
+  const start = process.hrtime.bigint();
+  const origWriteHead = res.writeHead.bind(res);
+  res.writeHead = function (...args) {
+    const ms = Number(process.hrtime.bigint() - start) / 1e6;
+    try { res.setHeader('Server-Timing', `app;dur=${ms.toFixed(1)}`); } catch {}
+    return origWriteHead(...args);
+  };
+  next();
+});
+
 app.use(pinoHttp({
   logger,
   autoLogging: { ignore: req => req.url === '/api/status' },
+  customProps: req => ({ reqId: req.id }),
   serializers: {
     req(req) {
       const raw = req.res?.locals?._lb;
@@ -195,15 +211,17 @@ app.use((err, req, res, next) => {
 
 // ── HTTP + WebSocket server ───────────────────────────────────────────────────
 const server = http.createServer(app);
-setupWS(server, config.JWT_SECRET);
+const stopWS = setupWS(server, config.JWT_SECRET);
 
 const tv = require('./lib/tradovate');
 
+const shutdownHooks = [stopWS];
+
 initDb()
   .then(async () => {
-    startPoller(require('./lib/db').pool);
-    startBotEngine({ pool: require('./lib/db').pool, decrypt });
-    startEngineScheduler();
+    shutdownHooks.push(startPoller(require('./lib/db').pool));
+    shutdownHooks.push(startBotEngine({ pool: require('./lib/db').pool, decrypt }));
+    shutdownHooks.push(startEngineScheduler());
     await tv.loadCredentialsFromDb();
   })
   .catch(err => logger.error({ err }, '[DB] init failed'));
@@ -212,12 +230,35 @@ server.listen(config.PORT, '0.0.0.0', () =>
   logger.info(`WaleszDesk running on 0.0.0.0:${config.PORT}`)
 );
 
-process.on('SIGTERM', () => {
-  logger.info('[shutdown] SIGTERM received — closing server');
+let _shuttingDown = false;
+function shutdown(signal) {
+  if (_shuttingDown) return;
+  _shuttingDown = true;
+  logger.info({ signal }, '[shutdown] received — stopping background work');
+
+  // Hard kill if anything hangs
+  const hardKill = setTimeout(() => {
+    logger.error('[shutdown] hard timeout — force exit');
+    process.exit(1);
+  }, 15_000);
+  hardKill.unref();
+
+  // Stop schedulers, bot engine, poller, ws
+  for (const stop of shutdownHooks) {
+    try { stop && stop(); } catch (e) { logger.warn({ err: e }, '[shutdown] hook failed'); }
+  }
+
+  // Stop accepting new HTTP, then drain DB pool
   server.close(() => {
-    require('./lib/db').pool.end(() => logger.info('[shutdown] DB pool drained — exit'));
+    logger.info('[shutdown] HTTP server closed — draining DB pool');
+    require('./lib/db').pool.end()
+      .then(() => { logger.info('[shutdown] DB pool drained — exit'); process.exit(0); })
+      .catch(err => { logger.error({ err }, '[shutdown] DB drain error'); process.exit(1); });
   });
-});
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT',  () => shutdown('SIGINT'));
 
 process.on('unhandledRejection', (reason) => {
   logger.error({ reason }, '[server] unhandledRejection — check async code');
