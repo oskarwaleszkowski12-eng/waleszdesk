@@ -34,13 +34,17 @@ const messagesRoutes    = require('./routes/messages');
 const attachmentsRoutes = require('./routes/attachments');
 const engineRoutes      = require('./routes/engine');
 
-// Fail fast if critical secrets are missing
+// Fail fast if critical secrets are missing or too weak
 ['JWT_SECRET', 'ENCRYPTION_KEY', 'ADMIN_PASSWORD'].forEach(k => {
   if (!process.env[k]) {
     console.error(`FATAL: env var ${k} is not set — refusing to start`);
     process.exit(1);
   }
 });
+if ((process.env.ENCRYPTION_KEY || '').length < 32) {
+  console.error('FATAL: ENCRYPTION_KEY must be at least 32 characters');
+  process.exit(1);
+}
 
 const app = express();
 
@@ -62,7 +66,8 @@ app.use(pinoHttp({
   autoLogging: { ignore: req => req.url === '/api/status' },
   serializers: {
     req(req) {
-      const body = req.raw?.body ? { ...req.raw.body } : undefined;
+      const raw = req.res?.locals?._lb;
+      const body = raw && typeof raw === 'object' ? { ...raw } : undefined;
       if (body) {
         const mask = ['password', 'apiSecret', 'secret', 'key', 'apiKey', 'passphrase', 'apiPassphrase', 'code'];
         mask.forEach(f => { if (f in body) body[f] = '[REDACTED]'; });
@@ -73,6 +78,7 @@ app.use(pinoHttp({
 }));
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '512kb' }));
+app.use((req, res, next) => { res.locals._lb = req.body; next(); });
 app.use(cookieParser());
 app.use(cors({ origin: config.ALLOWED_ORIGIN, credentials: true, maxAge: 86400 }));
 

@@ -16,7 +16,7 @@ async function withRetry(fn, exchange, maxRetries = 2) {
     } catch (err) {
       const isAuthErr = isTimestampError(err);
       if (isAuthErr) {
-        logger.warn({ exchange, attempt, msg: err?.response?.data?.msg || err.message }, `[${exchange}] timestamp/signature error`);
+        logger.warn({ exchange, attempt, msg: err?.response?.data?.retMsg || err?.response?.data?.msg || '[exchange error]' }, `[${exchange}] timestamp/signature error`);
       }
       if (attempt < maxRetries && isAuthErr) {
         await new Promise(r => setTimeout(r, 100));

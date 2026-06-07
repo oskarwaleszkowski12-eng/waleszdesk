@@ -45,7 +45,10 @@ router.post('/verify-keys', validate(verifyKeysSchema), async (req, res) => {
     const { total } = await client.getBalance();
     const uid = await client.getUID();
     res.json({ ok: true, balance: parseFloat(total.toFixed(2)), uid });
-  } catch (e) { res.json({ ok: false, error: e.message }); }
+  } catch (e) {
+    const safe = e?.response?.data?.retMsg || e?.response?.data?.msg || e?.response?.data?.message;
+    res.json({ ok: false, error: safe ? String(safe).slice(0, 200) : 'Connection failed' });
+  }
 });
 
 router.post('/launch', validate(launchSchema), async (req, res) => {
@@ -57,7 +60,10 @@ router.post('/launch', validate(launchSchema), async (req, res) => {
   let balance, uid;
   try {
     const client = createExchangeClient(ex, apiKey, apiSecret, apiPassphrase);
-    const result = await client.getBalance().catch(e => { throw new Error('Key verification failed: ' + e.message); });
+    const result = await client.getBalance().catch(e => {
+      const safe = e?.response?.data?.retMsg || e?.response?.data?.msg || 'Exchange rejected credentials';
+      throw new Error(String(safe).slice(0, 200));
+    });
     balance = result.total;
     uid     = await client.getUID().catch(() => 'unknown');
   } catch (err) {

@@ -54,7 +54,8 @@ router.post('/test-connection', requireAuth, async (req, res) => {
     const { total } = await client.getBalance();
     res.json({ ok: true, balance: parseFloat(total.toFixed(2)) });
   } catch (e) {
-    res.json({ ok: false, error: e.message });
+    const safe = e?.response?.data?.retMsg || e?.response?.data?.msg || e?.response?.data?.message;
+    res.json({ ok: false, error: safe ? String(safe).slice(0, 200) : 'Connection failed' });
   }
 });
 
