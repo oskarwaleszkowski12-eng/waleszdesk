@@ -404,7 +404,17 @@ module.exports = function startBotEngine({ pool, decrypt }) {
     }
   }
 
-  const tickHandle = setInterval(tick, 10_000);
+  let tickHandle = null;
+  let stopped = false;
+  function scheduleTick() {
+    if (stopped) return;
+    const delay = 8000 + Math.random() * 4000; // jitter 8–12s to avoid thundering herd
+    tickHandle = setTimeout(async () => {
+      try { await tick(); } catch (e) { logger.error({ err: e }, '[botEngine] tick crashed'); }
+      scheduleTick();
+    }, delay);
+  }
+  scheduleTick();
   logger.info('[botEngine] started');
-  return () => { clearInterval(tickHandle); _engineStarted = false; };
+  return () => { stopped = true; if (tickHandle) clearTimeout(tickHandle); _engineStarted = false; };
 };

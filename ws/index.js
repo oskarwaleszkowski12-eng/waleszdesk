@@ -56,14 +56,20 @@ function setupWS(server, jwtSecret) {
   }, 30_000);
 
   // Topic-aware broadcast. Clients only receive payloads they subscribed to.
+  // When no per-client transform is needed, stringify once and reuse the frame.
   function broadcast(topic, payload, perClientTransform) {
+    const sharedFrame = perClientTransform ? null : JSON.stringify(payload);
     wss.clients.forEach(ws => {
       if (ws.readyState !== 1) return;
       if (ws.subs && !ws.subs.has(topic)) return;
       try {
-        const out = perClientTransform ? perClientTransform(ws, payload) : payload;
-        if (out === null || out === undefined) return;
-        ws.send(JSON.stringify(out));
+        if (sharedFrame) {
+          ws.send(sharedFrame);
+        } else {
+          const out = perClientTransform(ws, payload);
+          if (out === null || out === undefined) return;
+          ws.send(JSON.stringify(out));
+        }
       } catch (e) {
         logger.warn({ err: e, topic }, '[ws] send failed');
       }

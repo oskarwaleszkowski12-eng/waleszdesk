@@ -4290,7 +4290,13 @@ function initWS() {
         msg.bots.forEach(b => {
           const ex = map.get(b.id);
           if (ex) {
-            if (ex.status !== b.status || JSON.stringify(ex.stats) !== JSON.stringify(b.stats) || ex.trade_count !== b.trade_count) {
+            const sa = ex.stats || {}, sb = b.stats || {};
+          const statsChanged =
+            sa.total_pnl      !== sb.total_pnl      ||
+            sa.trades         !== sb.trades         ||
+            sa.unrealised_pnl !== sb.unrealised_pnl ||
+            sa.status_msg     !== sb.status_msg;
+          if (ex.status !== b.status || statsChanged || ex.trade_count !== b.trade_count) {
               Object.assign(ex, b); // merge DB fields — live_balance preserved (not in WS msg)
               changed = true;
             }
@@ -4792,11 +4798,13 @@ function startLiveDashboard() {
   fetchJournalDB().then(() => refreshAll());   // load journal so Win Rate is accurate, then fire remaining tiles
   Promise.all([fetchStats(), fetchBots()]);    // parallel: stats + bots
   refreshUnreadBadge();
-  setInterval(refreshUnreadBadge, 30000);
+  setInterval(() => { if (!document.hidden) refreshUnreadBadge(); }, 30000);
 
-  // Single 5s ticker — slower tasks + fallback when WS offline
+  // Single 5s ticker — slower tasks + fallback when WS offline.
+  // Skip work when tab is hidden; visibilitychange handler below catches up on focus.
   let _tick = 0;
   setInterval(() => {
+    if (document.hidden) return;
     _tick++;
     refreshAll();
     setTimeout(checkAlerts,   800);
@@ -4804,6 +4812,11 @@ function startLiveDashboard() {
     if (_tick % 12 === 0) setTimeout(() => { bustCache('/api/stats'); fetchStats(); }, 2400);
     if (_tick % 6  === 0) setTimeout(checkBtcSpike, 3200);
   }, 5_000);
+
+  // Catch up immediately when user returns to the tab
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) { refreshAll(); refreshUnreadBadge(); }
+  });
 }
 
 function initLiveEquityChart() {

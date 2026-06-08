@@ -2281,7 +2281,11 @@ function startLivePolling() {
   if (_liveInterval) clearInterval(_liveInterval);
   refreshLiveData();
   refreshPositions();
-  _liveInterval = setInterval(() => { refreshLiveData(); refreshPositions(); }, 30000);
+  _liveInterval = setInterval(() => {
+    if (document.hidden) return;
+    refreshLiveData();
+    refreshPositions();
+  }, 30000);
 }
 
 async function refreshLiveData() {
