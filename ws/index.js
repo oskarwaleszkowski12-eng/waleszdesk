@@ -76,12 +76,15 @@ function setupWS(server, jwtSecret) {
     });
   }
 
+  let _liveInFlight = false;
   async function broadcastLiveData() {
+    if (_liveInFlight) return; // skip if previous broadcast still running (Bybit slow)
     if (wss.clients.size === 0) return;
     let liveSubscribers = 0;
     for (const ws of wss.clients) if (ws.subs?.has('live_data')) liveSubscribers++;
     if (liveSubscribers === 0) return;
 
+    _liveInFlight = true;
     try {
       const [balRes, posRes, todayRes] = await Promise.allSettled([
         bybitGet('/v5/account/wallet-balance', { accountType: 'UNIFIED' }),
@@ -129,15 +132,20 @@ function setupWS(server, jwtSecret) {
       });
     } catch (e) {
       logger.error({ err: e }, '[ws] broadcast error');
+    } finally {
+      _liveInFlight = false;
     }
   }
 
+  let _statsInFlight = false;
   async function broadcastBotStats() {
+    if (_statsInFlight) return; // skip if previous DB query still running
     if (wss.clients.size === 0) return;
     let statsSubscribers = 0;
     for (const ws of wss.clients) if (ws.subs?.has('bot_stats')) statsSubscribers++;
     if (statsSubscribers === 0) return;
 
+    _statsInFlight = true;
     try {
       const { rows } = await pool.query(`
         SELECT b.id, b.name, b.type, b.symbol, b.status, b.config, b.stats,
@@ -166,6 +174,8 @@ function setupWS(server, jwtSecret) {
       });
     } catch (e) {
       logger.error({ err: e }, '[ws] bot_stats error');
+    } finally {
+      _statsInFlight = false;
     }
   }
 

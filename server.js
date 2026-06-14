@@ -128,11 +128,13 @@ const limiter             = rateLimit({ windowMs: 60_000,      max: 120, standar
 const authLimiter         = rateLimit({ windowMs: 60_000,      max: 10,  standardHeaders: true, legacyHeaders: false });
 const algoFlowLimiter     = rateLimit({ windowMs: 60_000,      max: 30,  standardHeaders: true, legacyHeaders: false });
 const verifyInviteLimiter = rateLimit({ windowMs: 60 * 60_000, max: 10,  standardHeaders: true, legacyHeaders: false });
+const waitlistLimiter     = rateLimit({ windowMs: 60_000,      max: 5,   standardHeaders: true, legacyHeaders: false });
 app.use('/api/', limiter);
 app.use('/api/auth/', authLimiter);
 app.use('/api/subscriber/', authLimiter);
 app.use('/api/algo/', algoFlowLimiter);
 app.use('/api/algo/verify-invite', verifyInviteLimiter);
+app.use('/api/waitlist', waitlistLimiter);
 
 // Public route allowlist (rest are protected by requireAuth)
 const publicAlgoRoutes = new Set([
