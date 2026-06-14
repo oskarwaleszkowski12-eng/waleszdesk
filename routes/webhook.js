@@ -101,17 +101,23 @@ router.post('/tv/:botId', validate(tvSchema), async (req, res) => {
     let orderId = null, qty = 0, price = 0, side = null;
 
     if (action === 'close') {
-      const positions = await client.getPositions();
-      const pos = positions.find(p => p.symbol === symbol);
-      if (!pos || !parseFloat(pos.size)) {
+      const positions = (await client.getPositions()).filter(p => p.symbol === symbol && parseFloat(p.size) > 0);
+      if (!positions.length) {
         audit(botId, ip, action, symbol, 'skipped', 'no open position');
         return res.json({ ok: true, executed: false, reason: 'no open position' });
       }
-      qty   = parseFloat(pos.size);
-      price = parseFloat(pos.markPrice || pos.entryPrice);
-      side  = pos.side;
-      const result = await client.closePosition(symbol, side, qty);
-      orderId = result?.orderId || null;
+      // Hedge mode: close every open side on this symbol, not just the first one
+      const results = [];
+      for (const pos of positions) {
+        const psz   = parseFloat(pos.size);
+        const ppx   = parseFloat(pos.markPrice || pos.entryPrice);
+        const r     = await client.closePosition(symbol, pos.side, psz);
+        results.push({ side: pos.side, qty: psz, price: ppx, orderId: r?.orderId || null });
+      }
+      qty     = results.reduce((s, r) => s + r.qty, 0);
+      price   = results[0].price;
+      side    = results.map(r => r.side).join('+');
+      orderId = results.map(r => r.orderId).filter(Boolean).join(',') || null;
     } else {
       const ticker = await client.getTicker(symbol);
       price = ticker.markPrice || ticker.lastPrice;
@@ -153,7 +159,8 @@ router.post('/tv/:botId', validate(tvSchema), async (req, res) => {
     sendTelegram(
       `🚨 <b>${escapeHtml(bot.name || 'Bot ' + bot.id)}</b> — WEBHOOK BŁĄD\n${escapeHtml(e.message || 'unknown')}`
     );
-    res.status(500).json({ ok: false, error: 'Execution failed: ' + (e.message || 'unknown') });
+    // Don't leak internal exchange errors to the webhook caller
+    res.status(500).json({ ok: false, error: 'Execution failed' });
   }
 });
 

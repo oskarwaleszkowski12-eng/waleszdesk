@@ -2,7 +2,7 @@ const { Router } = require('express');
 const { pool }   = require('../lib/db');
 const { requireAuth } = require('../lib/auth');
 const { validate, z } = require('../lib/validate');
-const { sendTelegram } = require('../lib/telegram');
+const { sendTelegram, escapeHtml } = require('../lib/telegram');
 const { sendSubscriberReplyEmail } = require('../lib/email');
 const logger = require('../lib/logger');
 
@@ -33,7 +33,7 @@ router.post('/', validate(contactSchema), async (req, res) => {
     await client.query('COMMIT');
 
     sendTelegram(
-      `📬 <b>Nowa wiadomość</b> (landing)\n👤 ${name} &lt;${email}&gt;\n📌 ${subject}\n\n${content.slice(0, 300)}${content.length > 300 ? '…' : ''}`
+      `📬 <b>Nowa wiadomość</b> (landing)\n👤 ${escapeHtml(name)} &lt;${escapeHtml(email)}&gt;\n📌 ${escapeHtml(subject)}\n\n${escapeHtml(content.slice(0, 300))}${content.length > 300 ? '…' : ''}`
     );
     res.json({ ok: true });
   } catch (err) {

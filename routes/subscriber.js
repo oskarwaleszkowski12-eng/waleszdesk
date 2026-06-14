@@ -4,7 +4,7 @@ const jwt        = require('jsonwebtoken');
 const { pool }   = require('../lib/db');
 const { JWT_SECRET, requireAuth, requireSubscriberAuth } = require('../lib/auth');
 const { validate, z } = require('../lib/validate');
-const { sendTelegram } = require('../lib/telegram');
+const { sendTelegram, escapeHtml } = require('../lib/telegram');
 const { sendSubscriberWelcome } = require('../lib/email');
 const { logAdminAction } = require('../lib/audit');
 const logger     = require('../lib/logger');
@@ -467,7 +467,7 @@ router.post('/conversations', requireSubscriberAuth, validate(convSchema), async
     await client.query('COMMIT');
     const planLabels = { pro: 'Pro', vip: 'VIP', mentoring: 'Mentoring' };
     sendTelegram(
-      `📬 <b>Nowa wiadomość</b> (${planLabels[sub.plan]||sub.plan})\n👤 ${subRow.name||subRow.email}\n📌 ${subject}\n\n${content.slice(0,300)}${content.length>300?'…':''}`
+      `📬 <b>Nowa wiadomość</b> (${escapeHtml(planLabels[sub.plan]||sub.plan)})\n👤 ${escapeHtml(subRow.name||subRow.email)}\n📌 ${escapeHtml(subject)}\n\n${escapeHtml(content.slice(0,300))}${content.length>300?'…':''}`
     );
     res.json({ ok: true, id: convId });
   } catch (err) {
@@ -534,7 +534,7 @@ router.post('/conversations/:id/messages', requireSubscriberAuth, validate(msgSc
     );
     await client.query('COMMIT');
     const subName = req.subscriber.name || req.subscriber.plan;
-    sendTelegram(`💬 <b>Odpowiedź od subskrybenta</b>\n👤 ${subName}\n\n${content.slice(0,300)}${content.length>300?'…':''}`);
+    sendTelegram(`💬 <b>Odpowiedź od subskrybenta</b>\n👤 ${escapeHtml(subName)}\n\n${escapeHtml(content.slice(0,300))}${content.length>300?'…':''}`);
     res.json({ ok: true });
   } catch (err) {
     await client.query('ROLLBACK');
