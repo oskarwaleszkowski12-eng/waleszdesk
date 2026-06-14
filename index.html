@@ -2855,6 +2855,151 @@ async function stopAllBots() {
   } catch { showToast('Network error', 'err'); }
 }
 
+async function openBotWebhook(id) {
+  const bot = botsData.find(b => b.id === id);
+  if (!bot) return;
+  const enabled = !!bot.webhook_enabled;
+
+  let secretShown = null; // populated only on enable/rotate
+  if (!enabled) {
+    if (!confirm(`Enable TradingView webhook for "${bot.name}"?\n\nSecret will be shown ONCE. Save it before closing.`)) return;
+    try {
+      const r = await apiFetch(`/api/bots/${id}/webhook`, { method: 'POST' });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.error || 'Failed');
+      secretShown = d.secret;
+      bot.webhook_enabled = true;
+      renderBots();
+    } catch (e) { showToast('Webhook enable failed: ' + e.message, 'err'); return; }
+  }
+
+  const origin = location.origin;
+  const url    = `${origin}/api/webhook/tv/${id}`;
+  const samplePayload = JSON.stringify({
+    secret:  secretShown || '<your-secret>',
+    action:  'buy',
+    symbol:  bot.symbol,
+    qty_usd: 100,
+  }, null, 2);
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px;';
+  overlay.innerHTML = `
+    <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r2);padding:24px;max-width:600px;width:100%;max-height:90vh;overflow:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div>
+          <div style="font-size:18px;font-weight:700;">TradingView Webhook</div>
+          <div style="font-size:12px;color:var(--muted2);margin-top:4px;">${bot.name} · ${bot.symbol}</div>
+        </div>
+        <button class="btn sm" id="wh-close" style="font-size:14px;">&times;</button>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);margin-bottom:6px;">Webhook URL</div>
+        <div style="display:flex;gap:6px;">
+          <input id="wh-url" readonly value="${url}" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:8px 10px;font-family:var(--font-mono);font-size:11px;">
+          <button class="btn sm" data-copy="wh-url">Copy</button>
+        </div>
+      </div>
+
+      ${secretShown ? `
+      <div style="margin-bottom:14px;padding:10px;background:rgba(0,200,150,.08);border:1px solid rgba(0,200,150,.3);border-radius:var(--r);">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-bottom:6px;">Secret (shown ONCE — save it now)</div>
+        <div style="display:flex;gap:6px;">
+          <input id="wh-secret" readonly value="${secretShown}" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:8px 10px;font-family:var(--font-mono);font-size:11px;">
+          <button class="btn sm" data-copy="wh-secret">Copy</button>
+        </div>
+      </div>` : `
+      <div style="margin-bottom:14px;padding:10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);font-size:12px;color:var(--muted2);">
+        Webhook is enabled. The secret was shown when you created it — if you lost it, click <b>Rotate</b> below.
+      </div>`}
+
+      <div style="margin-bottom:14px;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);margin-bottom:6px;">Sample TradingView Alert Body</div>
+        <textarea id="wh-sample" readonly rows="7" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:8px 10px;font-family:var(--font-mono);font-size:11px;resize:vertical;">${samplePayload}</textarea>
+        <div style="font-size:11px;color:var(--muted2);margin-top:6px;line-height:1.5;">
+          In TradingView: <b>Create Alert → Webhook URL</b> = paste URL above. <b>Message</b> = paste body. Allowed <code>action</code>: <code>buy</code>, <code>sell</code>, <code>close</code>. Omit <code>symbol</code> to use bot default. Omit <code>qty_usd</code> to use bot's <code>base_order_size</code>.
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--border);padding-top:14px;">
+        <button class="btn sm red" id="wh-disable">Disable webhook</button>
+        <button class="btn sm" id="wh-rotate">Rotate secret</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('#wh-close').onclick = close;
+  overlay.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => {
+    const el = document.getElementById(b.dataset.copy);
+    el.select(); document.execCommand('copy');
+    b.textContent = '✓'; setTimeout(() => b.textContent = 'Copy', 1200);
+  });
+  overlay.querySelector('#wh-rotate').onclick = async () => {
+    if (!confirm('Rotate webhook secret? The old secret will stop working immediately.')) return;
+    close();
+    try {
+      const r = await apiFetch(`/api/bots/${id}/webhook`, { method: 'POST' });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.error || 'Failed');
+      // Reopen with new secret visible
+      bot.webhook_enabled = true;
+      openBotWebhook._injectSecret = d.secret;
+      // Quick hack: re-open and bypass enable-confirm by simulating enabled+secret flow
+      await openBotWebhookWithSecret(id, d.secret);
+    } catch (e) { showToast('Rotate failed: ' + e.message, 'err'); }
+  };
+  overlay.querySelector('#wh-disable').onclick = async () => {
+    if (!confirm('Disable webhook? TradingView alerts will be rejected.')) return;
+    try {
+      const r = await apiFetch(`/api/bots/${id}/webhook`, { method: 'DELETE' });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.error || 'Failed');
+      bot.webhook_enabled = false;
+      renderBots();
+      close();
+      showToast('Webhook disabled', 'ok');
+    } catch (e) { showToast('Disable failed: ' + e.message, 'err'); }
+  };
+}
+
+async function openBotWebhookWithSecret(id, secret) {
+  // Re-render the openBotWebhook flow but with a pre-known secret (after rotate).
+  const bot = botsData.find(b => b.id === id);
+  if (!bot) return;
+  const origin = location.origin;
+  const url    = `${origin}/api/webhook/tv/${id}`;
+  const samplePayload = JSON.stringify({ secret, action: 'buy', symbol: bot.symbol, qty_usd: 100 }, null, 2);
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px;';
+  overlay.innerHTML = `
+    <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r2);padding:24px;max-width:600px;width:100%;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div style="font-size:18px;font-weight:700;">New secret generated</div>
+        <button class="btn sm" id="wh2-close">&times;</button>
+      </div>
+      <div style="margin-bottom:14px;padding:10px;background:rgba(0,200,150,.08);border:1px solid rgba(0,200,150,.3);border-radius:var(--r);">
+        <div style="font-size:10px;font-weight:700;color:var(--accent);margin-bottom:6px;">Secret (shown ONCE)</div>
+        <div style="display:flex;gap:6px;">
+          <input id="wh2-secret" readonly value="${secret}" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:8px 10px;font-family:var(--font-mono);font-size:11px;">
+          <button class="btn sm" id="wh2-copy">Copy</button>
+        </div>
+      </div>
+      <div style="margin-bottom:6px;font-size:10px;color:var(--muted2);">Sample body:</div>
+      <textarea readonly rows="7" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:8px 10px;font-family:var(--font-mono);font-size:11px;">${samplePayload}</textarea>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('#wh2-close').onclick = close;
+  overlay.querySelector('#wh2-copy').onclick = () => {
+    const el = document.getElementById('wh2-secret');
+    el.select(); document.execCommand('copy');
+  };
+}
+
 async function openBotLogs(id) {
   const bot     = botsData.find(b => b.id === id);
   const title   = document.getElementById('logs-modal-title');
@@ -2981,6 +3126,7 @@ function renderBots() {
       <div id="bot-menu-${b.id}" class="bot-menu">
         <div class="bmi" data-action="edit"    data-id="${b.id}">&#9998; Edit</div>
         <div class="bmi" data-action="logs"    data-id="${b.id}">&#128203; Logs</div>
+        <div class="bmi" data-action="webhook" data-id="${b.id}">&#128279; Webhook${b.webhook_enabled ? ' &#9679;' : ''}</div>
         <div class="bmi accent" data-action="publish" data-id="${b.id}">&#8599; Publish to Algo</div>
         <div class="bmi-sep"></div>
         ${menuActions}
@@ -6064,6 +6210,7 @@ document.addEventListener('DOMContentLoaded', () => {
       'delete':      () => { deleteBotPermanent(id, name); closeBotMenus(); },
       'edit':        () => { openEditBot(id); closeBotMenus(); },
       'logs':        () => { openBotLogs(id); closeBotMenus(); },
+      'webhook':     () => { openBotWebhook(id); closeBotMenus(); },
       'publish':     () => { openPublishToAlgo(id); closeBotMenus(); },
       'toggle-menu': () => toggleBotMenu(id, e),
       'open-bot':    () => openAddBot(),

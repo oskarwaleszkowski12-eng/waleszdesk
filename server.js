@@ -33,6 +33,7 @@ const fundedRoutes      = require('./routes/funded');
 const waitlistRoutes    = require('./routes/waitlist');
 const subscriberRoutes  = require('./routes/subscriber');
 const messagesRoutes    = require('./routes/messages');
+const webhookRoutes     = require('./routes/webhook');
 const attachmentsRoutes = require('./routes/attachments');
 const engineRoutes      = require('./routes/engine');
 
@@ -130,12 +131,14 @@ const algoFlowLimiter     = rateLimit({ windowMs: 60_000,      max: 30,  standar
 const verifyInviteLimiter = rateLimit({ windowMs: 60 * 60_000, max: 10,  standardHeaders: true, legacyHeaders: false });
 const waitlistLimiter     = rateLimit({ windowMs: 60_000,      max: 5,   standardHeaders: true, legacyHeaders: false });
 const contactLimiter      = rateLimit({ windowMs: 60_000,      max: 5,   standardHeaders: true, legacyHeaders: false });
+const webhookLimiter      = rateLimit({ windowMs: 60_000,      max: 60,  standardHeaders: true, legacyHeaders: false });
 app.use('/api/', limiter);
 app.use('/api/auth/', authLimiter);
 app.use('/api/subscriber/', authLimiter);
 app.use('/api/algo/', algoFlowLimiter);
 app.use('/api/algo/verify-invite', verifyInviteLimiter);
 app.use('/api/waitlist', waitlistLimiter);
+app.use('/api/webhook/', webhookLimiter);
 app.use((req, res, next) => {
   if (req.path === '/api/messages' && req.method === 'POST') return contactLimiter(req, res, next);
   next();
@@ -150,12 +153,14 @@ const publicAlgoRoutes = new Set([
   '/algo/verify-invite',
 ]);
 
-// Auth guard — public: /status, /auth/*, /subscriber/* (own auth), selected algo routes, POST /waitlist, POST /messages
+// Auth guard — public: /status, /auth/*, /subscriber/* (own auth), selected algo routes,
+// POST /waitlist, POST /messages, /webhook/* (per-bot HMAC secret in body)
 app.use('/api', (req, res, next) => {
   if (
     req.path === '/status' ||
     req.path.startsWith('/auth/') ||
     req.path.startsWith('/subscriber/') ||
+    req.path.startsWith('/webhook/') ||
     publicAlgoRoutes.has(req.path) ||
     (req.path === '/waitlist' && req.method === 'POST') ||
     (req.path === '/messages' && req.method === 'POST')
@@ -175,6 +180,7 @@ app.use('/api/funded', fundedRoutes);
 app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/subscriber', subscriberRoutes);
 app.use('/api/messages', messagesRoutes);
+app.use('/api/webhook',  webhookRoutes);
 app.use('/api/attachments', attachmentsRoutes);
 app.use('/api/engine', engineRoutes);
 

@@ -25,9 +25,10 @@ const createBotSchema = z.object({
 const router = Router();
 
 function botPublic(row) {
-  const { api_key_enc, api_secret_enc, api_passphrase_enc, ...pub } = row;
-  pub.exchange       = row.exchange || 'bybit';
-  pub.api_key_masked = api_key_enc ? (() => { try { return decrypt(api_key_enc).slice(0, 4) + '***'; } catch { return '****'; } })() : null;
+  const { api_key_enc, api_secret_enc, api_passphrase_enc, webhook_secret, ...pub } = row;
+  pub.exchange         = row.exchange || 'bybit';
+  pub.api_key_masked   = api_key_enc ? (() => { try { return decrypt(api_key_enc).slice(0, 4) + '***'; } catch { return '****'; } })() : null;
+  pub.webhook_enabled  = !!webhook_secret;
 
   // Health badge: green = ticked in last 60s + no recent error
   //               yellow = ticked but stale (60s-5min) OR last error within 1h
@@ -221,6 +222,43 @@ router.patch('/:id/resume', async (req, res) => {
     if (!rows.length) return res.status(404).json({ ok: false, error: 'Bot not found' });
     res.json({ ok: true, bot: botPublic(rows[0]) });
   } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+});
+
+// Generate (or rotate) a TradingView webhook secret for this bot.
+// Secret is returned ONCE; subsequent GET /api/bots only exposes webhook_enabled boolean.
+router.post('/:id/webhook', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isFinite(id)) return res.status(400).json({ ok: false, error: 'Bad id' });
+  const secret = require('crypto').randomBytes(24).toString('hex');
+  try {
+    const { rowCount } = await pool.query(
+      `UPDATE bots SET webhook_secret=$1, updated_at=NOW() WHERE id=$2`,
+      [secret, id]
+    );
+    if (!rowCount) return res.status(404).json({ ok: false, error: 'Bot not found' });
+    logAdminAction(req, 'bots.webhook.enable', 'bot', id, {});
+    res.json({ ok: true, secret, path: `/api/webhook/tv/${id}` });
+  } catch (err) {
+    logger.error({ err }, '[bots] webhook enable failed');
+    res.status(500).json({ ok: false, error: 'DB error' });
+  }
+});
+
+router.delete('/:id/webhook', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isFinite(id)) return res.status(400).json({ ok: false, error: 'Bad id' });
+  try {
+    const { rowCount } = await pool.query(
+      `UPDATE bots SET webhook_secret=NULL, updated_at=NOW() WHERE id=$1`,
+      [id]
+    );
+    if (!rowCount) return res.status(404).json({ ok: false, error: 'Bot not found' });
+    logAdminAction(req, 'bots.webhook.disable', 'bot', id, {});
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, '[bots] webhook disable failed');
+    res.status(500).json({ ok: false, error: 'DB error' });
+  }
 });
 
 router.delete('/:id', async (req, res) => {
