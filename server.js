@@ -129,12 +129,17 @@ const authLimiter         = rateLimit({ windowMs: 60_000,      max: 10,  standar
 const algoFlowLimiter     = rateLimit({ windowMs: 60_000,      max: 30,  standardHeaders: true, legacyHeaders: false });
 const verifyInviteLimiter = rateLimit({ windowMs: 60 * 60_000, max: 10,  standardHeaders: true, legacyHeaders: false });
 const waitlistLimiter     = rateLimit({ windowMs: 60_000,      max: 5,   standardHeaders: true, legacyHeaders: false });
+const contactLimiter      = rateLimit({ windowMs: 60_000,      max: 5,   standardHeaders: true, legacyHeaders: false });
 app.use('/api/', limiter);
 app.use('/api/auth/', authLimiter);
 app.use('/api/subscriber/', authLimiter);
 app.use('/api/algo/', algoFlowLimiter);
 app.use('/api/algo/verify-invite', verifyInviteLimiter);
 app.use('/api/waitlist', waitlistLimiter);
+app.use((req, res, next) => {
+  if (req.path === '/api/messages' && req.method === 'POST') return contactLimiter(req, res, next);
+  next();
+});
 
 // Public route allowlist (rest are protected by requireAuth)
 const publicAlgoRoutes = new Set([
