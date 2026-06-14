@@ -2922,6 +2922,14 @@ async function openBotWebhook(id) {
         </div>
       </div>
 
+      <div style="margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);">Recent Events</div>
+          <button class="btn sm" id="wh-refresh" style="font-size:10px;padding:3px 8px;">Refresh</button>
+        </div>
+        <div id="wh-events" style="max-height:200px;overflow:auto;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:8px;font-family:var(--font-mono);font-size:10px;color:var(--muted2);">Loading…</div>
+      </div>
+
       <div style="display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--border);padding-top:14px;">
         <button class="btn sm red" id="wh-disable">Disable webhook</button>
         <button class="btn sm" id="wh-rotate">Rotate secret</button>
@@ -2932,6 +2940,41 @@ async function openBotWebhook(id) {
   const close = () => overlay.remove();
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
   overlay.querySelector('#wh-close').onclick = close;
+
+  const loadEvents = async () => {
+    const box = overlay.querySelector('#wh-events');
+    if (!box) return;
+    box.textContent = 'Loading…';
+    try {
+      const r = await apiFetch(`/api/bots/${id}/webhook-events?limit=50`);
+      const d = await r.json();
+      if (!d.ok || !d.events?.length) { box.innerHTML = '<div style="text-align:center;padding:12px;">No events yet</div>'; return; }
+      const colorFor = s => ({
+        executed:     'var(--green)',
+        skipped:      'var(--amber)',
+        unauthorized: 'var(--red)',
+        error:        'var(--red)',
+        bad_request:  'var(--red)',
+        no_keys:      'var(--red)',
+        decrypt_error:'var(--red)',
+        db_error:     'var(--red)',
+      })[s] || 'var(--muted2)';
+      box.innerHTML = d.events.map(ev => {
+        const dt = new Date(ev.created_at).toLocaleString('pl-PL', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+        const ipShort = (ev.ip || '').slice(0, 24);
+        const safeMsg = (ev.message || '').replace(/[<>&"]/g, c => ({ '<':'&lt;', '>':'&gt;', '&':'&amp;', '"':'&quot;' })[c]);
+        return `<div style="padding:4px 0;border-bottom:1px solid var(--border);">
+          <span style="color:var(--muted2);">${dt}</span>
+          <span style="color:${colorFor(ev.status)};font-weight:700;margin-left:8px;">${ev.status}</span>
+          <span style="margin-left:8px;">${ev.action || '-'}${ev.symbol ? ' ' + ev.symbol : ''}</span>
+          <span style="color:var(--muted2);margin-left:8px;">${ipShort}</span>
+          ${safeMsg ? `<div style="color:var(--muted2);padding-left:8px;margin-top:2px;font-size:9px;">${safeMsg}</div>` : ''}
+        </div>`;
+      }).join('');
+    } catch (e) { box.textContent = 'Failed to load events: ' + e.message; }
+  };
+  overlay.querySelector('#wh-refresh').onclick = loadEvents;
+  loadEvents();
   overlay.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => {
     const el = document.getElementById(b.dataset.copy);
     el.select(); document.execCommand('copy');

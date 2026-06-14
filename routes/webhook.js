@@ -10,6 +10,17 @@ const logger                   = require('../lib/logger');
 
 const router = Router();
 
+function clientIp(req) {
+  return (req.headers['x-forwarded-for']?.split(',')[0] || req.socket?.remoteAddress || '').slice(0, 64);
+}
+
+function audit(botId, ip, action, symbol, status, message) {
+  pool.query(
+    `INSERT INTO webhook_events (bot_id, ip, action, symbol, status, message) VALUES ($1,$2,$3,$4,$5,$6)`,
+    [botId || null, ip || null, action || null, symbol || null, status, (message || '').slice(0, 500) || null]
+  ).catch(err => logger.warn({ err }, '[webhook] audit insert failed'));
+}
+
 const tvSchema = z.object({
   secret:  z.string().min(8).max(128),
   action:  z.enum(['buy', 'sell', 'close']),
@@ -36,8 +47,12 @@ function timingSafeEq(a, b) {
 
 // POST /api/webhook/tv/:botId — TradingView (or any HTTP client) entry point
 router.post('/tv/:botId', validate(tvSchema), async (req, res) => {
+  const ip = clientIp(req);
   const botId = parseInt(req.params.botId, 10);
-  if (!Number.isFinite(botId)) return res.status(400).json({ ok: false, error: 'Bad botId' });
+  if (!Number.isFinite(botId)) {
+    audit(null, ip, null, null, 'bad_request', 'Bad botId');
+    return res.status(400).json({ ok: false, error: 'Bad botId' });
+  }
   const { secret, action, symbol: bodySymbol, qty_usd } = req.body;
 
   let bot;
@@ -46,11 +61,13 @@ router.post('/tv/:botId', validate(tvSchema), async (req, res) => {
     bot = rows[0];
   } catch (e) {
     logger.error({ err: e, botId }, '[webhook] DB lookup failed');
+    audit(botId, ip, action, bodySymbol, 'db_error', e.message);
     return res.status(500).json({ ok: false, error: 'DB error' });
   }
 
   // Always return 401 on missing bot OR missing secret OR mismatch — don't leak which.
   if (!bot || !bot.webhook_secret || !timingSafeEq(secret, bot.webhook_secret)) {
+    audit(botId, ip, action, bodySymbol, 'unauthorized', null);
     return res.status(401).json({ ok: false, error: 'Unauthorized' });
   }
 
@@ -58,9 +75,11 @@ router.post('/tv/:botId', validate(tvSchema), async (req, res) => {
   // hammering the endpoint with retries when the user has manually paused the bot).
   if (bot.status !== 'active') {
     logger.info({ botId, status: bot.status }, '[webhook] bot not active — acked, skipped');
+    audit(botId, ip, action, bodySymbol || bot.symbol, 'skipped', `bot status: ${bot.status}`);
     return res.json({ ok: true, executed: false, reason: 'bot not active' });
   }
   if (!bot.api_key_enc || !bot.api_secret_enc) {
+    audit(botId, ip, action, bodySymbol || bot.symbol, 'no_keys', null);
     return res.status(409).json({ ok: false, error: 'Bot has no API keys' });
   }
 
@@ -74,6 +93,7 @@ router.post('/tv/:botId', validate(tvSchema), async (req, res) => {
     client = createExchangeClient(bot.exchange || 'bybit', apiKey, apiSecret, passphrase);
   } catch (e) {
     logger.error({ botId, err: e }, '[webhook] key decrypt failed');
+    audit(botId, ip, action, symbol, 'decrypt_error', e.message);
     return res.status(500).json({ ok: false, error: 'Key decrypt failed' });
   }
 
@@ -84,6 +104,7 @@ router.post('/tv/:botId', validate(tvSchema), async (req, res) => {
       const positions = await client.getPositions();
       const pos = positions.find(p => p.symbol === symbol);
       if (!pos || !parseFloat(pos.size)) {
+        audit(botId, ip, action, symbol, 'skipped', 'no open position');
         return res.json({ ok: true, executed: false, reason: 'no open position' });
       }
       qty   = parseFloat(pos.size);
@@ -96,9 +117,15 @@ router.post('/tv/:botId', validate(tvSchema), async (req, res) => {
       price = ticker.markPrice || ticker.lastPrice;
       if (!price) throw new Error('No ticker price');
       const usd = qty_usd || parseFloat(bot.config?.base_order_size || 0);
-      if (!usd) return res.status(400).json({ ok: false, error: 'qty_usd missing and bot has no base_order_size' });
+      if (!usd) {
+        audit(botId, ip, action, symbol, 'bad_request', 'qty_usd missing and bot has no base_order_size');
+        return res.status(400).json({ ok: false, error: 'qty_usd missing and bot has no base_order_size' });
+      }
       qty = calcQty(symbol, usd, price);
-      if (qty <= 0) return res.status(400).json({ ok: false, error: 'Computed qty <= 0' });
+      if (qty <= 0) {
+        audit(botId, ip, action, symbol, 'bad_request', 'Computed qty <= 0');
+        return res.status(400).json({ ok: false, error: 'Computed qty <= 0' });
+      }
       side = action === 'buy' ? 'Buy' : 'Sell';
       const result = await client.placeOrder({ symbol, side, type: 'Market', qty });
       orderId = result?.orderId || null;
@@ -117,10 +144,12 @@ router.post('/tv/:botId', validate(tvSchema), async (req, res) => {
       `${escapeHtml(symbol)} ${escapeHtml(action.toUpperCase())} · ${qty} @ $${Number(price).toFixed(2)}`
     );
     logger.info({ botId, action, symbol, qty, price, orderId }, '[webhook] executed');
+    audit(botId, ip, action, symbol, 'executed', `${side} ${qty} @ ${Number(price).toFixed(2)} order=${orderId || '-'}`);
 
     res.json({ ok: true, executed: true, orderId, action, symbol, qty, price });
   } catch (e) {
     logger.error({ botId, err: e }, '[webhook] execution failed');
+    audit(botId, ip, action, symbol, 'error', e.message || 'unknown');
     sendTelegram(
       `🚨 <b>${escapeHtml(bot.name || 'Bot ' + bot.id)}</b> — WEBHOOK BŁĄD\n${escapeHtml(e.message || 'unknown')}`
     );

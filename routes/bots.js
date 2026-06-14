@@ -244,6 +244,27 @@ router.post('/:id/webhook', async (req, res) => {
   }
 });
 
+// Webhook audit log for a bot (last N events, newest first).
+router.get('/:id/webhook-events', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isFinite(id)) return res.status(400).json({ ok: false, error: 'Bad id' });
+  const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, ip, action, symbol, status, message, created_at
+         FROM webhook_events
+        WHERE bot_id=$1
+        ORDER BY created_at DESC
+        LIMIT $2`,
+      [id, limit]
+    );
+    res.json({ ok: true, events: rows });
+  } catch (err) {
+    logger.error({ err }, '[bots] webhook-events query failed');
+    res.status(500).json({ ok: false, error: 'DB error' });
+  }
+});
+
 router.delete('/:id/webhook', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (!Number.isFinite(id)) return res.status(400).json({ ok: false, error: 'Bad id' });
